@@ -116,7 +116,7 @@ def parse_area(area_el):
     """Return a dict for one AreaStats element, merged over its modes (A/B/C)."""
     ident = text(area_el, "SID") or text(area_el, "ID_Safe") or text(area_el, "ID")
     info = {"id": ident, "completed": False, "touched": False, "deaths": 0,
-            "ticks": 0, "berries": 0, "heart": False, "modes": []}
+            "ticks": 0, "berries": 0, "heart": False, "modes": [], "checkpoints": {}}
     modes = child(area_el, "Modes")
     mode_els = [m for m in modes if local(m.tag) == "AreaModeStats"] if modes is not None else []
     for i, m in enumerate(mode_els):
@@ -125,9 +125,14 @@ def parse_area(area_el):
         done = as_bool(text(m, "Completed"))
         berries = as_int(text(m, "TotalStrawberries"))
         heart = as_bool(text(m, "HeartGem"))
-        if done or ticks > 0 or deaths > 0:
+        side = "ABC"[i] if i < 3 else str(i)
+        cps_el = child(m, "Checkpoints")
+        cps = [(c.text or "").strip() for c in cps_el if local(c.tag) == "string"] if cps_el is not None else []
+        if cps:
+            info["checkpoints"][side] = cps
+        if done or ticks > 0 or deaths > 0 or cps:
             info["touched"] = True
-            info["modes"].append("ABC"[i] if i < 3 else str(i))
+            info["modes"].append(side)
         info["completed"] = info["completed"] or done
         info["deaths"] += deaths
         info["ticks"] += ticks
@@ -169,7 +174,30 @@ def parse_save(path):
         for ls in (x for x in block_el if local(x.tag) == "LevelSetStats"):
             sets.append({"name": text(ls, "Name") or "(unnamed)", "not_loaded": not_loaded,
                          "areas": read_areas(child(ls, "Areas"), "map")})
-    return sets, last_area
+    return sets, last_area, read_session(root, sets)
+
+
+SIDES = {"Normal": "A", "BSide": "B", "CSide": "C"}
+
+
+def read_session(root, sets):
+    """The saved mid-map session (Save & Quit), or None. One per slot, for the last-played map."""
+    cs = next(iter_local(root, "CurrentSession_Safe"), None)
+    if cs is None:
+        cs = next(iter_local(root, "CurrentSession"), None)
+    area = child(cs, "Area") if cs is not None else None
+    if cs is None or area is None or not cs.get("Level"):
+        return None
+    sid = text(area, "SID")
+    side = SIDES.get(area.get("Mode", "Normal"), "A")
+    cps = []
+    for st in sets:
+        for a in st["areas"]:
+            if a["id"] == sid:
+                cps = a["checkpoints"].get(side, [])
+    return {"sid": sid, "side": side, "room": cs.get("Level"),
+            "start_checkpoint": cs.get("StartCheckpoint") or "",
+            "deaths": as_int(cs.get("Deaths")), "checkpoints": cps}
 
 
 def summarize(sets, last_area):
@@ -189,7 +217,14 @@ def summarize(sets, last_area):
             status = "in progress"
         else:
             status = "started"
+        # Latest checkpoint: from the unfinished map with checkpoints you've played longest.
+        cands = [a for a in in_prog if a["checkpoints"]]
+        latest = ""
+        if cands:
+            best = max(cands, key=lambda a: a["ticks"])
+            latest = best["checkpoints"][list(best["checkpoints"])[-1]][-1]
         rows.append({
+            "latest_ckpt": latest,
             "name": s["name"],
             "not_loaded": s["not_loaded"],
             "total": total,
@@ -201,10 +236,34 @@ def summarize(sets, last_area):
             "berries": sum(a["berries"] for a in touched),
             "completed_maps": [a["id"] for a in touched if a["completed"]],
             "unfinished": [a["id"] for a in in_prog],
+            "checkpoints": {a["id"]: a["checkpoints"] for a in touched if a["checkpoints"]},
+            "ckpt_count": sum(len(c) for a in in_prog for c in a["checkpoints"].values()),
             "is_last": bool(last_area) and any(a["id"] == last_area for a in s["areas"]),
         })
     rows.sort(key=lambda r: (-int(r["is_last"]), -r["ticks"]))
     return rows
+
+
+def fmt_checkpoints(cps):
+    """{'A': ['6', '9b']} -> 'A: 2 (6, 9b)'"""
+    return "; ".join(f"{side}: {len(rooms)} ({', '.join(rooms)})" for side, rooms in cps.items())
+
+
+def fmt_session(sess):
+    out = f"Resume: {sess['sid']} ({sess['side']}-side), room {sess['room']}"
+    if sess["start_checkpoint"]:
+        out += f", started from checkpoint room {sess['start_checkpoint']}"
+    out += f", {sess['deaths']} death(s) this session"
+    if sess["checkpoints"]:
+        out += f"; {len(sess['checkpoints'])} checkpoint(s) reached ({', '.join(sess['checkpoints'])})"
+    return out
+
+
+def ckpt_note(r, session):
+    """Current room for the last-played set, else its latest checkpoint (last one listed in the save)."""
+    if r["is_last"] and session:
+        return f" (room {session['room']})"
+    return f" (ckpt {r['latest_ckpt']})" if r["latest_ckpt"] else ""
 
 
 def label(r):
@@ -263,22 +322,26 @@ def set_note(args, sets):
 
 # ---------------------------------------------------------------- rendering
 
-def render_text(rows, last_area, notes):
+def render_text(rows, last_area, notes, session=None):
     out = []
     labels = [label(r) for r in rows]
     w = max([len(x) for x in labels] + [9])
-    out.append(f"{'Level set':<{w}}  {'Done/Maps':<11}  {'Status':<15}  {'Deaths':>6}  {'Time':<9}  Berries")
-    out.append("-" * (w + 58))
+    out.append(f"{'Level set':<{w}}  {'Done/Maps':<11}  {'Status':<15}  {'Deaths':>6}  {'Time':<9}  {'Berries':>7}  Ckpts")
+    out.append("-" * (w + 66))
     for r, lab in zip(rows, labels):
         mark = " *" if r["is_last"] else ""
+        room = ckpt_note(r, session)
         cell = f"{r['done']}/{r['total'] or r['opened']}"
         out.append(f"{lab:<{w}}  {cell:<11}  {r['status']:<15}  {r['deaths']:>6}  "
-                   f"{fmt_time(r['ticks']):<9}  {r['berries']:>7}{mark}")
+                   f"{fmt_time(r['ticks']):<9}  {r['berries']:>7}  {r['ckpt_count']:>5}{room}{mark}")
         if r["name"] in notes:
             out.append(f"{'':<{w}}    note: {notes[r['name']]}")
     out.append("")
     if last_area:
         out.append(f"* = contains your last-played map ({last_area})")
+    if session:
+        out.append(fmt_session(session))
+    out.append("Ckpts = checkpoints reached in unfinished maps (finished maps are listed separately). (room X) = your saved room, only for the last-played set; (ckpt X) = latest checkpoint listed. They are room IDs; the start of a map isn't listed. A save doesn't record how many a map has.")
     out.append("Maps: vanilla counts all 11 chapters; for mods it counts only maps you've opened "
                "(a save doesn't record how many maps a mod has).")
     if any(r["not_loaded"] for r in rows):
@@ -293,7 +356,13 @@ def render_text(rows, last_area, notes):
             for a in r["unfinished"]:
                 shown.add(a)
                 note = f"   <- {notes[a]}" if a in notes else ""
-                out.append(f"    - {a}{note}")
+                cps = f"  [checkpoints {fmt_checkpoints(r['checkpoints'][a])}]" if a in r["checkpoints"] else ""
+                out.append(f"    - {a}{cps}{note}")
+    finished = [(r, a) for r in rows for a in r["completed_maps"] if a in r["checkpoints"]]
+    if finished:
+        out.append("\nCompleted maps, checkpoints reached:")
+        for r, a in finished:
+            out.append(f"  {a}  [{fmt_checkpoints(r['checkpoints'][a])}]")
     rest = {k: v for k, v in notes.items() if k not in shown}
     if rest:
         out.append("\nOther notes:")
@@ -304,16 +373,18 @@ def render_text(rows, last_area, notes):
     return "\n".join(out)
 
 
-def render_markdown(rows, last_area, notes):
-    out = ["| Level set | Done/Maps | Status | Deaths | Time | Berries | Unfinished maps | Notes |",
-           "|---|---|---|---|---|---|---|---|"]
+def render_markdown(rows, last_area, notes, session=None):
+    out = ["| Level set | Done/Maps | Status | Deaths | Time | Berries | Checkpoints | Unfinished maps | Notes |",
+           "|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         name = label(r) + (" (last played)" if r["is_last"] else "")
-        maps = ", ".join(r["unfinished"])
+        room = ckpt_note(r, session)
+        maps = ", ".join(f"{a} [{fmt_checkpoints(r['checkpoints'][a])}]" if a in r["checkpoints"] else a
+                         for a in r["unfinished"])
         rn = "; ".join(f"{k}: {v}" for k, v in notes.items()
                        if k == r["name"] or k in r["unfinished"] or k in r["completed_maps"])
         out.append(f"| {name} | {r['done']}/{r['total'] or r['opened']} | {r['status']} | {r['deaths']} | "
-                   f"{fmt_time(r['ticks'])} | {r['berries']} | {maps} | {rn} |")
+                   f"{fmt_time(r['ticks'])} | {r['berries']} | {r['ckpt_count']}{room} | {maps} | {rn} |")
     return "\n".join(out) + "\n"
 
 
@@ -359,7 +430,7 @@ def main():
         dump(path)
         return
 
-    sets, last_area = parse_save(path)
+    sets, last_area, session = parse_save(path)
     if args.note:
         set_note(args, sets)
         return
@@ -372,10 +443,10 @@ def main():
     notes = load_json(args.notes, {})
 
     print(f"Save: {path}\n")
-    print(render_text(rows, last_area, notes))
+    print(render_text(rows, last_area, notes, session))
 
     if args.markdown:
-        Path(args.markdown).write_text(render_markdown(rows, last_area, notes), encoding="utf-8")
+        Path(args.markdown).write_text(render_markdown(rows, last_area, notes, session), encoding="utf-8")
         print(f"\nMarkdown written to {args.markdown}")
 
 
