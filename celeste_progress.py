@@ -12,6 +12,7 @@ Usage:
     python celeste_progress.py --markdown progress.md
     python celeste_progress.py --slot 1 | --saves <Saves folder> | --file <save file>
     python celeste_progress.py --mods [FOLDER]       # read titles and map totals from your Mods folder
+    python celeste_progress.py --mods --set KEY      # every map of one level set (KEY: ID or title, or part)
     python celeste_progress.py --dump                # print raw XML structure (debugging)
 
 KEY can be a level set name or a map name, exact or just a unique part of it
@@ -509,6 +510,68 @@ def render_markdown(rows, last_area, notes, session=None, mods=None):
     return "\n".join(out) + "\n"
 
 
+def find_set(key, sets, mods):
+    """The one level set KEY names: exact ID or title, else a unique case-insensitive substring."""
+    cands = [s for s in sets if s["areas"] or mods.total(s["name"])]
+    low = key.lower()
+    hits = [s for s in cands if key in (s["name"], mods.title(s["name"]))]
+    hits = hits or [s for s in cands if low in s["name"].lower() or low in mods.title(s["name"]).lower()]
+    if not hits:
+        sys.exit(f"No level set matches '{key}'.")
+    if len(hits) > 1:
+        sys.exit(f"'{key}' matches several level sets, be more specific:\n  "
+                 + "\n  ".join(label({"title": mods.title(h["name"]), "name": h["name"],
+                                       "not_loaded": h["not_loaded"]}) for h in hits[:15]))
+    return hits[0]
+
+
+def render_set(s, last_area, notes, mods):
+    """Every map of one level set: the ones in the save plus, with --mods, the ones never opened."""
+    by_id = {a["id"]: a for a in s["areas"]}
+    known = mods.maps.get(s["name"], set())
+    order = list(by_id) + sorted(known - set(by_id))
+    maps = []
+    for i, sid in enumerate(order):
+        a = by_id.get(sid)
+        if a and a["completed"]:
+            status, rank = "done", 1
+        elif a and a["touched"]:
+            status, rank = "in progress", 0
+        else:
+            status, rank = "not opened", 2
+        maps.append((rank, i, sid, status, a))
+    maps.sort(key=lambda m: m[:2])  # in progress, then done, then not opened; stable inside each group
+
+    counts = {st: sum(1 for m in maps if m[3] == st) for st in ("done", "in progress", "not opened")}
+    head = label({"title": mods.title(s["name"]), "name": s["name"], "not_loaded": s["not_loaded"]})
+    out = [head,
+           f"{counts['done']}/{len(maps)} done, {counts['in progress']} in progress, "
+           f"{counts['not opened']} not opened", ""]
+    labels = []
+    for _, _, sid, _, _ in maps:
+        t, short = mods.title(sid), sid.rpartition("/")[2]
+        labels.append(f"{t} ({short})" if t else short)
+    w = max([len(x) for x in labels] + [3])
+    out.append(f"{'Map':<{w}}  {'Status':<11}  {'Deaths':>6}  {'Time':<9}  {'Berries':>7}  Checkpoints")
+    out.append("-" * (w + 52))
+    for (_, _, sid, status, a), lab in zip(maps, labels):
+        star = " *" if sid == last_area else ""
+        if a and a["touched"]:
+            cps = fmt_checkpoints(a["checkpoints"], mods, sid) if a["checkpoints"] else ""
+            cells = f"{a['deaths']:>6}  {fmt_time(a['ticks']):<9}  {a['berries']:>7}  {cps}"
+        else:
+            cells = f"{'-':>6}  {'-':<9}  {'-':>7}"
+        note = f"   <- {notes[sid]}" if sid in notes else ""
+        out.append(f"{lab:<{w}}  {status:<11}  {cells}{star}{note}".rstrip())
+    out.append("")
+    if last_area in by_id:
+        out.append("* = your last-played map")
+    if not known:
+        out.append("Only maps you've opened are listed: " + ("no mod for this set was found in the Mods folder."
+                   if mods.maps else "add --mods to also list the ones you haven't."))
+    return "\n".join(out)
+
+
 def dump(path, depth=7, per_tag=2):
     """Print the XML structure with attributes, showing at most `per_tag` siblings of each tag."""
     root = ET.parse(path).getroot()
@@ -543,6 +606,7 @@ def main():
     ap.add_argument("--dump", action="store_true", help="print the XML structure and exit")
     ap.add_argument("--note", nargs=2, metavar=("KEY", "TEXT"),
                     help="set a note on a level set or map (empty TEXT removes it)")
+    ap.add_argument("--set", metavar="KEY", help="list every map of one level set (ID or title, or part of it)")
     ap.add_argument("--mods", nargs="?", const="auto", metavar="FOLDER",
                     help="read titles and map totals from the Mods folder (default: next to Saves)")
     ap.add_argument("--notes", default=str(HERE / "celeste_notes.json"), help="notes file")
@@ -557,6 +621,10 @@ def main():
     mods = load_mods(args, path)
     if args.note:
         set_note(args, sets, mods)
+        return
+
+    if args.set:
+        print(render_set(find_set(args.set, sets, mods), last_area, load_json(args.notes, {}), mods))
         return
 
     rows = summarize(sets, last_area, mods)
