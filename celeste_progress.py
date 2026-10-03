@@ -19,9 +19,9 @@ KEY can be a level set name or a map name, exact or just a unique part of it
 Notes are stored next to this script in celeste_notes.json; override with --notes.
 
 Note: a save only contains entries for maps you have opened at least once, so
-"Done/Opened" counts opened maps, not every map a collab contains.
+for mods "Done/Maps" counts opened maps, not every map a collab contains.
+Vanilla is shown out of its 11 chapters.
 """
-
 import argparse
 import json
 import os
@@ -32,10 +32,10 @@ from pathlib import Path
 TICKS_PER_SECOND = 10_000_000
 HERE = Path(__file__).resolve().parent
 NOT_LOADED = " [not loaded]"
+VANILLA_CHAPTERS = 11  # Prologue, chapters 1-7, Epilogue, Core, Farewell
 
 
 # ---------------------------------------------------------------- locating files
-
 
 def default_saves_dirs():
     home = Path.home()
@@ -47,10 +47,7 @@ def default_saves_dirs():
         c.append(Path(os.environ.get("LOCALAPPDATA", home)) / "Celeste/Saves")
     elif sys.platform == "darwin":
         c.append(home / "Library/Application Support/Celeste/Saves")
-        c.append(
-            home
-            / "Library/Application Support/Steam/steamapps/common/Celeste/Celeste.app/Contents/Resources/Saves"
-        )
+        c.append(home / "Library/Application Support/Steam/steamapps/common/Celeste/Celeste.app/Contents/Resources/Saves")
     else:
         c.append(home / ".local/share/Celeste/Saves")
         c.append(home / ".steam/steam/steamapps/common/Celeste/Saves")
@@ -70,7 +67,6 @@ def find_save(args):
 
 
 # ---------------------------------------------------------------- XML helpers
-
 
 def local(tag):
     return tag.split("}", 1)[-1]
@@ -116,26 +112,13 @@ def iter_local(root, name):
 
 # ---------------------------------------------------------------- parsing the save
 
-
 def parse_area(area_el):
     """Return a dict for one AreaStats element, merged over its modes (A/B/C)."""
     ident = text(area_el, "SID") or text(area_el, "ID_Safe") or text(area_el, "ID")
-    info = {
-        "id": ident,
-        "completed": False,
-        "touched": False,
-        "deaths": 0,
-        "ticks": 0,
-        "berries": 0,
-        "heart": False,
-        "modes": [],
-    }
+    info = {"id": ident, "completed": False, "touched": False, "deaths": 0,
+            "ticks": 0, "berries": 0, "heart": False, "modes": []}
     modes = child(area_el, "Modes")
-    mode_els = (
-        [m for m in modes if local(m.tag) == "AreaModeStats"]
-        if modes is not None
-        else []
-    )
+    mode_els = [m for m in modes if local(m.tag) == "AreaModeStats"] if modes is not None else []
     for i, m in enumerate(mode_els):
         ticks = as_int(text(m, "TimePlayed"))
         deaths = as_int(text(m, "Deaths"))
@@ -176,22 +159,16 @@ def parse_save(path):
     # Vanilla chapters live in the top-level <Areas> block.
     vanilla = read_areas(child(root, "Areas"), "chapter")
     if vanilla:
-        sets.append(
-            {"name": "Celeste (vanilla)", "not_loaded": False, "areas": vanilla}
-        )
+        sets.append({"name": "Celeste (vanilla)", "not_loaded": False, "areas": vanilla,
+                     "total": VANILLA_CHAPTERS})
     # Mod level sets. Sets Everest did not load at the last save sit in the recycle bin.
     for block, not_loaded in (("LevelSets", False), ("LevelSetRecycleBin", True)):
         block_el = child(root, block)
         if block_el is None:
             continue
         for ls in (x for x in block_el if local(x.tag) == "LevelSetStats"):
-            sets.append(
-                {
-                    "name": text(ls, "Name") or "(unnamed)",
-                    "not_loaded": not_loaded,
-                    "areas": read_areas(child(ls, "Areas"), "map"),
-                }
-            )
+            sets.append({"name": text(ls, "Name") or "(unnamed)", "not_loaded": not_loaded,
+                         "areas": read_areas(child(ls, "Areas"), "map")})
     return sets, last_area
 
 
@@ -203,28 +180,29 @@ def summarize(sets, last_area):
             continue
         done = sum(1 for a in touched if a["completed"])
         in_prog = [a for a in touched if not a["completed"]]
-        if done and not in_prog:
-            status = "done so far"
+        total = s.get("total")
+        if total:
+            status = "complete" if done >= total else ("in progress" if done else "started")
+        elif done and not in_prog:
+            status = "all opened done"
         elif done:
             status = "in progress"
         else:
             status = "started"
-        rows.append(
-            {
-                "name": s["name"],
-                "not_loaded": s["not_loaded"],
-                "opened": len(touched),
-                "done": done,
-                "status": status,
-                "deaths": sum(a["deaths"] for a in touched),
-                "ticks": sum(a["ticks"] for a in touched),
-                "berries": sum(a["berries"] for a in touched),
-                "completed_maps": [a["id"] for a in touched if a["completed"]],
-                "unfinished": [a["id"] for a in in_prog],
-                "is_last": bool(last_area)
-                and any(a["id"] == last_area for a in s["areas"]),
-            }
-        )
+        rows.append({
+            "name": s["name"],
+            "not_loaded": s["not_loaded"],
+            "total": total,
+            "opened": len(touched),
+            "done": done,
+            "status": status,
+            "deaths": sum(a["deaths"] for a in touched),
+            "ticks": sum(a["ticks"] for a in touched),
+            "berries": sum(a["berries"] for a in touched),
+            "completed_maps": [a["id"] for a in touched if a["completed"]],
+            "unfinished": [a["id"] for a in in_prog],
+            "is_last": bool(last_area) and any(a["id"] == last_area for a in s["areas"]),
+        })
     rows.sort(key=lambda r: (-int(r["is_last"]), -r["ticks"]))
     return rows
 
@@ -234,7 +212,6 @@ def label(r):
 
 
 # ---------------------------------------------------------------- JSON files
-
 
 def load_json(path, default):
     try:
@@ -246,13 +223,10 @@ def load_json(path, default):
 
 
 def save_json(path, data):
-    Path(path).write_text(
-        json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    Path(path).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 # ---------------------------------------------------------------- notes
-
 
 def resolve_note_key(key, sets):
     """Match KEY to a level set or map name: exact, else a unique case-insensitive substring."""
@@ -267,13 +241,8 @@ def resolve_note_key(key, sets):
     if len(hits) == 1:
         return hits[0]
     if len(hits) > 1:
-        sys.exit(
-            f"'{key}' matches several entries, be more specific:\n  "
-            + "\n  ".join(hits[:12])
-        )
-    print(
-        f"Note: '{key}' wasn't found in the save; storing the note under that exact key."
-    )
+        sys.exit(f"'{key}' matches several entries, be more specific:\n  " + "\n  ".join(hits[:12]))
+    print(f"Note: '{key}' wasn't found in the save; storing the note under that exact key.")
     return key
 
 
@@ -294,31 +263,27 @@ def set_note(args, sets):
 
 # ---------------------------------------------------------------- rendering
 
-
 def render_text(rows, last_area, notes):
     out = []
     labels = [label(r) for r in rows]
     w = max([len(x) for x in labels] + [9])
-    out.append(
-        f"{'Level set':<{w}}  Done/Opened  Status        Deaths  Time      Berries"
-    )
+    out.append(f"{'Level set':<{w}}  {'Done/Maps':<11}  {'Status':<15}  {'Deaths':>6}  {'Time':<9}  Berries")
     out.append("-" * (w + 58))
     for r, lab in zip(rows, labels):
         mark = " *" if r["is_last"] else ""
-        out.append(
-            f"{lab:<{w}}  {r['done']:>4}/{r['opened']:<6}  {r['status']:<12}  "
-            f"{r['deaths']:>6}  {fmt_time(r['ticks']):<8}  {r['berries']:>7}{mark}"
-        )
+        cell = f"{r['done']}/{r['total'] or r['opened']}"
+        out.append(f"{lab:<{w}}  {cell:<11}  {r['status']:<15}  {r['deaths']:>6}  "
+                   f"{fmt_time(r['ticks']):<9}  {r['berries']:>7}{mark}")
         if r["name"] in notes:
             out.append(f"{'':<{w}}    note: {notes[r['name']]}")
     out.append("")
     if last_area:
         out.append(f"* = contains your last-played map ({last_area})")
+    out.append("Maps: vanilla counts all 11 chapters; for mods it counts only maps you've opened "
+               "(a save doesn't record how many maps a mod has).")
     if any(r["not_loaded"] for r in rows):
-        out.append(
-            "[not loaded] = Everest didn't load that mod the last time the game saved; "
-            "its progress is kept aside."
-        )
+        out.append("[not loaded] = Everest didn't load that mod the last time the game saved; "
+                   "its progress is kept aside.")
     shown = {r["name"] for r in rows}
     unfinished = [r for r in rows if r["unfinished"]]
     if unfinished:
@@ -340,22 +305,15 @@ def render_text(rows, last_area, notes):
 
 
 def render_markdown(rows, last_area, notes):
-    out = [
-        "| Level set | Done/Opened | Status | Deaths | Time | Berries | Unfinished maps | Notes |",
-        "|---|---|---|---|---|---|---|---|",
-    ]
+    out = ["| Level set | Done/Maps | Status | Deaths | Time | Berries | Unfinished maps | Notes |",
+           "|---|---|---|---|---|---|---|---|"]
     for r in rows:
         name = label(r) + (" (last played)" if r["is_last"] else "")
         maps = ", ".join(r["unfinished"])
-        rn = "; ".join(
-            f"{k}: {v}"
-            for k, v in notes.items()
-            if k == r["name"] or k in r["unfinished"] or k in r["completed_maps"]
-        )
-        out.append(
-            f"| {name} | {r['done']}/{r['opened']} | {r['status']} | {r['deaths']} | "
-            f"{fmt_time(r['ticks'])} | {r['berries']} | {maps} | {rn} |"
-        )
+        rn = "; ".join(f"{k}: {v}" for k, v in notes.items()
+                       if k == r["name"] or k in r["unfinished"] or k in r["completed_maps"])
+        out.append(f"| {name} | {r['done']}/{r['total'] or r['opened']} | {r['status']} | {r['deaths']} | "
+                   f"{fmt_time(r['ticks'])} | {r['berries']} | {maps} | {rn} |")
     return "\n".join(out) + "\n"
 
 
@@ -384,27 +342,16 @@ def dump(path, depth=7, per_tag=2):
 
 # ---------------------------------------------------------------- main
 
-
 def main():
-    ap = argparse.ArgumentParser(
-        description="Per-level-set progress and notes from a Celeste save."
-    )
+    ap = argparse.ArgumentParser(description="Per-level-set progress and notes from a Celeste save.")
     ap.add_argument("--slot", type=int, default=0)
     ap.add_argument("--saves", help="path to the Saves folder")
     ap.add_argument("--file", help="path to a specific .celeste save file")
     ap.add_argument("--markdown", help="also write a markdown table to this file")
-    ap.add_argument(
-        "--dump", action="store_true", help="print the XML structure and exit"
-    )
-    ap.add_argument(
-        "--note",
-        nargs=2,
-        metavar=("KEY", "TEXT"),
-        help="set a note on a level set or map (empty TEXT removes it)",
-    )
-    ap.add_argument(
-        "--notes", default=str(HERE / "celeste_notes.json"), help="notes file"
-    )
+    ap.add_argument("--dump", action="store_true", help="print the XML structure and exit")
+    ap.add_argument("--note", nargs=2, metavar=("KEY", "TEXT"),
+                    help="set a note on a level set or map (empty TEXT removes it)")
+    ap.add_argument("--notes", default=str(HERE / "celeste_notes.json"), help="notes file")
     args = ap.parse_args()
 
     path = find_save(args)
@@ -419,9 +366,7 @@ def main():
 
     rows = summarize(sets, last_area)
     if not rows:
-        print(
-            f"No level-set progress found in {path}. Try --dump to inspect the file structure."
-        )
+        print(f"No level-set progress found in {path}. Try --dump to inspect the file structure.")
         return
 
     notes = load_json(args.notes, {})
@@ -430,9 +375,7 @@ def main():
     print(render_text(rows, last_area, notes))
 
     if args.markdown:
-        Path(args.markdown).write_text(
-            render_markdown(rows, last_area, notes), encoding="utf-8"
-        )
+        Path(args.markdown).write_text(render_markdown(rows, last_area, notes), encoding="utf-8")
         print(f"\nMarkdown written to {args.markdown}")
 
 
