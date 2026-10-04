@@ -2,11 +2,11 @@
 
 ## Goal
 
-Help a player understand their progress on Celeste mods: which mods are completed or not, where they stopped, and stats per mod. Start as a CLI (`celeste_progress.py`), add a UI later.
+Help a player understand their progress on Celeste mods: which mods are completed or not, where they stopped, and stats per mod. Start as a CLI, then a desktop app.
 
 ## Users and problems
 
-The user is a Celeste player with many Everest mods installed: a Mods folder of ~450 zips, and save slots with 100+ level sets.
+For now the user is one Celeste player (the author) with many Everest mods installed: a Mods folder of ~450 zips, and save slots with 100+ level sets. Later, other players with modded saves, most of them on Windows and not programmers.
 
 - Loading many mods slows the game down, so most mods stay disabled. The game only shows progress for mods that are loaded, so there's no way to see progress on the rest without enabling them.
 - Even with mods loaded, the game has no overview across mods: which ones are finished, which are half done, and where you stopped in each.
@@ -42,8 +42,8 @@ Status for each requirement is tracked in [NOTES.md](NOTES.md#status).
 | 1 | Show each level set's progress: sides done/total (the main number), maps done/total, status, deaths, time, berries |
 | 2 | Show in-game titles for sets, maps and checkpoints |
 | 3 | Real map and side totals per set, counting maps the player has never opened |
-| 4 | Detail view of one set: every map, including not-opened ones |
-| 5 | Checkpoints reached per map, and the saved room of the current session |
+| 4 | Detail view of one set: every map and each of its sides, including not-opened ones |
+| 5 | Checkpoints reached per side, and the saved room of the current session |
 | 6 | Status per side (A/B/C): cleared, heart, deaths, time, checkpoints |
 | 7 | Apply the completion rules above (side, map, level set) |
 | 8 | Scan all slots in one run, and show the slot for each set |
@@ -63,7 +63,8 @@ Status for each requirement is tracked in [NOTES.md](NOTES.md#status).
 - Levels of clearing per side: full clear (all berries), golden / deathless. The save has `FullClear`, and `BestDeaths` may cover deathless
 - Checkpoint totals per side (e.g. "B side: checkpoint 11/14") and berry totals per map
 - Dates (cleared on, last played)
-- UI: start with a static HTML page generated from the JSON export
+- UI: a page in the browser first, then a desktop window
+- Ready for other players: a Windows download that runs without Python, WSL or a terminal, and finds the Celeste folder by itself
 
 ## Non-goals
 

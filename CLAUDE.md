@@ -1,10 +1,11 @@
 # celeste-tracker
 
-A CLI that shows Celeste (Everest) mod progress straight from save files, without loading the mods. Everything is in one file, `celeste_progress.py`, and it uses only the standard library.
+A CLI that shows Celeste (Everest) mod progress straight from save files, without loading the mods. Today everything is in one file, `celeste_progress.py`, using only the standard library. It is moving to the `celeste_tracker/` package described in `doc/DESIGN.md`.
 
 Read the docs in `doc/` first:
 
 - `doc/PRD.md`: the goal, users, use cases, the agreed definition of "completed", the requirements (MVP / should have / later), non-goals and open product questions.
+- `doc/DESIGN.md`: tech stack, layers, package layout, data model, storage, testing and build order.
 - `doc/NOTES.md`: done/todo status per requirement, the save and mod file format as verified on real saves, the known issues, open technical questions and the next build step.
 
 ## Run and test
@@ -26,5 +27,7 @@ uv run celeste_progress.py --file local/31.celeste          # an older copy of s
 - **Read-only:** never write to save files or the Mods folder.
 - **No personal data in git:** `local/`, `*.celeste`, `Saves/` and `celeste_notes.json` are gitignored, and must stay out of git.
 - **Commit as you go:** make a commit after each finished change. Don't push without asking (no remote is set up yet).
-- **Keep it one stdlib-only script:** the code is grouped into `# ----` sections (locating files, mod data, XML helpers, parsing, notes, rendering, main). If it grows, split out a parsing module before starting a second script.
+- **Dependencies:** runtime code uses only the standard library until the desktop phase (then `pywebview`, see `doc/DESIGN.md`). `pytest` is the only dev dependency. Ask before adding anything else.
+- **Follow the layers in `doc/DESIGN.md`:** front ends (CLI, web, desktop) never parse files themselves, and the completion rules live in one module.
+- **Don't assume WSL:** other players will run this on Windows, so no hardcoded `/mnt/c` paths in the code.
 - **Be honest about the data:** the save only stores internal IDs and opened maps, and has no dates. Say what is verified on real saves and what is inferred.
