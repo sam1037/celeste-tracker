@@ -41,6 +41,7 @@ celeste_tracker/
   binmap.py     (later) map .bin: checkpoints, berries, whether a side has a heart
   model.py      dataclasses: Slot > LevelSet > Map > Side
   rules.py      side / map / set status, from the PRD's definition
+  core.py       load_slot / load_slots: the one call front ends make (parse -> model -> rules)
   store.py      SQLite: user fields, mod-scan cache, snapshots
   export.py     model -> JSON
   cli.py        argparse, text and markdown rendering
@@ -63,6 +64,8 @@ Side      exists        known from the mod files (A/B/C .bin); vanilla from a ha
           has_heart     true / false / unknown (needs binmap.py; vanilla hardcoded)
           status        not opened | in progress | cleared, no heart | completed
 ```
+
+Map status: completed / in progress / not opened. Level set status: complete, hearts missing (every side cleared, some hearts not collected), in progress, started, not started, or all opened done (no mod files, so the totals only cover what was opened).
 
 - A side with `has_heart = false` is completed once cleared. While `has_heart` is unknown (mods, until `.bin` parsing), a cleared side without its heart shows **cleared, no heart**, not completed. That way the tool never claims more than the save shows.
 - Placeholder B/C records in the save (the save always lists three) are dropped when the mod files show the side doesn't exist.
@@ -95,9 +98,9 @@ Snapshots are only taken when the tool runs. Dates are "seen by" dates, as preci
 
 ## Build order
 
-1. Split the script into the package, keeping today's output, and add tests.
-2. Side-based model and rules (PRD #6, #7) and `--json` (#10).
-3. All slots (#8), mod name (#9), config file.
+1. Split the script into the package, keeping today's output, and add tests. (done)
+2. Side-based model and rules (PRD #6, #7) and `--json` (#10). (done)
+3. All slots (#8), mod name (#9), config file. (done)
 4. Store: move notes over, add user fields, cache the mod scan.
 5. `serve` UI.
 6. Snapshots (dates), `binmap.py` (checkpoint and berry totals, heart presence).

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Made-up test save. Same structure as a real Everest save, trimmed to what the tracker reads. -->
+<SaveData xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Version>1.4.0.0</Version>
+  <Name>fixture</Name>
+  <LastSave>0001-01-01T00:00:00</LastSave>
+  <LastArea ID="0" Mode="Normal" SID="Celeste/0-Intro" />
+  <Areas>
+    <!-- Vanilla. Only two chapters listed: the rest must still be counted from the built-in list. -->
+    <AreaStats ID="0" Cassette="false" SID="Celeste/0-Intro">
+      <Modes>
+        <AreaModeStats TotalStrawberries="0" Completed="true" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+        <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+        <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+      </Modes>
+    </AreaStats>
+    <AreaStats ID="1" Cassette="false" SID="Celeste/1-ForsakenCity">
+      <Modes>
+        <AreaModeStats TotalStrawberries="20" Completed="true" Deaths="10" TimePlayed="6000000000" BestTime="5000000000" BestDeaths="3" HeartGem="true"><Strawberries /><Checkpoints><string>6</string><string>9b</string></Checkpoints></AreaModeStats>
+        <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="5" TimePlayed="1200000000" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints><string>04</string></Checkpoints></AreaModeStats>
+        <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+      </Modes>
+    </AreaStats>
+  </Areas>
+  <LevelSets>
+    <!-- Vanilla's own entry here is empty and must be skipped. -->
+    <LevelSetStats Name="Celeste"><Areas /><Poem /><UnlockedAreas>0</UnlockedAreas><TotalStrawberries>0</TotalStrawberries></LevelSetStats>
+    <!-- One map with A, B and C sides: A and B completed, C in progress. -->
+    <LevelSetStats Name="Test/Sides">
+      <Areas>
+        <AreaStats ID="11" Cassette="false" SID="Test/Sides/Forest">
+          <Modes>
+            <AreaModeStats TotalStrawberries="9" Completed="true" Deaths="287" TimePlayed="36670360000" BestTime="0" BestDeaths="119" HeartGem="true"><Strawberries /><Checkpoints><string>b-01</string></Checkpoints></AreaModeStats>
+            <AreaModeStats TotalStrawberries="0" Completed="true" Deaths="1300" TimePlayed="141644680000" BestTime="0" BestDeaths="141" HeartGem="true"><Strawberries /><Checkpoints /></AreaModeStats>
+            <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="288" TimePlayed="12353560000" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints><string>c-01</string></Checkpoints></AreaModeStats>
+          </Modes>
+        </AreaStats>
+      </Areas>
+    </LevelSetStats>
+    <!-- A collab: a lobby cleared without a heart, one map completed, the rest never opened. -->
+    <LevelSetStats Name="Test/Collab">
+      <Areas>
+        <AreaStats ID="12" Cassette="false" SID="Test/Collab/Lobby">
+          <Modes>
+            <AreaModeStats TotalStrawberries="0" Completed="true" Deaths="1" TimePlayed="600000000" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+            <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+            <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+          </Modes>
+        </AreaStats>
+        <AreaStats ID="13" Cassette="false" SID="Test/Collab/M1">
+          <Modes>
+            <AreaModeStats TotalStrawberries="2" Completed="true" Deaths="40" TimePlayed="3000000000" BestTime="0" BestDeaths="0" HeartGem="true"><Strawberries /><Checkpoints /></AreaModeStats>
+            <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+            <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+          </Modes>
+        </AreaStats>
+      </Areas>
+    </LevelSetStats>
+  </LevelSets>
+  <LevelSetRecycleBin>
+    <!-- A mod that is no longer in the Mods folder: sides unknown. -->
+    <LevelSetStats Name="Gone/Old">
+      <Areas>
+        <AreaStats ID="14" Cassette="false" SID="Gone/Old/Old">
+          <Modes>
+            <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="2" TimePlayed="400000000" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+            <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+            <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+          </Modes>
+        </AreaStats>
+      </Areas>
+    </LevelSetStats>
+    <!-- A map that only has B and C sides (no A file). -->
+    <LevelSetStats Name="Test/Blizzard">
+      <Areas>
+        <AreaStats ID="15" Cassette="false" SID="Test/Blizzard/1-blizzard">
+          <Modes>
+            <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+            <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="7" TimePlayed="900000000" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+            <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+          </Modes>
+        </AreaStats>
+      </Areas>
+    </LevelSetStats>
+  </LevelSetRecycleBin>
+  <HasModdedSaveData>true</HasModdedSaveData>
+  <LastArea_Safe ID="11" Mode="CSide" SID="Test/Sides/Forest" />
+  <CurrentSession_Safe Level="c-02" StartCheckpoint="c-01" Deaths="4">
+    <Area ID="11" Mode="CSide" SID="Test/Sides/Forest" />
+    <!-- The session keeps an old copy of the map's stats; it must not be read as progress. -->
+    <OldStats ID="11" Cassette="false" SID="Test/Sides/Forest">
+      <Modes>
+        <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="999" TimePlayed="1" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+      </Modes>
+    </OldStats>
+  </CurrentSession_Safe>
+</SaveData>

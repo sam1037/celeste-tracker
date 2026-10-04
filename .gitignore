@@ -6,5 +6,7 @@ __pycache__/
 # Personal data: save files and your notes
 local/
 *.celeste
+# ...except the made-up test saves, which hold no personal data
+!tests/fixtures/slots/*.celeste
 Saves/
 celeste_notes.json

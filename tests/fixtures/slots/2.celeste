@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Made-up test save: a second slot, for the all-slots view. No saved session. -->
+<SaveData xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Name>second</Name>
+  <Areas>
+    <AreaStats ID="0" Cassette="false" SID="Celeste/0-Intro">
+      <Modes>
+        <AreaModeStats TotalStrawberries="0" Completed="true" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+        <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+        <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+      </Modes>
+    </AreaStats>
+  </Areas>
+  <LevelSets>
+    <LevelSetStats Name="Test/Collab">
+      <Areas>
+        <AreaStats ID="13" Cassette="false" SID="Test/Collab/M2">
+          <Modes>
+            <AreaModeStats TotalStrawberries="0" Completed="true" Deaths="12" TimePlayed="2000000000" BestTime="0" BestDeaths="0" HeartGem="true"><Strawberries /><Checkpoints /></AreaModeStats>
+            <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+            <AreaModeStats TotalStrawberries="0" Completed="false" Deaths="0" TimePlayed="0" BestTime="0" BestDeaths="0" HeartGem="false"><Strawberries /><Checkpoints /></AreaModeStats>
+          </Modes>
+        </AreaStats>
+      </Areas>
+    </LevelSetStats>
+  </LevelSets>
+</SaveData>

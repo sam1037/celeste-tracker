@@ -1,6 +1,6 @@
 # celeste-tracker
 
-A CLI that shows Celeste (Everest) mod progress straight from save files, without loading the mods. Today everything is in one file, `celeste_progress.py`, using only the standard library. It is moving to the `celeste_tracker/` package described in `doc/DESIGN.md`.
+A CLI that shows Celeste (Everest) mod progress straight from save files, without loading the mods. The code is the `celeste_tracker/` package laid out in `doc/DESIGN.md`; `celeste_progress.py` is a thin entry point.
 
 Read the docs in `doc/` first:
 
@@ -15,11 +15,14 @@ S="/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Saves"   # the user
 uv run celeste_progress.py --saves "$S" --slot 1 --mods     # slot 1: ~110 level sets, the big real test
 uv run celeste_progress.py --saves "$S" --slot 31 --mods    # slot 31: small test slot the user plays to make test cases
 uv run celeste_progress.py --file local/31.celeste          # an older copy of slot 31, works offline
+uv run celeste_progress.py --saves "$S" --all --mods       # all 32 slots, ~6 s
+uv run pytest                                               # tests, on made-up saves in tests/fixtures
 ```
 
 - Mods folder: `/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Mods` (~450 zips). `--mods` scans it in ~3 s.
 - Verify changes by running against slot 1 and slot 31, not only mock files.
-- When testing `--note`, pass `--notes <scratch file>`. Otherwise it writes the user's real `celeste_notes.json`.
+- When testing `--note`, pass `--notes <scratch file>`. Otherwise it writes the user's real `celeste_notes.json`. Likewise pass `--config <scratch file>` with `--save-config`.
+- Test fixtures must be made up. Real saves never go in `tests/`; only `tests/fixtures/slots/*.celeste` is allowed past the `*.celeste` gitignore rule.
 - The `VIRTUAL_ENV ... does not match` warning from uv comes from the user's shell and is harmless.
 
 ## Rules
