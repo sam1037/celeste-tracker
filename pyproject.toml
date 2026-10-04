@@ -5,3 +5,8 @@ description = "Track Celeste (Everest) mod progress from save files, without loa
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
