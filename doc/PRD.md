@@ -18,13 +18,18 @@ The user is a Celeste player with many Everest mods installed: a Mods folder of 
 - Get back into a mod after a break: see the last checkpoint reached and the saved room.
 - Check how much of a collab is done, down to which maps were never opened.
 - See which B and C sides are left.
-- Keep personal notes per mod or map ("stopped at the ice part").
+- Keep personal notes per mod or map (e.g. "stopped at the ice part").
 
 ## Definition of "completed"
 
-- **Map completed:** every side the map has (A, plus B and C if they exist) is cleared **and** has its heart.
+The **side** is the main unit of progress, the way players count it: a map's B side is its own piece of work. Map and level set status roll up from their sides.
+
+- **Side completed:** cleared **and** its heart collected. A side that has no heart (e.g. some lobbies, vanilla Prologue/Epilogue) is completed once cleared.
+- **Map completed:** every side the map has (A, plus B and C if they exist) is completed.
 - **Level set completed:** every map in the set is completed.
+- **Sides are A, B and C.** Extra sides added by AltSidesHelper (e.g. `MtEverest-D`, a "D side") count as maps of their own, the way the save stores them.
 - No special handling for now: lobbies and gyms count as normal maps, and level sets whose mod has been removed are treated the same as the rest.
+- Clearing is yes/no for now. Levels of clearing (full clear, golden) are in Later.
 
 ## Requirements
 
@@ -34,13 +39,13 @@ Status for each requirement is tracked in [NOTES.md](NOTES.md#status).
 
 | # | Requirement |
 |---|---|
-| 1 | Show each level set's progress: done/total maps, status, deaths, time, berries |
+| 1 | Show each level set's progress: sides done/total (the main number), maps done/total, status, deaths, time, berries |
 | 2 | Show in-game titles for sets, maps and checkpoints |
-| 3 | Real map totals per set, counting maps the player has never opened |
+| 3 | Real map and side totals per set, counting maps the player has never opened |
 | 4 | Detail view of one set: every map, including not-opened ones |
 | 5 | Checkpoints reached per map, and the saved room of the current session |
 | 6 | Status per side (A/B/C): cleared, heart, deaths, time, checkpoints |
-| 7 | Apply the completion rule above (all sides cleared + heart) |
+| 7 | Apply the completion rules above (side, map, level set) |
 | 8 | Scan all slots in one run, and show the slot for each set |
 | 9 | Show the mod name users know (e.g. `OmoriPack`) next to the set |
 | 10 | Export everything parsed as JSON, so the UI reads data instead of re-parsing saves |
@@ -49,12 +54,13 @@ Status for each requirement is tracked in [NOTES.md](NOTES.md#status).
 ### Should have
 
 - Config file for the Saves and Mods paths (no more `--saves "/mnt/c/..."` each time)
-- Extra stats already in the save: best time, best deaths, full clear, berries per side
+- Extra stats already in the save: best time, best deaths, berries per side
 - User fields beyond notes: difficulty, rating, "dropped" flag
 
 ### Later
 
 - Aggregate the same mod across slots
+- Levels of clearing per side: full clear (all berries), golden / deathless. The save has `FullClear`, and `BestDeaths` may cover deathless
 - Checkpoint totals per side (e.g. "B side: checkpoint 11/14") and berry totals per map
 - Dates (cleared on, last played)
 - UI: start with a static HTML page generated from the JSON export
@@ -72,4 +78,4 @@ Status for each requirement is tracked in [NOTES.md](NOTES.md#status).
 
 ## Open questions
 
-- Maps with no heart (e.g. some lobbies, vanilla Prologue/Epilogue) can never meet "cleared + heart". Treat "no heart exists" as satisfied?
+- None open. (Decided: a side with no heart is completed once cleared; see the definition above.)
