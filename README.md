@@ -25,5 +25,6 @@ The script only reads files; it never writes to your saves.
 ## Files
 
 - `celeste_progress.py`: the tracker
-- `NOTES.md`: requirements, the save format and open questions
+- `doc/PRD.md`: goal, users, requirements and the definition of "completed"
+- `doc/NOTES.md`: build status, the save format and open questions
 - `local/`: your own save copies for testing (gitignored)

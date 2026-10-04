@@ -2,7 +2,10 @@
 
 A CLI that shows Celeste (Everest) mod progress straight from save files, without loading the mods. Everything is in one file, `celeste_progress.py`, and it uses only the standard library.
 
-Read `NOTES.md` first. It has the requirements (MVP / later, with done/todo status), the agreed definition of "completed", the save and mod file format as verified on real saves, the known issues, the open questions and the next build step.
+Read the docs in `doc/` first:
+
+- `doc/PRD.md`: the goal, users, use cases, the agreed definition of "completed", the requirements (MVP / should have / later), non-goals and open product questions.
+- `doc/NOTES.md`: done/todo status per requirement, the save and mod file format as verified on real saves, the known issues, open technical questions and the next build step.
 
 ## Run and test
 
