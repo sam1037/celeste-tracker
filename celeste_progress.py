@@ -91,16 +91,27 @@ def parse_dialog(raw):
     return out
 
 
+def split_side(path):
+    """'Set/Map-B' -> ('Set/Map', 'B'). Everest loads <map>-B.bin and <map>-C.bin as that map's B and C sides;
+    any other name (including '-D') is a map of its own, A side."""
+    m = re.fullmatch(r"(.+)-([BC])", path)
+    return (m[1], m[2]) if m else (path, "A")
+
+
 class ModInfo:
     """What the Mods folder knows that the save doesn't. Empty (all lookups blank) without --mods."""
 
     def __init__(self, maps=None, dialog=None, source=None):
-        self.maps = maps or {}      # level set name -> set of map SIDs found in the mods
+        self.maps = maps or {}      # level set name -> {map SID: set of sides it has, e.g. {'A', 'B'}}
         self.dialog = dialog or {}  # lowercase dialog key -> text
         self.source = source
 
     def total(self, set_name):
         return len(self.maps.get(set_name, ()))
+
+    def sides(self, sid):
+        """Sides a map has, e.g. 'ABC', '' if unknown."""
+        return "".join(sorted(self.maps.get(sid.rpartition("/")[0], {}).get(sid, ())))
 
     def title(self, ident):
         """In-game title of a level set or map ID, '' if unknown."""
@@ -123,10 +134,11 @@ def scan_mods(mods_dir):
         sids = [n[5:-4] for n in names if n.startswith("Maps/") and n.endswith(".bin")]
         if not sids:
             return
-        for sid in sids:
+        for path in sids:
+            sid, side = split_side(path)
             set_name = sid.rpartition("/")[0]
             if set_name:
-                maps.setdefault(set_name, set()).add(sid)
+                maps.setdefault(set_name, {}).setdefault(sid, set()).add(side)
         for n in names:
             if n.lower() == "dialog/english.txt":
                 for k, v in parse_dialog(read(n)).items():
@@ -528,8 +540,8 @@ def find_set(key, sets, mods):
 def render_set(s, last_area, notes, mods):
     """Every map of one level set: the ones in the save plus, with --mods, the ones never opened."""
     by_id = {a["id"]: a for a in s["areas"]}
-    known = mods.maps.get(s["name"], set())
-    order = list(by_id) + sorted(known - set(by_id))
+    known = mods.maps.get(s["name"], {})
+    order = list(by_id) + sorted(known.keys() - by_id.keys())
     maps = []
     for i, sid in enumerate(order):
         a = by_id.get(sid)
@@ -552,7 +564,12 @@ def render_set(s, last_area, notes, mods):
         t, short = mods.title(sid), sid.rpartition("/")[2]
         labels.append(f"{t} ({short})" if t else short)
     w = max([len(x) for x in labels] + [3])
-    out.append(f"{'Map':<{w}}  {'Status':<11}  {'Deaths':>6}  {'Time':<9}  {'Berries':>7}  Checkpoints")
+    if known:  # which sides each map has, from its .bin files
+        labels = [f"{lab:<{w}}  {' '.join(mods.sides(m[2])):<5}" for lab, m in zip(labels, maps)]
+        w = max(len(x) for x in labels)
+        out.append(f"{'Map':<{w - 7}}  Sides  {'Status':<11}  {'Deaths':>6}  {'Time':<9}  {'Berries':>7}  Checkpoints")
+    else:
+        out.append(f"{'Map':<{w}}  {'Status':<11}  {'Deaths':>6}  {'Time':<9}  {'Berries':>7}  Checkpoints")
     out.append("-" * (w + 52))
     for (_, _, sid, status, a), lab in zip(maps, labels):
         star = " *" if sid == last_area else ""

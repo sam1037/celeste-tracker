@@ -18,7 +18,7 @@ Help a player understand their progress on Celeste mods: which mods are complete
 |---|---|---|
 | 1 | Show each level set's progress: done/total maps, status, deaths, time, berries | done |
 | 2 | Show in-game titles for sets, maps and checkpoints (from `Dialog/English.txt`) | done (`--mods`) |
-| 3 | Real map totals per set (from the mod zips' `Maps/` lists) | done, but has a bug: B/C sides counted as maps, see Known issues |
+| 3 | Real map totals per set (from the mod zips' `Maps/` lists) | done. `-B`/`-C` files fold into their map, and `--set` shows each map's sides |
 | 4 | Detail view of one set: every map, including not-opened ones | done (`--set`) |
 | 5 | Checkpoints reached per map, and the saved room of the current session | done |
 | 6 | Status per side (A/B/C): cleared, heart, deaths, time, checkpoints | todo. The script currently merges sides per map |
@@ -58,12 +58,12 @@ Help a player understand their progress on Celeste mods: which mods are complete
 - Sets in `<LevelSetRecycleBin>` = mods Everest didn't load at the last save (shown as `[not loaded]`). Their progress is kept.
 - `LastArea_Safe` = last-played map. `CurrentSession_Safe` = the Save & Quit point: `Level` (room), `StartCheckpoint`, `Deaths`, `RespawnPoint`. One per slot.
 - Dialog keys: the ID with `/`, spaces and `-` replaced by `_`. Set `NotPhobos_Omori`, map `NotPhobos_Omori_Snow_Mountain`, checkpoint `NotPhobos_Omori_Snow_Mountain_c_01`.
-- Map files: `Maps/<set>/<map>.bin` is the A side; `<map>-B.bin` and `<map>-C.bin` are its B and C sides.
+- Map files: `Maps/<set>/<map>.bin` is the A side; `<map>-B.bin` and `<map>-C.bin` are its B and C sides. The save stores all three under the one SID `<set>/<map>`. Only `-B` and `-C` are sides: `-D` files (e.g. `MtEverest/0/MtEverest-D`) are maps of their own in the save. A map can have no A file: `isafriend/blizzard/1-blizzard` has only `-B` and `-C`.
 - Windows saves: `C:\Program Files (x86)\Steam\steamapps\common\Celeste\Saves` (from WSL: `/mnt/c/...`). Mac: `~/Library/Application Support/Celeste/Saves`.
 
 ## Known issues
 
-- `--mods` counts `-B.bin` / `-C.bin` as separate maps (81 of 1,324 in my Mods folder), so totals are too high for maps with B/C sides. Fix: fold them into their A-side map. This also tells us which sides each map has, which the completion rule needs.
+- None open. (Fixed: `--mods` used to count `-B.bin` / `-C.bin` as separate maps, 81 of 1,324 in my Mods folder.)
 
 ## Open questions
 
@@ -73,4 +73,5 @@ Help a player understand their progress on Celeste mods: which mods are complete
 ## TODO
 
 - See how players track progress manually in Excel sheets, to find which columns matter.
-- Next build step: fix the B/C-side count, then per-side status (#6, #7).
+- Next build step: per-side status (#6, #7). `ModInfo.sides(sid)` already says which sides each map has.
+- Mod name?
