@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.py[oc]
+.venv/
+
+# Personal data: save files and your notes
+local/
+*.celeste
+Saves/
+celeste_notes.json
