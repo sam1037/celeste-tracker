@@ -288,12 +288,16 @@ function renderSummary(rows) {
     `${sides[0]}/${sides[1]} sides done · showing ${rows.length}`;
 }
 
+// Column names over the mod rows; same grid as .mod-head.
+const LIST_HEAD = `<div class="list-head" aria-hidden="true"><span></span><span>Mod</span><span>Progress</span>` +
+  `<span>Status</span><span class="right hide-sm">Time</span><span class="right hide-sm">Slots and tags</span></div>`;
+
 function render() {
   if (!state.data) return;
   const rows = visibleMods();
   renderSummary(rows);
   renderSessions();
-  $("list").innerHTML = rows.length ? rows.map(modCard).join("") : `<div class="empty">No mods match.</div>`;
+  $("list").innerHTML = rows.length ? LIST_HEAD + rows.map(modCard).join("") : `<div class="empty">No mods match.</div>`;
   writeHash();
 }
 

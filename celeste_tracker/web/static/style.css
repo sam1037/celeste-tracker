@@ -1,6 +1,7 @@
 :root {
   --bg: #f4f1f6;
   --card: #ffffff;
+  --card-alt: #f6f2fb;
   --ink: #1f1a24;
   --muted: #6b6475;
   --line: #e4dfe9;
@@ -17,6 +18,7 @@
   :root {
     --bg: #17141b;
     --card: #221e28;
+    --card-alt: #2a2531;
     --ink: #ede9f2;
     --muted: #a49cae;
     --line: #35303d;
@@ -76,10 +78,17 @@ button:hover { border-color: var(--accent); }
 .empty { padding: 30px; text-align: center; color: var(--muted); }
 .error { margin: 20px; color: #c0392b; }
 
+.list { --mod-cols: 16px minmax(180px, 2.4fr) minmax(150px, 1.4fr) 112px 84px minmax(110px, 1fr); }
+.list-head {
+  display: grid; grid-template-columns: var(--mod-cols); gap: 12px;
+  padding: 0 15px 2px; /* the rows' padding plus their 1px border */
+  font-size: 12px; font-weight: 600; color: var(--muted);
+}
 .mod { background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+.mod:nth-of-type(even) { background: var(--card-alt); }
 .mod.dropped { opacity: .6; }
 .mod-head {
-  display: grid; grid-template-columns: 16px minmax(180px, 2.4fr) minmax(150px, 1.4fr) 112px 84px minmax(110px, 1fr);
+  display: grid; grid-template-columns: var(--mod-cols);
   gap: 12px;
   align-items: center; padding: 9px 14px; cursor: pointer; user-select: none;
 }
@@ -171,6 +180,7 @@ tr.slots td { padding-top: 0; color: var(--muted); font-size: 12px; }
   .mod-head, .set-head { grid-template-columns: 16px minmax(0, 1fr) auto; gap: 4px 10px; }
   .mod-head .progress, .set-head .progress { grid-column: 2 / -1; grid-row: 2; }
   .mod-head .hide-sm, .set-head .num { display: none; }
+  .list-head { display: none; } /* rows stack on phones, so the columns no longer line up */
   .mod-body { padding: 10px 12px 12px; overflow-x: auto; }
   table { table-layout: auto; }
   col.w-ch, col.w-sides, col.w-n, col.w-side, col.w-status { width: auto; }
