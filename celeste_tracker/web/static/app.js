@@ -16,7 +16,8 @@ function fmtTime(ticks) {
   return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
 }
 
-const state = { data: null, key: "all", show: "played", sort: "time", q: "", open: new Set(), openSet: new Set(),
+const PER_PAGE = 50;
+const state = { data: null, key: "all", show: "played", sort: "time", dir: "", page: 1, per: PER_PAGE, q: "", open: new Set(), openSet: new Set(),
                 openCh: new Set() };
 const setId = (m, ls) => `${m.id}/${ls.name}`; // a level set can be split across mods (Glyph + Glyph D side)
 let index = { modOfSid: {}, search: {} };
@@ -28,7 +29,10 @@ function readHash() {
   const p = new URLSearchParams(location.hash.slice(1));
   state.key = p.get("slot") || "all";
   state.show = p.get("show") || "played";
-  state.sort = p.get("sort") || "time";
+  state.sort = SORTS[p.get("sort")] ? p.get("sort") : "time";
+  state.dir = ["asc", "desc"].includes(p.get("dir")) ? p.get("dir") : "";
+  state.page = Math.max(1, parseInt(p.get("page"), 10) || 1);
+  state.per = p.has("per") ? Math.max(0, parseInt(p.get("per"), 10) || 0) : PER_PAGE;  // 0 = all on one page
   state.q = p.get("q") || "";
   state.open = new Set((p.get("open") || "").split(SEP).filter(Boolean));
   state.openSet = new Set((p.get("sets") || "").split(SEP).filter(Boolean));
@@ -40,6 +44,9 @@ function writeHash() {
   if (state.key !== "all") p.set("slot", state.key);
   if (state.show !== "played") p.set("show", state.show);
   if (state.sort !== "time") p.set("sort", state.sort);
+  if (state.dir && state.dir !== FIRST_DIR[state.sort]) p.set("dir", state.dir);
+  if (state.page > 1) p.set("page", state.page);
+  if (state.per !== PER_PAGE) p.set("per", state.per);
   if (state.q) p.set("q", state.q);
   if (state.open.size) p.set("open", [...state.open].join(SEP));
   if (state.openSet.size) p.set("sets", [...state.openSet].join(SEP));
@@ -92,20 +99,24 @@ const FILTERS = {
   dropped: (m) => !!m.user.dropped,
   all: () => true,
 };
+// Sort keys, each comparing in ascending order; FIRST_DIR is the direction a column starts in when clicked
+// (names A to Z, numbers high to low). Clicking the sorted column again flips it.
 const SORTS = {
-  time: (a, b) => b.v.ticks - a.v.ticks,
-  progress: (a, b) => b.v.sides_done / (b.v.sides_total || 1) - a.v.sides_done / (a.v.sides_total || 1),
-  name: () => 0,
-  deaths: (a, b) => b.v.deaths - a.v.deaths,
-  rating: (a, b) => (b.m.user.rating || 0) - (a.m.user.rating || 0),
+  time: (a, b) => a.v.ticks - b.v.ticks,
+  progress: (a, b) => a.v.sides_done / (a.v.sides_total || 1) - b.v.sides_done / (b.v.sides_total || 1),
+  name: (a, b) => a.m.name.localeCompare(b.m.name),
+  deaths: (a, b) => a.v.deaths - b.v.deaths,
+  rating: (a, b) => (a.m.user.rating || 0) - (b.m.user.rating || 0),
 };
+const FIRST_DIR = { time: "desc", progress: "desc", name: "asc", deaths: "desc", rating: "desc" };
+const sortDir = () => state.dir || FIRST_DIR[state.sort];
 
 function visibleMods() {
   const needle = state.q.trim().toLowerCase();
   return state.data.mods
     .map((m) => ({ m, v: viewOf(m) }))
     .filter(({ m, v }) => FILTERS[state.show](m, v) && (!needle || index.search[m.id].includes(needle)))
-    .sort((a, b) => SORTS[state.sort](a, b) || a.m.name.localeCompare(b.m.name));
+    .sort((a, b) => (sortDir() === "asc" ? 1 : -1) * SORTS[state.sort](a, b) || a.m.name.localeCompare(b.m.name));
 }
 
 // ------------------------------------------------------------------ rendering
@@ -307,13 +318,41 @@ function renderSummary(rows) {
     (rows.length !== played.length ? fig("Showing", rows.length) : "");
 }
 
-// The header row over the mods (same grid as .mod-head). Click a column name to sort by it.
+// The header row over the mods (same grid as .mod-head). Click a column name to sort by it, again to flip it.
 function listHead() {
-  const col = (sort, text, extra = "", title = "") => `<button type="button" data-sort="${sort}" class="${extra}"` +
-    `${title ? ` title="${title}"` : ""}${state.sort === sort ? ` aria-sort="${sort === "name" ? "ascending" : "descending"}"` : ""}>${text}</button>`;
-  return `<div class="list-head"><span></span>${col("name", "Mod")}${col("progress", "Sides")}<span>Status</span>` +
-    `${col("deaths", "Deaths", "right hide-sm")}${col("time", "Time", "right hide-sm")}` +
-    `${col("rating", "Slots and tags", "right hide-sm", "Sort by your rating")}</div>`;
+  const col = (sort, text, extra = "", what = text.toLowerCase()) => {
+    const on = state.sort === sort, dir = on ? sortDir() : FIRST_DIR[sort];
+    const next = on ? (dir === "asc" ? "desc" : "asc") : dir;
+    const icon = on ? (dir === "asc" ? "▲" : "▼") : "↕";
+    return `<span class="th ${extra}" role="columnheader"${on ? ` aria-sort="${dir}ending"` : ""}>` +
+      `<button type="button" data-sort="${sort}" title="Sort by ${what}, ${next === "asc" ? "lowest" : "highest"} first` +
+      `${sort === "name" ? (next === "asc" ? " (A to Z)" : " (Z to A)") : ""}">${text}` +
+      `<span class="icon" aria-hidden="true">${icon}</span></button></span>`;
+  };
+  return `<div class="list-head" role="row"><span></span>${col("name", "Mod", "", "name")}` +
+    `${col("progress", "Sides", "", "sides cleared")}<span role="columnheader">Status</span>` +
+    `${col("deaths", "Deaths", "right hide-sm")}${col("time", "Time", "right hide-sm", "time played")}` +
+    `${col("rating", "Slots and tags", "right hide-sm", "your rating")}</div>`;
+}
+
+// Pagination under the table: rows per page, the range shown, and the pages (first, last, and the ones around
+// the current one).
+function pager(total, pages) {
+  const from = state.per ? (state.page - 1) * state.per + 1 : 1, to = state.per ? Math.min(total, state.page * state.per) : total;
+  const per = [25, 50, 100, 0].map((n) => `<option value="${n}"${n === state.per ? " selected" : ""}>${n || "All"}</option>`).join("");
+  const nums = [];
+  for (let n = 1; n <= pages; n++) {
+    if (n === 1 || n === pages || Math.abs(n - state.page) <= 1) nums.push(n);
+    else if (nums[nums.length - 1] !== "…") nums.push("…");
+  }
+  const btn = (n, text, label, disabled = false) => `<button type="button" data-page="${n}" aria-label="${label}"` +
+    `${n === state.page && text === String(n) ? ' aria-current="page"' : ""}${disabled ? " disabled" : ""}>${text}</button>`;
+  return `<nav class="pager" aria-label="Pages">
+    <label>Rows per page <select data-per>${per}</select></label>
+    <span class="num">${fmtNum(from)}–${fmtNum(to)} of ${fmtNum(total)} mods</span>
+    <span class="pages">${btn(state.page - 1, "‹ Previous", "Previous page", state.page <= 1)}` +
+      nums.map((n) => (n === "…" ? `<span class="gap">…</span>` : btn(n, String(n), `Page ${n}`))).join("") +
+      `${btn(state.page + 1, "Next ›", "Next page", state.page >= pages)}</span></nav>`;
 }
 
 function render() {
@@ -321,7 +360,11 @@ function render() {
   const rows = visibleMods();
   renderSummary(rows);
   renderSessions();
-  $("list").innerHTML = rows.length ? listHead() + rows.map(modCard).join("") : `<div class="empty">No mods match.</div>`;
+  const pages = state.per ? Math.max(1, Math.ceil(rows.length / state.per)) : 1;
+  state.page = Math.min(Math.max(1, state.page), pages);
+  const shown = state.per ? rows.slice((state.page - 1) * state.per, state.page * state.per) : rows;
+  $("list").innerHTML = rows.length ? listHead() + shown.map(modCard).join("") + (rows.length > 25 ? pager(rows.length, pages) : "")
+    : `<div class="empty">No mods match. Clear the search or pick "All mods" under Show.</div>`;
   writeHash();
 }
 
@@ -392,7 +435,19 @@ $("list").addEventListener("click", (e) => {
     return save(key, "rating", m.user.rating === n ? 0 : n); // clicking the current rating clears it
   }
   const sort = e.target.closest("[data-sort]");
-  if (sort) { state.sort = sort.dataset.sort; return render(); }
+  if (sort) {
+    const key = sort.dataset.sort;
+    state.dir = key === state.sort ? (sortDir() === "asc" ? "desc" : "asc") : "";
+    state.sort = key;
+    state.page = 1;
+    return render();
+  }
+  const page = e.target.closest("[data-page]");
+  if (page) {
+    state.page = Number(page.dataset.page);
+    render();
+    return $("list").scrollIntoView({ block: "start" });
+  }
   const head = e.target.closest(".mod-head");
   if (head) return toggle(state.open, head.closest(".mod").dataset.mod);
   const set = e.target.closest(".set-head");
@@ -407,6 +462,11 @@ $("list").addEventListener("keydown", (e) => {
   else if (set) { e.preventDefault(); toggle(state.openSet, set.dataset.set); }
 });
 $("list").addEventListener("change", (e) => {
+  if (e.target.matches("[data-per]")) {
+    state.per = Number(e.target.value);
+    state.page = 1;
+    return render();
+  }
   const f = e.target.dataset.field;
   if (!f) return;
   const key = e.target.closest(".mine").dataset.key;
@@ -419,6 +479,8 @@ $("sessions").addEventListener("click", (e) => {
   state.open.add(a.dataset.goto);
   state.q = "";
   $("q").value = "";
+  const i = visibleMods().findIndex(({ m }) => m.id === a.dataset.goto);  // go to the page that has it
+  if (i >= 0 && state.per) state.page = Math.floor(i / state.per) + 1;
   render();
   document.querySelector(`.mod[data-mod="${CSS.escape(a.dataset.goto)}"]`)?.scrollIntoView({ block: "start" });
 });
@@ -426,10 +488,10 @@ $("sessions").addEventListener("click", (e) => {
 let typingTimer;
 $("q").addEventListener("input", (e) => {
   clearTimeout(typingTimer);
-  typingTimer = setTimeout(() => { state.q = e.target.value; render(); }, 150);
+  typingTimer = setTimeout(() => { state.q = e.target.value; state.page = 1; render(); }, 150);
 });
-$("slot").addEventListener("change", (e) => { state.key = e.target.value; render(); });
-$("show").addEventListener("change", (e) => { state.show = e.target.value; render(); });
+$("slot").addEventListener("change", (e) => { state.key = e.target.value; state.page = 1; render(); });
+$("show").addEventListener("change", (e) => { state.show = e.target.value; state.page = 1; render(); });
 $("refresh").addEventListener("click", () => load(true));
 
 readHash();

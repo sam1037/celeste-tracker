@@ -70,7 +70,9 @@ One table, Journal-style:
 ```
 
 - **One surface** with a header row and alternating row backgrounds, not a separate card per mod.
-- **Click a column header to sort** (it replaces the Sort menu).
+- **At most 1200 px wide**, centered: the side margins grow on wide screens, so the name, the bar and the numbers stay close together.
+- **Click a column header to sort** (it replaces the Sort menu), **click it again to flip the order.** A column starts in its natural order: names A to Z, numbers highest first. Following the WAI-ARIA sortable table example, each sortable header is a button with `aria-sort`, a ↕ marks the columns you can sort by, and ▲ / ▼ shows the sorted one; the header gets a background on hover. Status isn't sortable and has no icon.
+- **Pages of 50 mods**, with the pager at the bottom of the table, as in Carbon's data table: rows per page (25, 50, 100 or all), "101–150 of 253 mods", and previous / page numbers / next. A new search, slot or filter goes back to page 1; the page is in the URL. The pager only appears when there are more than 25 mods.
 - **A Deaths column**, as in the Journal.
 - **Opened rows expand in place**, under a thin indent line.
 - Text is left-aligned, numbers right-aligned, and the bars share one column edge.

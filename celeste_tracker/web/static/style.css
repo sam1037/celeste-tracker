@@ -45,6 +45,8 @@
 }
 
 * { box-sizing: border-box; }
+/* The content is at most 1200px wide and centered; the side gutter grows on wide screens. */
+body { --gutter: max(20px, calc((100% - 1200px) / 2)); }
 body {
   margin: 0;
   background: var(--snow);
@@ -56,7 +58,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .top {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 14px 20px; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding: 14px var(--gutter); background: var(--surface); border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 2;
 }
 .brand { display: flex; align-items: baseline; gap: 4px 14px; flex-wrap: wrap; min-width: 0; }
@@ -73,7 +75,7 @@ button {
 button:hover { border-color: var(--summit); }
 
 .toolbar {
-  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px 20px;
+  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px var(--gutter);
 }
 .toolbar input[type=search] {
   flex: 1 1 320px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface);
@@ -81,34 +83,54 @@ button:hover { border-color: var(--summit); }
 .toolbar label { color: var(--muted); display: flex; gap: 6px; align-items: center; }
 .toolbar select { padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
 
-.sessions { margin: 0 20px 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.sessions { margin: 0 var(--gutter) 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .sessions summary { font-size: 13px; color: var(--muted); font-weight: 600; cursor: pointer; }
 .sessions ul { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 3px; }
 .sessions a { color: var(--ink); text-decoration: none; cursor: pointer; }
 .sessions a:hover { color: var(--summit); }
 
 .list {
-  margin: 0 20px 40px; display: grid; grid-template-columns: minmax(0, 1fr);
+  margin: 0 var(--gutter) 40px; display: grid; grid-template-columns: minmax(0, 1fr);
   background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
 }
 .mod, .set, .sets { min-width: 0; }
 .empty { padding: 30px; text-align: center; color: var(--muted); }
-.error { margin: 20px; color: #c0392b; }
+.error { margin: 20px var(--gutter); color: #c0392b; }
 
 /* One table (doc/UI.md, Layout): a header row, then one row per mod, every second one shaded. */
-.list { --mod-cols: 16px minmax(180px, 2.4fr) minmax(150px, 1.4fr) 92px 72px 84px minmax(100px, 1fr); }
+.list { --mod-cols: 16px minmax(180px, 2fr) minmax(150px, 1.4fr) 92px 72px 84px minmax(100px, 1fr); }
 .list-head {
   display: grid; grid-template-columns: var(--mod-cols); gap: 12px; align-items: center;
   padding: 7px 14px; border-bottom: 1px solid var(--line);
   font-size: 12px; font-weight: 600; color: var(--muted);
 }
+/* Sortable column headers (after the WAI-ARIA sortable table example): the whole label is a button; ↕ marks a
+   column you can sort by, ▲ / ▼ the one sorted now. Click it again to flip the direction. */
+.list-head .th { display: flex; min-width: 0; }
+.list-head .th.right { justify-content: flex-end; }
 .list-head button {
-  border: 0; background: none; padding: 0; font-weight: 600; color: inherit; text-align: inherit; border-radius: 3px;
+  display: inline-flex; align-items: center; gap: 4px; margin: -3px -6px; padding: 3px 6px; border: 0;
+  background: none; font-weight: 600; color: inherit; border-radius: 4px; cursor: pointer;
 }
-.list-head button:hover, .list-head button[aria-sort] { color: var(--ink); }
-.list-head button.right { justify-self: end; }
-.list-head button[aria-sort]::after { content: " ▾"; }
-.list-head button:focus-visible { outline: 2px solid var(--summit); outline-offset: 2px; }
+.list-head button:hover { background: var(--snow); color: var(--ink); }
+.list-head [aria-sort] button { color: var(--ink); }
+.list-head .icon { font-size: 10px; color: var(--faint); }
+.list-head [aria-sort] .icon { color: var(--summit); }
+.list-head button:focus-visible { outline: 2px solid var(--summit); outline-offset: 0; }
+
+/* Pagination, at the bottom of the table (as in Carbon's data table). */
+.pager {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 20px;
+  padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted);
+}
+.pager label { display: flex; align-items: center; gap: 6px; }
+.pager select { padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.pages { display: flex; align-items: center; gap: 4px; }
+.pages button { min-width: 32px; padding: 4px 9px; }
+.pages button[aria-current] { background: var(--summit); border-color: var(--summit); color: var(--chip-ink); }
+.pages button:disabled { opacity: .45; cursor: default; }
+.pages button:disabled:hover { border-color: var(--line); }
+.pages .gap { padding: 0 4px; }
 .mod { border-bottom: 1px solid var(--line); }
 .mod:last-child { border-bottom: 0; }
 .mod:nth-of-type(even) { background: var(--surface-alt); }
