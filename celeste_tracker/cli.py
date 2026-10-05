@@ -12,7 +12,7 @@ from .paths import (config_path, find_save, find_saves_dir, list_slots, load_con
                     write_config)
 from .rules import ALL
 from .save import dump
-from .store import DEFAULT_NOTES, load_json, save_json
+from .store import Store
 
 TICKS_PER_SECOND = 10_000_000
 NOT_LOADED = " [not loaded]"
@@ -138,13 +138,26 @@ def ckpt_note(mod, v, slot):
     return f" (ckpt {lc['title'] or lc['room']})" if lc else ""
 
 
-def mod_notes(mod, notes):
-    return [notes[k] for k in [mod.id] + [ls.name for ls in mod.sets] if k in notes]
+def note_of(user, key):
+    return user.get(key, {}).get("note")
+
+
+def mod_notes(mod, user):
+    """Notes on the mod, or on any of its level sets (notes made before mods were the top level)."""
+    return [n for n in (note_of(user, k) for k in [mod.id] + [ls.name for ls in mod.sets]) if n]
+
+
+def mine_cell(fields):
+    """The player's own fields, short: '4/5 · GM+1 · dropped'."""
+    parts = [f"{fields['rating']}/5"] if fields.get("rating") else []
+    parts += [fields["difficulty"]] if fields.get("difficulty") else []
+    parts += ["dropped"] if fields.get("dropped") else []
+    return " · ".join(parts)
 
 
 # ---------------------------------------------------------------- overview
 
-def render_text(lib, key, notes, mods_info):
+def render_text(lib, key, user, mods_info):
     slot = single_slot(lib, key)
     multi = slot is None
     mods = visible_mods(lib, key)
@@ -158,18 +171,21 @@ def render_text(lib, key, notes, mods_info):
                 rows.append((f"  {branch} {set_label(ls)}", view_of(ls, key), m))
     w = max([len(r[0]) for r in rows] + [3])
     slots_head = f"  {'Slots':<{SLOTS_WIDTH}}" if multi else ""
+    mw = max([len(mine_cell(m.user)) for m in mods] + [0])
+    mine_head = f"  {'Mine':<{max(mw, 4)}}" if mw else ""
     out = [f"{'Mod':<{w}}  {'Sides':<8}  {'Maps':<8}  {'Status':<15}  {'Deaths':>6}  {'Time':<9}  {'Berries':>7}"
-           f"{slots_head}  Ckpts"]
-    out.append("-" * (w + len(slots_head) + 82))
+           f"{slots_head}{mine_head}  Ckpts"]
+    out.append("-" * (w + len(slots_head) + len(mine_head) + 82))
     for label, v, m in rows:
         is_mod = not label.startswith("  ")
         mark = " *" if is_mod and last_played(m, slot) else ""
         slots = f"  {slots_cell(v):<{SLOTS_WIDTH}}" if multi else ""
+        mine = f"  {mine_cell(m.user) if is_mod else '':<{max(mw, 4)}}" if mw else ""
         ck = f"{v.open_checkpoints:>5}{ckpt_note(m, v, slot) if is_mod else ''}"
         out.append(f"{label:<{w}}  {sides_cell(v, m):<8}  {maps_cell(v, m):<8}  {v.status:<15}  {v.deaths:>6}  "
-                   f"{fmt_time(v.ticks):<9}  {v.berries:>7}{slots}  {ck}{mark}".rstrip())
+                   f"{fmt_time(v.ticks):<9}  {v.berries:>7}{slots}{mine}  {ck}{mark}".rstrip())
         if is_mod:
-            for n in mod_notes(m, notes):
+            for n in mod_notes(m, user):
                 out.append(f"{'':<{w}}    note: {n}")
     out.append("")
     for s in lib.slots:
@@ -207,9 +223,9 @@ def render_text(lib, key, notes, mods_info):
             out.append(f"  {mod_label(m, m.progress[key])}")
             for ch in sorted(chs, key=lambda c: -c.progress[key].ticks):
                 shown.add(ch.sid)
-                note = f"   <- {notes[ch.sid]}" if ch.sid in notes else ""
+                note = f"   <- {note_of(user, ch.sid)}" if note_of(user, ch.sid) else ""
                 out.append(f"    - {chapter_label(ch)}  {side_summary(ch, key)}{note}")
-    rest = {k: v for k, v in notes.items() if k not in shown}
+    rest = {k: f["note"] for k, f in user.items() if f.get("note") and k not in shown}
     if rest:
         out.append("\nOther notes:")
         known_ids = {m.id for m in lib.mods} | {ls.name for m in lib.mods for ls in m.sets} | \
@@ -219,10 +235,10 @@ def render_text(lib, key, notes, mods_info):
     return "\n".join(out)
 
 
-def render_markdown(lib, key, notes):
+def render_markdown(lib, key, user):
     multi = single_slot(lib, key) is None
     head = ["Mod", "Sides", "Maps", "Status", "Deaths", "Time", "Berries"] + ["Slots"] * multi + \
-           ["Checkpoints", "Unfinished chapters", "Notes"]
+           ["Checkpoints", "Unfinished chapters", "Mine", "Notes"]
     out = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     slot = single_slot(lib, key)
     for m in visible_mods(lib, key):
@@ -231,9 +247,9 @@ def render_markdown(lib, key, notes):
         chs = ", ".join(f"{chapter_label(ch)} [{side_summary(ch, key)}]" for ch in m.chapters()
                         if view_of(ch, key).status == "in progress")
         sids = {m.id} | {ls.name for ls in m.sets} | {ch.sid for ch in m.chapters()}
-        rn = "; ".join(f"{k}: {n}" for k, n in notes.items() if k in sids)
+        rn = "; ".join(f"{k}: {f['note']}" for k, f in user.items() if k in sids and f.get("note"))
         cells = [name, sides_cell(v, m), maps_cell(v, m), v.status, str(v.deaths), fmt_time(v.ticks), str(v.berries)] \
-            + [",".join(v.slots)] * multi + [f"{v.open_checkpoints}{ckpt_note(m, v, slot)}", chs, rn]
+            + [",".join(v.slots)] * multi + [f"{v.open_checkpoints}{ckpt_note(m, v, slot)}", chs, mine_cell(m.user), rn]
         out.append("| " + " | ".join(c.replace("|", "\\|") for c in cells) + " |")
     return "\n".join(out) + "\n"
 
@@ -279,7 +295,7 @@ def slot_breakdown(s, key):
                       for k, v in per)
 
 
-def render_mod(mod, key, lib, notes, only_set=None):
+def render_mod(mod, key, lib, user, only_set=None):
     """Every chapter and side of one mod (or one of its level sets), including the ones never opened."""
     v = view_of(mod, key)
     head = mod_label(mod, v) + (f"  (mod ID: {mod.id})" if mod.id != mod.name else "")
@@ -291,7 +307,9 @@ def render_mod(mod, key, lib, notes, only_set=None):
                  f"({n_prog} in progress, {n_new} not opened)"
            + (f", {v.sides_no_heart} side(s) cleared without the heart" if v.sides_no_heart else "")
            + (f"; played in slots {', '.join(v.slots)}" if key == ALL and len(lib.slots) > 1 and v.slots else "")]
-    for n in mod_notes(mod, notes):
+    if mine_cell(mod.user):
+        out.append(f"Mine: {mine_cell(mod.user)}")
+    for n in mod_notes(mod, user):
         out.append(f"note: {n}")
     one_chapter = len(mod.chapters()) == 1  # e.g. Sentient Forest: straight to its sides
     sets = [only_set] if only_set else mod.sets
@@ -309,7 +327,7 @@ def render_mod(mod, key, lib, notes, only_set=None):
         out.append("-" * (len(lead) + 70))
         for ch, lab in zip(chs, labels):
             star = " *" if any(ch.sid == s.last_played_sid for s in lib.slots if key in (ALL, s.key)) else ""
-            note = f"   <- {notes[ch.sid]}" if ch.sid in notes else ""
+            note = f"   <- {note_of(user, ch.sid)}" if note_of(user, ch.sid) else ""
             sides = counted_sides(ch, key) or list(ch.sides.values())
             if not sides:  # a chapter only known from another slot, with no side opened in this one
                 out.append(f"{f'{lab:<{w}}  ' if lead else ''}{'-':<4}  {'not opened':<17}{star}{note}")
@@ -333,17 +351,18 @@ def render_mod(mod, key, lib, notes, only_set=None):
     return "\n".join(out)
 
 
-# ---------------------------------------------------------------- notes
+# ---------------------------------------------------------------- the player's own fields
 
-def resolve_note_key(key, lib):
+def resolve_key(key, lib, mods_only=False):
     """Match KEY to a mod ID, level set or chapter ID (or its name/title): exact, else a unique substring."""
     titles = {}
     for m in lib.mods:
         titles.setdefault(m.id, m.name)
-        for ls in m.sets:
-            titles.setdefault(ls.name, ls.title)
-        for ch in m.chapters():
-            titles.setdefault(ch.sid, ch.title)
+        if not mods_only:
+            for ls in m.sets:
+                titles.setdefault(ls.name, ls.title)
+            for ch in m.chapters():
+                titles.setdefault(ch.sid, ch.title)
     if key in titles:
         return key
     low = key.lower()
@@ -357,22 +376,29 @@ def resolve_note_key(key, lib):
     if len(hits) > 1:
         sys.exit(f"'{key}' matches several entries, be more specific:\n  "
                  + "\n  ".join(f"{titles[n]} ({n})" if titles[n] and titles[n] != n else n for n in hits[:12]))
-    print(f"Note: '{key}' wasn't found; storing the note under that exact key.")
+    if mods_only:
+        sys.exit(f"No mod matches '{key}'.")
+    print(f"Note: '{key}' wasn't found; storing it under that exact key.")
     return key
 
 
-def set_note(notes_path, key, note, lib):
-    notes = load_json(notes_path, {})
-    key = resolve_note_key(key, lib)
-    if note.strip():
-        notes[key] = note.strip()
-        print(f"Saved note for {key}: {note.strip()}")
-    elif key in notes:
-        del notes[key]
-        print(f"Removed note for {key}")
+EDITS = {  # flag -> (store field, how to show it)
+    "note": ("note", lambda v: v), "rate": ("rating", lambda v: f"{v}/5"),
+    "difficulty": ("difficulty", lambda v: v), "rename": ("rename", lambda v: v),
+}
+
+
+def edit_field(store, lib, flag, key, value):
+    field, show = EDITS[flag]
+    key = resolve_key(key, lib, mods_only=flag == "rename")
+    if field == "rating":
+        if not value.isdigit() or not 0 <= int(value) <= 5:
+            sys.exit("--rate takes 1 to 5, or 0 to clear.")
+        value = int(value)
     else:
-        print(f"No note stored for {key}")
-    save_json(notes_path, notes)
+        value = value.strip()
+    store.set_field(key, field, value)
+    print(f"Saved {field} for {key}: {show(value)}" if value else f"Cleared {field} for {key}")
 
 
 # ---------------------------------------------------------------- main
@@ -392,11 +418,19 @@ def parse_args(argv):
     ap.add_argument("--set", metavar="KEY", help="every chapter and side of one mod (name, ID, level set, or part)")
     ap.add_argument("--note", nargs=2, metavar=("KEY", "TEXT"),
                     help="set a note on a mod, level set or chapter (empty TEXT removes it)")
-    ap.add_argument("--notes", default=str(DEFAULT_NOTES), help="notes file")
+    ap.add_argument("--rate", nargs=2, metavar=("KEY", "N"), help="rate a mod (or chapter) 1 to 5; 0 clears")
+    ap.add_argument("--difficulty", nargs=2, metavar=("KEY", "TEXT"),
+                    help="your difficulty label, e.g. Expert or GM+1 (empty clears)")
+    ap.add_argument("--drop", metavar="KEY", help="mark a mod as dropped")
+    ap.add_argument("--undrop", metavar="KEY", help="unmark a dropped mod")
+    ap.add_argument("--rename", nargs=2, metavar=("KEY", "NAME"),
+                    help="show a mod under your own name (empty NAME goes back to the GameBanana title)")
+    ap.add_argument("--import-notes", metavar="FILE", help="import notes from an old celeste_notes.json")
     ap.add_argument("--markdown", metavar="FILE", help="also write a markdown table to this file")
     ap.add_argument("--json", metavar="FILE", help="write everything parsed as JSON to FILE ('-' for stdout)")
     ap.add_argument("--dump", action="store_true", help="print the XML structure of one slot and exit")
-    ap.add_argument("--config", help=f"config file (default: {config_path()}); the mod list cache sits next to it")
+    ap.add_argument("--config", help=f"config file (default: {config_path()}); the store (tracker.db) and the mod "
+                                     "list cache sit next to it")
     ap.add_argument("--save-config", action="store_true",
                     help="store the given --saves and --mods in the config file, so later runs don't need them")
     return ap.parse_args(argv)
@@ -438,23 +472,38 @@ def main(argv=None):
         dump(slot_paths[0][1])
         return
 
-    mods = load_mods(mods_dir_for(slot_paths[0][1], mods_arg) if mods_arg else None)
+    store = Store(cfg_file.parent / "tracker.db")
+    if args.import_notes:
+        print(f"Imported {store.import_notes(args.import_notes)} note(s) from {args.import_notes}.")
+        return
+    if not args.config:  # the real store, not a test's: bring over notes from before the store, once
+        n = store.import_old_notes_once()
+        if n:
+            print(f"Moved {n} note(s) from celeste_notes.json into {store.path} (the old file is kept).",
+                  file=sys.stderr)
+
+    mods = load_mods(mods_dir_for(slot_paths[0][1], mods_arg) if mods_arg else None, store.mod_cache())
     titles = load_titles(cfg_file.parent / "moddb.json", offline=args.offline, refresh=args.refresh_moddb) \
         if mods.maps else {}
-    lib = load_library(slot_paths, mods, titles)
+    lib = load_library(slot_paths, mods, titles, store.user_fields())
     key = view_key(lib)
 
-    if args.note:
-        k, text = args.note
-        set_note(args.notes, k, text, lib)
+    for flag in ("note", "rate", "difficulty", "rename"):
+        if getattr(args, flag):
+            edit_field(store, lib, flag, *getattr(args, flag))
+            return
+    if args.drop or args.undrop:
+        k = resolve_key(args.drop or args.undrop, lib)
+        store.set_field(k, "dropped", bool(args.drop))
+        print(f"{'Marked' if args.drop else 'Unmarked'} {k} as dropped")
         return
     if args.json == "-":
         print(to_json(lib, mods))
         return
-    notes = load_json(args.notes, {})
+    user = store.user_fields()
     if args.set:
         mod, only = find_mod(args.set, lib, key)
-        print(render_mod(mod, key, lib, notes, only))
+        print(render_mod(mod, key, lib, user, only))
         return
     if not visible_mods(lib, key):
         print(f"No progress found in {slot_paths[0][1]}. Try --dump to inspect the file structure.")
@@ -468,10 +517,10 @@ def main(argv=None):
         named = sum(1 for m in lib.mods if m.name_source == "gamebanana")
         print(f"Mods: {mods.source} ({mods.summary()}; {named} named from GameBanana)")
     print()
-    print(render_text(lib, key, notes, mods))
+    print(render_text(lib, key, user, mods))
 
     if args.markdown:
-        Path(args.markdown).write_text(render_markdown(lib, key, notes), encoding="utf-8")
+        Path(args.markdown).write_text(render_markdown(lib, key, user), encoding="utf-8")
         print(f"\nMarkdown written to {args.markdown}")
     if args.json:
         Path(args.json).write_text(to_json(lib, mods), encoding="utf-8")

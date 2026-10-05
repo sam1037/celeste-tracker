@@ -72,6 +72,7 @@ class Chapter:                   # what modders call a map; keyed by its SID
     title: str
     sides: dict[str, Side]
     progress: dict[str, View] = field(default_factory=dict)
+    user: dict = field(default_factory=dict)  # the player's own fields (store.FIELDS), keyed by SID
 
 
 @dataclass
@@ -80,18 +81,20 @@ class LevelSet:
     title: str
     chapters: list[Chapter]      # the chapters of this level set that this mod provides
     progress: dict[str, View] = field(default_factory=dict)
+    user: dict = field(default_factory=dict)  # keyed by level set name
 
 
 @dataclass
 class Mod:
     id: str                      # everest.yaml Name; "Celeste" for vanilla; the level set name if no mod was found
     name: str                    # what players see (doc/DESIGN.md, "Mod names")
-    name_source: str             # gamebanana | map title | level set title | mod id | vanilla
+    name_source: str             # renamed | gamebanana | map title | level set title | mod id | vanilla
     gamebanana_title: str
     found: bool                  # in the Mods folder (or vanilla): its chapters and sides are known
     vanilla: bool
     sets: list[LevelSet]
     progress: dict[str, View] = field(default_factory=dict)
+    user: dict = field(default_factory=dict)  # keyed by mod ID; 'rename' wins over every other name
 
     def chapters(self):
         return [ch for ls in self.sets for ch in ls.chapters]
@@ -150,9 +153,10 @@ class _Builder:
         return ch
 
 
-def build_library(loaded, mods_info, titles=None):
-    """loaded: [(slot number, path, parse_save() result)]. titles: {mod ID: {'title', 'author'}} (moddb)."""
-    titles = titles or {}
+def build_library(loaded, mods_info, titles=None, user=None):
+    """loaded: [(slot number, path, parse_save() result)]. titles: {mod ID: {'title', 'author'}} (moddb).
+    user: {mod ID / level set / chapter SID: fields} (store.user_fields)."""
+    titles, user = titles or {}, user or {}
     b = _Builder(mods_info)
     for sid, (title, sides, heart) in VANILLA.items():
         b.add(VANILLA_MOD, VANILLA_SET, sid, set(sides), heart, found=True, vanilla=True, title=title)
@@ -196,13 +200,17 @@ def build_library(loaded, mods_info, titles=None):
 
     mods = []
     for mod_id, m in sorted(b.mods.items()):
-        sets = [LevelSet(name, "" if m["vanilla"] else mods_info.title(name), list(chs.values()))
+        sets = [LevelSet(name, "" if m["vanilla"] else mods_info.title(name), list(chs.values()),
+                         user=user.get(name, {}))
                 for name, chs in sorted(m["sets"].items())]
         if not any(ls.chapters for ls in sets):
             continue
+        for ch in (ch for ls in sets for ch in ls.chapters):
+            ch.user = user.get(ch.sid, {})
         gb = titles.get(mod_id, {}).get("title", "")
-        name, source = mod_name(mod_id, m["vanilla"], gb, sets)
-        mods.append(Mod(mod_id, name, source, gb, m["found"], m["vanilla"], sets))
+        mine = user.get(mod_id, {})
+        name, source = (mine["rename"], "renamed") if mine.get("rename") else mod_name(mod_id, m["vanilla"], gb, sets)
+        mods.append(Mod(mod_id, name, source, gb, m["found"], m["vanilla"], sets, user=mine))
     return Library(slots, mods)
 
 

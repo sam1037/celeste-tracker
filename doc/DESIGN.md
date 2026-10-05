@@ -45,7 +45,7 @@ celeste_tracker/
   model.py      dataclasses: Slot > Mod > LevelSet > Map > Side
   rules.py      side / map / set / mod status, from the PRD's definition
   core.py       load_slot / load_slots: the one call front ends make (parse -> model -> rules)
-  store.py      SQLite: user fields, mod-scan cache, snapshots
+  store.py      SQLite: user fields, mod-scan cache, snapshots (later)
   export.py     model -> JSON
   cli.py        argparse, text and markdown rendering
   web/          server.py + static/index.html, app.js (later)
@@ -146,13 +146,14 @@ The `schema` number goes up on breaking changes, so the UI can tell what it got.
 
 ## Store (SQLite)
 
-Location: `%APPDATA%\celeste-tracker\` on Windows, `~/.local/share/celeste-tracker/` on Linux/WSL, `~/Library/Application Support/celeste-tracker/` on macOS. The config file (`config.toml`, read with `tomllib`) sits next to it.
+`tracker.db`, next to the config file (`config.toml`, read with `tomllib`) in the user data folder: `%APPDATA%\celeste-tracker\` on Windows, `~/.local/share/celeste-tracker/` on Linux/WSL, `~/Library/Application Support/celeste-tracker/` on macOS. A `--config` elsewhere moves the store and the mod list cache with it (that's how tests stay off the real files). WAL mode with `synchronous=NORMAL`: commits don't wait for an fsync, which costs 100+ ms on WSL's disk.
 
 | Table | Holds | Notes |
 |---|---|---|
-| `user_fields` | key (set or map ID), notes, difficulty, rating, dropped | Replaces `celeste_notes.json` (moved over on first run) |
-| `mod_cache` | zip path, size, mtime, scanned data | Skips re-reading unchanged zips; matters on `/mnt/c` and for `.bin` parsing |
-| `snapshots` | taken_at, slot, sid, side, cleared, heart, deaths, ticks, berries | One row only when a side's values changed since the last row. "Cleared on" = first row with `cleared` true; "last played" = last row where deaths or ticks went up |
+| `meta` | schema version, whether the old notes were imported | A store from a newer version is refused |
+| `user_fields` | key (mod ID, level set or chapter SID), note, difficulty (free text), rating (1-5), dropped, rename (mods only) | A rename wins over every other mod name. The first run with the real store imports `celeste_notes.json` once; `--import-notes FILE` does it by hand |
+| `mod_cache` | zip path, size, mtime, what was read from it (JSON) | Unchanged zips aren't reopened. With the stat calls on a thread pool, the scan of ~450 zips on `/mnt/c` takes 0.1 s warm (was 3-7 s) |
+| `snapshots` (step 7) | taken_at, slot, sid, side, cleared, heart, deaths, ticks, berries | One row only when a side's values changed since the last row. "Cleared on" = first row with `cleared` true; "last played" = last row where deaths or ticks went up |
 
 Snapshots are only taken when the tool runs. Dates are "seen by" dates, as precise as how often it runs. The desktop app can take one on launch.
 
@@ -167,7 +168,7 @@ Snapshots are only taken when the tool runs. Dates are "seen by" dates, as preci
 2. Side-based model and rules (PRD #6, #7) and `--json` (#10). (done)
 3. All slots (#8), mod name (#9), config file. (done)
 4. Mods as the top level (PRD #1, #3, #8, #9, #12): catalog / progress split, chapters grouped by zip, the combined view as the default (`--slot N` filters), `moddb.py` and GameBanana names, JSON schema 2. The overview gets one row per mod, with the level sets indented under a mod that has several; `--set` also accepts a mod name. (done; the combined CLI view leaves out the long unfinished-chapters list and points to `--set` / `--slot N`)
-5. Store: move notes over, add user fields and mod renames, cache the mod scan.
+5. Store: move notes over, add user fields and mod renames, cache the mod scan. (done)
 6. `serve` UI.
 7. Snapshots (dates), `binmap.py` (checkpoint and berry totals, heart presence).
 8. For other players: `pywebview` window, PyInstaller build, auto-detect the Celeste folder.

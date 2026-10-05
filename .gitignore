@@ -10,3 +10,5 @@ local/
 !tests/fixtures/slots/*.celeste
 Saves/
 celeste_notes.json
+tracker.db*
+moddb.json

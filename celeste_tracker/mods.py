@@ -2,10 +2,13 @@
 
 Only zip file lists and each mod's Dialog/English.txt are read; nothing is loaded.
 """
+import os
 import re
 import sys
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 def dkey(ident):
@@ -72,43 +75,89 @@ class ModInfo:
                 f"{len(self.dialog)} dialog keys")
 
 
-def scan_mods(mods_dir):
-    """Read map lists and English dialog from every mod (zip or unzipped folder) that has maps."""
+def read_mod(names, read, source):
+    """What one mod's files say: {'id', 'source', 'bins': [map paths], 'dialog': {...}}, or None if it has no maps."""
+    bins = sorted(n[5:-4] for n in names if n.startswith("Maps/") and n.endswith(".bin"))
+    if not bins:
+        return None
+    mod_id = next((mod_name(read(n)) for n in names if n.lower() in ("everest.yaml", "everest.yml")), "") or source
+    dialog = {}
+    for n in names:
+        if n.lower() == "dialog/english.txt":
+            for k, v in parse_dialog(read(n)).items():
+                dialog.setdefault(k, v)
+    return {"id": mod_id, "source": source, "bins": bins, "dialog": dialog}
+
+
+def stat_or_none(path):
+    try:
+        return path.stat()
+    except OSError:
+        return None
+
+
+def read_zip(path):
+    try:
+        with zipfile.ZipFile(path) as z:
+            orig = {n.replace("\\", "/"): n for n in z.namelist()}
+            return read_mod(orig, lambda n: z.read(orig[n]), path.stem)
+    except (OSError, zipfile.BadZipFile):
+        return None
+
+
+def read_folder(path):
+    files = {p.relative_to(path).as_posix(): p for p in (path / "Maps").rglob("*.bin")}
+    for extra in ("Dialog/English.txt", "everest.yaml", "everest.yml"):
+        if (path / extra).is_file():
+            files[extra] = path / extra
+    return read_mod(files, lambda n: files[n].read_bytes(), path.name)
+
+
+def scan_mods(mods_dir, cache=None):
+    """Read map lists and English dialog from every mod (zip or unzipped folder) that has maps.
+
+    cache (optional, see store.ModCache): get(path, size, mtime_ns) -> (hit, value), put(...), keep_only(paths).
+    Zips that haven't changed since the last scan are taken from it instead of being opened again.
+    """
+    # Each file check over WSL's /mnt/c costs ~4 ms, and ~450 zips add up: scandir already knows which entries
+    # are folders, and the stat calls and zip reads mostly wait on I/O, so they run on a thread pool.
+    entries = sorted(os.scandir(mods_dir), key=lambda d: d.name)
+    zips = [Path(d.path) for d in entries if not d.is_dir() and d.name.lower().endswith(".zip")]
+    with ThreadPoolExecutor(16) as pool:
+        stats = dict(zip(zips, pool.map(stat_or_none, zips)))
+        zips = [z for z in zips if stats[z]]
+        cached = {z: cache.get(str(z), stats[z].st_size, stats[z].st_mtime_ns) if cache else (False, None) for z in zips}
+        misses = [z for z in zips if not cached[z][0]]
+        read = dict(zip(misses, pool.map(read_zip, misses)))
+    by_path = {}
+    for z in zips:
+        by_path[z] = cached[z][1] if cached[z][0] else read[z]
+        if cache and not cached[z][0]:
+            cache.put(str(z), stats[z].st_size, stats[z].st_mtime_ns, read[z])
+    if cache:
+        cache.keep_only([str(z) for z in zips])
+    found = []
+    for d in entries:  # in name order: the first mod to define a dialog key wins, as before
+        path = Path(d.path)
+        if d.is_dir():
+            if (path / "Maps").is_dir():  # unzipped mods are few and change while being made: always read
+                found.append(read_folder(path))
+        elif path in by_path:
+            found.append(by_path[path])
+
     maps, dialog, mods = {}, {}, {}
     holders = {}  # (map SID, side) -> IDs of the mods whose zip has that side's .bin
-
-    def absorb(names, read, source):
-        sids = [n[5:-4] for n in names if n.startswith("Maps/") and n.endswith(".bin")]
-        if not sids:
-            return
-        mod_id = next((mod_name(read(n)) for n in names if n.lower() in ("everest.yaml", "everest.yml")), "") or source
-        mods.setdefault(mod_id, ModFiles(mod_id, source))
-        for path in sids:
+    for info in filter(None, found):
+        mod_id = info["id"]
+        mods.setdefault(mod_id, ModFiles(mod_id, info["source"]))
+        for path in info["bins"]:
             sid, side = split_side(path)
             set_name = sid.rpartition("/")[0]
             if set_name:
                 maps.setdefault(set_name, {}).setdefault(sid, set()).add(side)
                 holders.setdefault((sid, side), []).append(mod_id)
-        for n in names:
-            if n.lower() == "dialog/english.txt":
-                for k, v in parse_dialog(read(n)).items():
-                    dialog.setdefault(k, v)
-
-    for entry in sorted(mods_dir.iterdir()):
-        try:
-            if entry.is_dir():
-                if (entry / "Maps").is_dir():
-                    files = {p.relative_to(entry).as_posix(): p for p in (entry / "Maps").rglob("*.bin")}
-                    for extra in ("Dialog/English.txt", "everest.yaml", "everest.yml"):
-                        if (entry / extra).is_file():
-                            files[extra] = entry / extra
-                    absorb(files, lambda n: files[n].read_bytes(), entry.name)
-            elif entry.suffix.lower() == ".zip":
-                with zipfile.ZipFile(entry) as z:
-                    orig = {n.replace("\\", "/"): n for n in z.namelist()}
-                    absorb(orig, lambda n: z.read(orig[n]), entry.stem)
-        except (OSError, zipfile.BadZipFile):
-            continue
+        for k, v in info["dialog"].items():
+            dialog.setdefault(k, v)
     return ModInfo(maps, dialog, mods_dir, mods, assign_owners(maps, holders, mods))
 
 
@@ -129,11 +178,11 @@ def assign_owners(maps, holders, mods):
     return owner
 
 
-def load_mods(mods_dir):
+def load_mods(mods_dir, cache=None):
     """Scan the Mods folder, or return an empty ModInfo when there is none."""
     if mods_dir is None:
         return ModInfo()
     if not mods_dir.is_dir():
         print(f"Note: no Mods folder at {mods_dir}; skipping titles and map totals. Pass --mods <folder>.", file=sys.stderr)
         return ModInfo()
-    return scan_mods(mods_dir)
+    return scan_mods(mods_dir, cache)

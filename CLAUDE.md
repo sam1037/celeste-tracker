@@ -23,14 +23,14 @@ uv run pytest                                               # tests, on made-up 
 - Verify changes by running against slot 1 and slot 31, not only mock files.
 - The user has a config (`~/.local/share/celeste-tracker/config.toml`), so a bare `uv run celeste_progress.py` shows their real view. The first run of a week downloads the public mod list into `moddb.json` next to it; pass `--offline` to avoid that.
 - In tests, pass `--offline` and a scratch `--config`: the mod list cache lives next to the config, and tests must never use the network.
-- When testing `--note`, pass `--notes <scratch file>`. Otherwise it writes the user's real `celeste_notes.json`. Likewise pass `--config <scratch file>` with `--save-config`.
+- When testing `--note`, `--rate`, `--difficulty`, `--drop`, `--rename` or `--save-config` on real saves, pass `--config <scratch dir>/c.toml` plus `--saves "$S" --mods`: the store (`tracker.db`) sits next to the config, and the user's real store must not get test data.
 - Test fixtures must be made up. Real saves never go in `tests/`; only `tests/fixtures/slots/*.celeste` is allowed past the `*.celeste` gitignore rule.
 - The `VIRTUAL_ENV ... does not match` warning from uv comes from the user's shell and is harmless.
 
 ## Rules
 
 - **Read-only:** never write to save files or the Mods folder.
-- **No personal data in git:** `local/`, `*.celeste`, `Saves/` and `celeste_notes.json` are gitignored, and must stay out of git.
+- **No personal data in git:** `local/`, `*.celeste`, `Saves/`, `celeste_notes.json`, `tracker.db*` and `moddb.json` are gitignored, and must stay out of git.
 - **Commit as you go:** make a commit after each finished change. Don't push without asking (no remote is set up yet).
 - **Dependencies:** runtime code uses only the standard library until the desktop phase (then `pywebview`, see `doc/DESIGN.md`). `pytest` is the only dev dependency. Ask before adding anything else.
 - **Follow the layers in `doc/DESIGN.md`:** front ends (CLI, web, desktop) never parse files themselves, and the completion rules live in one module.

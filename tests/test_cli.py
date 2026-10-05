@@ -4,16 +4,17 @@ from datetime import datetime, timezone
 import pytest
 
 from celeste_tracker.cli import main
+from celeste_tracker.store import Store
 
 from conftest import SLOTS
 
 
 @pytest.fixture
 def run(tmp_path, capsys):
-    """Run the CLI with a scratch config, notes file and mod list cache, offline, so tests never touch the
-    user's real files or the network."""
+    """Run the CLI with a scratch config (the store and the mod list cache sit next to it), offline, so tests
+    never touch the user's real files or the network."""
     def _run(*args):
-        main(["--config", str(tmp_path / "config.toml"), "--notes", str(tmp_path / "notes.json"), "--offline", *args])
+        main(["--config", str(tmp_path / "config.toml"), "--offline", *args])
         return capsys.readouterr().out
     return _run
 
@@ -90,7 +91,7 @@ def test_json(run, mods_dir):
 def test_note(run, tmp_path):
     out = run("--file", str(SLOTS / "1.celeste"), "--note", "Forest", "stopped at C")
     assert "Saved note for Test/Sides/Forest" in out
-    assert json.loads((tmp_path / "notes.json").read_text()) == {"Test/Sides/Forest": "stopped at C"}
+    assert Store(tmp_path / "tracker.db").user_fields() == {"Test/Sides/Forest": {"note": "stopped at C"}}
     assert "<- stopped at C" in run("--file", str(SLOTS / "1.celeste"))
 
 
@@ -121,6 +122,46 @@ def test_unreadable_slot_is_skipped(run, tmp_path, capsys):
     saves.mkdir()
     (saves / "1.celeste").write_bytes((SLOTS / "1.celeste").read_bytes())
     (saves / "2.celeste").write_text("<SaveData><Areas>")  # cut off mid-write
-    main(["--config", str(tmp_path / "c.toml"), "--notes", str(tmp_path / "n.json"), "--offline", "--saves", str(saves)])
+    main(["--config", str(tmp_path / "c.toml"), "--offline", "--saves", str(saves)])
     out, err = capsys.readouterr()
     assert "Save:" in out and "skipping" in err
+
+
+def test_user_fields_show_in_the_overview_and_json(run, mods_dir):
+    args = ("--file", str(SLOTS / "1.celeste"), "--mods", str(mods_dir))
+    assert "Saved rating for Sides Mod: 4/5" in run(*args, "--rate", "The Forest", "4")
+    run(*args, "--difficulty", "Sides Mod", "GM+1")
+    assert "Marked Collab as dropped" in run(*args, "--drop", "Collab")
+    out = run(*args)
+    assert "Mine" in out.splitlines()[3]
+    assert "4/5 · GM+1" in line_of(out, "The Forest") and "dropped" in line_of(out, "Collab ")
+    assert "Mine: 4/5 · GM+1" in run(*args, "--set", "Sides Mod")
+    data = json.loads(run(*args, "--json", "-"))
+    assert next(m for m in data["mods"] if m["id"] == "Sides Mod")["user"] == {"difficulty": "GM+1", "rating": 4}
+    run(*args, "--undrop", "Collab")
+    run(*args, "--rate", "Sides Mod", "0")
+    assert "dropped" not in line_of(run(*args), "Collab ")
+
+
+def test_rating_must_be_1_to_5(run, mods_dir):
+    with pytest.raises(SystemExit, match="1 to 5"):
+        run("--file", str(SLOTS / "1.celeste"), "--rate", "Forest", "9")
+
+
+def test_rename_a_mod(run, mods_dir):
+    args = ("--file", str(SLOTS / "1.celeste"), "--mods", str(mods_dir))
+    assert "Saved rename for Collab: My Collab" in run(*args, "--rename", "Collab", "My Collab")
+    assert line_of(run(*args), "My Collab")
+    data = json.loads(run(*args, "--json", "-"))
+    assert next(m for m in data["mods"] if m["id"] == "Collab")["name_source"] == "renamed"
+    run(*args, "--rename", "Collab", "")
+    assert not any(l.startswith("My Collab") for l in run(*args).splitlines())
+    with pytest.raises(SystemExit, match="No mod matches"):
+        run(*args, "--rename", "Test/Collab/M1", "x")  # a chapter, not a mod
+
+
+def test_import_notes(run, tmp_path):
+    old = tmp_path / "celeste_notes.json"
+    old.write_text(json.dumps({"Test/Sides/Forest": "from the old file"}))
+    assert "Imported 1 note(s)" in run("--file", str(SLOTS / "1.celeste"), "--import-notes", str(old))
+    assert "<- from the old file" in run("--file", str(SLOTS / "1.celeste"))

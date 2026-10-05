@@ -19,7 +19,7 @@ Build status, the save and mod file format, and open technical questions. What t
 | 11 | Read-only | holds today, keep it |
 | 12 | Offline, nothing sent | holds. The only network use is two GETs for the public mod list, at most weekly (`--offline` to skip); the cache is `moddb.json` next to the config |
 
-Should have: the config file is done (`--save-config`, `config.toml` in the user data folder). Extra stats and user fields are todo.
+Should have: config file done (`--save-config`). User fields done: note, rating (`--rate`, 1-5), difficulty (free text), dropped (`--drop`/`--undrop`), mod rename (`--rename`), in `tracker.db` next to the config. Extra stats (best time, best deaths, berries per side) are in the model and JSON but not shown yet.
 
 Technical notes on the "Later" items:
 
@@ -63,9 +63,9 @@ Technical notes on the "Later" items:
 
 - Which mod sides have no heart (the PRD treats those as completed once cleared): probably needs the `.bin`. Until then, a cleared side with `HeartGem=false` can't be told apart from one whose heart was skipped.
 - Is the JSON (5.7 MB for 32 slots) too big for the UI? Decide in the UI step.
-- The default run takes ~7 s on WSL (3 s Mods scan, the rest 32 slot files on `/mnt/c`); the first run of the week adds ~4 s for the mod list. The mod-scan cache in step 5 should help.
+- Speed on WSL (2026-10-05): the default run takes 1.2 s (was 7 s), 3 s the first time the store is filled. Every file check on `/mnt/c` costs ~4 ms, so the Mods scan uses scandir, a thread pool for stat calls and zip reads, and the `mod_cache` table. The first run of the week adds ~4 s for the mod list.
 
 ## TODO
 
 - See how players track progress manually in Excel sheets, to find which columns matter. First pass (2026-10-04): no public personal sheets found. The community challenge lists (Hardest Maps Clear List, goldberries.net) give each side its own entry and mark the level of clearing (clear, full clear, golden). This is why the side became the unit. Real personal sheets would still help: ask in r/celestegame or the Celeste Discord.
-- Next build step: DESIGN.md step 5, the SQLite store (move notes over, user fields and mod renames, cache the mod scan).
+- Next build step: DESIGN.md step 6, the `serve` UI (test with headless Chrome screenshots: `chrome.exe --headless --screenshot` works from WSL).
