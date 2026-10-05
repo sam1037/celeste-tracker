@@ -55,32 +55,46 @@ tests/
 
 ## Data model
 
-The side is the unit (PRD, Definition of "completed"). Everything else rolls up.
+The side is the unit of progress (PRD, Definition of "completed"); rows are mods. The model keeps **what exists** (the catalog, the same for every slot) apart from **what the player did** (progress, one per slot).
 
 ```
-Slot      number, path, last_played_sid, session (sid, side, room, deaths), mods[]
-Mod       id            everest.yaml Name; "Celeste" for vanilla; the level set name if no mod was found
-          name          what players see (rule below); name_source: gamebanana | map title | level set title | mod id
-          gamebanana_title, found (is in the Mods folder), sets[]
-LevelSet  name, title, loaded, maps[]
-Map       sid, title, sides{A, B, C}
-Side      exists        known from the mod files (A/B/C .bin); vanilla from a hardcoded list
-          cleared, heart, deaths, ticks, best_ticks, best_deaths, berries
-          checkpoints_reached[]
-          has_heart     true / false / unknown (needs binmap.py; vanilla hardcoded)
-          status        not opened | in progress | cleared, no heart | completed
+Catalog: one, built from the Mods folder, the vanilla list, and any chapter a slot mentions that neither knows
+  Mod       id            everest.yaml Name; "Celeste" for vanilla; the level set name if no mod was found
+            name          what players see (rule below); name_source: gamebanana | map title | level set title | mod id
+            gamebanana_title, found (is in the Mods folder), sets[]
+  LevelSet  name, title, chapters[]      the part of the level set this mod provides
+  Chapter   sid, title, sides{A, B, C}   (a `Map` in code)
+  Side      side, exists                 known from the mod files (A/B/C .bin); vanilla from a hardcoded list
+            has_heart                    true / false / unknown (needs binmap.py; vanilla hardcoded)
+
+Progress: one per slot
+  Slot          number, path, last_played_sid, session (sid, side, room, deaths), not_loaded{level set names}
+  SideProgress  per (slot, chapter SID, side): cleared, heart, deaths, ticks, best_ticks, best_deaths,
+                berries, checkpoints_reached[]
 ```
 
-Map status: completed / in progress / not opened. Level set status: complete, hearts missing (every side cleared, some hearts not collected), in progress, started, not started, or all opened done (no mod files, so the totals only cover what was opened). A mod's status uses the same values, computed over all its sides; its totals are the sums of its sets.
+`rules.py` combines the two into a **view**: every catalog node (mod, level set, chapter, side) gets a status and totals, either for one slot or for all slots combined (below). Front ends only read views.
+
+Side status: completed / cleared, no heart / in progress / not opened. Map status: completed / in progress / not opened. Level set status: complete, hearts missing (every side cleared, some hearts not collected), in progress, started, not started, or all opened done (no mod files, so the totals only cover what was opened). A mod's status uses the same values, computed over all its sides; its totals are the sums of its sets.
 
 - A side with `has_heart = false` is completed once cleared. While `has_heart` is unknown (mods, until `.bin` parsing), a cleared side without its heart shows **cleared, no heart**, not completed. That way the tool never claims more than the save shows.
 - Placeholder B/C records in the save (the save always lists three) are dropped when the mod files show the side doesn't exist.
 - Totals: sides done / sides total is the main number, maps done / maps total next to it.
 
+### All slots combined (the default view)
+
+- **Side status: the best across slots**, in the order completed > cleared, no heart > in progress > not opened. Status is decided inside one slot first: a side cleared in slot 1 whose heart was only collected in slot 2 is not completed, because no single save shows both.
+- **Deaths, time and berries: added up across slots** (total effort). Best time and best deaths: the best across slots.
+- Each side keeps its per-slot results, so expanding it shows "slot 1: completed · slot 8: in progress, 288 deaths".
+- A mod row lists the slots it was played in. `[not loaded]` only shows when Everest hadn't loaded the mod in every slot that has it.
+- The latest checkpoint and the saved room come from the slot with the most time on that side; the save has no dates to pick the most recent one.
+- One slot is a filter on the same view (`--slot N`, and a slot picker in the UI).
+
 ### Grouping level sets into mods
 
-- A level set belongs to the mod that adds the most of its maps (Glyph's set gets 6 maps from `Glyph.zip` and 1 from `Glyph D side.zip`: it belongs to Glyph).
-- A level set whose mod isn't in the Mods folder (removed, or `--mods` not used) becomes a mod of its own, `found = false`, named by the set's title or ID.
+- **A chapter belongs to the mod whose zip holds its `.bin` file**, so rows match Olympus: one per zip. A level set split across mods appears under each, with that mod's chapters. In the author's Mods folder this happens once: Glyph's `BeefyUncleTorre/map` gets 6 chapters from Glyph and 1 (`z-1-D`) from Glyph D side, which are two rows.
+- Not seen in the author's Mods folder, but handled: if the same file is in several zips, the mod with more chapters in that level set takes it; a B/C side file in a different zip than its A side goes with the A side's mod.
+- A chapter in a save that no mod in the Mods folder has (removed, or `--mods` not used) goes to a mod named after its level set, `found = false`, named by the set's title or ID.
 - Vanilla is the mod "Celeste" with one level set.
 
 ### Mod names (PRD #9)
@@ -118,10 +132,15 @@ Mod ID → file ID → title. Example: `SonderCrispy` → file 1669303 → "Sond
 ## JSON export
 
 ```json
-{"schema": 2, "generated_at": "…", "slots": [{"number": 1, "mods": [{"id": "…", "name": "…", "sets": [{"name": "…", "maps": [{"sid": "…", "sides": {"A": {…}}}]}]}]}]}
+{"schema": 2, "generated_at": "…",
+ "slots": [{"number": 1, "path": "…", "last_played_sid": "…", "session": {…}}],
+ "mods": [{"id": "…", "name": "…", "progress": {"all": {…}, "1": {…}},
+           "sets": [{"name": "…", "progress": {…},
+                     "chapters": [{"sid": "…", "title": "…", "progress": {…},
+                                   "sides": {"A": {"has_heart": null, "progress": {"all": {"status": "…", …}, "1": {…}}}}}]}]}]}
 ```
 
-Schema 2 adds the mod level (schema 1 had sets directly under the slot).
+One catalog tree. Every node carries `progress`, keyed by `"all"` (combined) and by slot number, with the status and totals `rules.py` computed, so the UI never applies rules itself. Schema 1 had a separate tree per slot.
 
 The `schema` number goes up on breaking changes, so the UI can tell what it got.
 
@@ -147,7 +166,7 @@ Snapshots are only taken when the tool runs. Dates are "seen by" dates, as preci
 1. Split the script into the package, keeping today's output, and add tests. (done)
 2. Side-based model and rules (PRD #6, #7) and `--json` (#10). (done)
 3. All slots (#8), mod name (#9), config file. (done)
-4. Mods as the top level (PRD #1, #3, #8, #9, #12): the Mod layer, grouping, `moddb.py` and GameBanana names, JSON schema 2. The overview gets one row per mod, with the level sets indented under a mod that has several; `--set` also accepts a mod name.
+4. Mods as the top level (PRD #1, #3, #8, #9, #12): catalog / progress split, chapters grouped by zip, the combined view as the default (`--slot N` filters), `moddb.py` and GameBanana names, JSON schema 2. The overview gets one row per mod, with the level sets indented under a mod that has several; `--set` also accepts a mod name.
 5. Store: move notes over, add user fields and mod renames, cache the mod scan.
 6. `serve` UI.
 7. Snapshots (dates), `binmap.py` (checkpoint and berry totals, heart presence).

@@ -17,7 +17,7 @@ For now the user is one Celeste player (the author) with many Everest mods insta
 
 | Term | Meaning | Example |
 |---|---|---|
-| **Mod** | One download (one zip): a row in Olympus | Sentient Forest; The 2020 Celeste Spring Community Collab |
+| **Mod** | One download (one zip): a row in Olympus. Its chapters are the map files in its zip | Sentient Forest; The 2020 Celeste Spring Community Collab |
 | **Level set** | A group of chapters shown together in chapter select (a folder under `Maps/`). Most mods have one; a collab has one per difficulty tier | `SpringCollab2020/1-Beginner` |
 | **Chapter** (= **map**) | One playable level. "Map" is the modders' word (one `.bin` file), "chapter" the game's | Forest; Switchback Station |
 | **Side** | The A, B or C version of a chapter, each its own `.bin` file | Forest B side |
@@ -25,6 +25,8 @@ For now the user is one Celeste player (the author) with many Everest mods insta
 | **Checkpoint** | A room flagged as a checkpoint; the save lists the ones reached per side | `c-01` "Deep Woods" |
 
 Mod > Level set > Chapter > Side > Room. The save has no record of rooms other than checkpoints reached and the room you saved in.
+
+A level set can be split across mods: Glyph D side adds a chapter to Glyph's level set. They are still two mods, so two rows.
 
 ## Use cases
 
@@ -65,7 +67,7 @@ Status for each requirement is tracked in [NOTES.md](NOTES.md#status).
 | 5 | Checkpoints reached per side, and the saved room of the current session |
 | 6 | Status per side (A/B/C): cleared, heart, deaths, time, checkpoints |
 | 7 | Apply the completion rules above (side, map, level set) |
-| 8 | Scan all slots in one run, and show the slot for each mod |
+| 8 | All slots in one view, by default: one row per mod across slots. A side counts as done if it's completed in any slot; deaths and time add up across slots; opening a side shows each slot's result. Filter to one slot |
 | 9 | Name each mod the way players know it: its GameBanana title (e.g. "Sonder", not the zip's ID `SonderCrispy`). When that isn't available (offline, or the mod isn't on GameBanana): the map's title for a one-map mod, else the level set's title for a one-set mod, else the mod ID |
 | 10 | Export everything parsed as JSON, so the UI reads data instead of re-parsing saves |
 | 11 | Read-only: never write to save files, safe to run while the game is open |
@@ -80,7 +82,6 @@ Status for each requirement is tracked in [NOTES.md](NOTES.md#status).
 
 ### Later
 
-- Aggregate the same mod across slots
 - Levels of clearing per side: full clear (all berries), golden / deathless. The save has `FullClear`, and `BestDeaths` may cover deathless
 - Checkpoint totals per side (e.g. "B side: checkpoint 11/14") and berry totals per map
 - Dates (cleared on, last played)
