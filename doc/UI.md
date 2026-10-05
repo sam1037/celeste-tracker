@@ -49,6 +49,22 @@ Inside a mod, each side is a chip with its letter: **filled** = cleared, **outli
 
 The player's own fields (rating, difficulty, dropped, rename, note) are hidden on the page for now, at the user's request (2026-10-05; `SHOW_EDITOR` in `app.js`). The CLI still edits them, and the tags column still shows what's set.
 
+## Statuses
+
+The page uses three statuses for a mod or level set, and the **Show** menu offers exactly those (plus All mods), each with its count, so the menu and the Status column use the same words (user, 2026-10-05):
+
+| Page | Server status (`rules.py`, CLI, JSON) | Meaning |
+|---|---|---|
+| playing | in progress, started | opened, not every side cleared yet |
+| ✓ complete | complete, all opened done | every side cleared |
+| not started | not started | never opened |
+
+- **"started" (opened, no side cleared) is shown as playing**, the same word an opened, uncleared side uses. Before, a mod could say "started" while its only side said "playing". The bar still shows 0 cleared.
+- **"all opened done" is shown as complete.** It means the mod isn't in the Mods folder, so its real total is unknown and every side that was opened is cleared (2 mods in the author's saves). Its totals already carry a "?", and the status's tooltip says why.
+- **Sides:** ✓ cleared, playing, not opened.
+- Old bookmarks still work: `show=played` and `show=dropped` open All mods, `show=unfinished` opens Playing. The Dropped filter is gone while the page can't set the flag (the edit fields are hidden); dropped mods are still dimmed.
+- Sorting by Status puts playing first, then complete, then not started; within one status, the mods closest to done come first.
+
 ## Layout
 
 One table, Journal-style:
@@ -71,9 +87,10 @@ One table, Journal-style:
 
 - **One surface** with a header row and alternating row backgrounds, not a separate card per mod.
 - **At most 1200 px wide**, centered: the side margins grow on wide screens, so the name, the bar and the numbers stay close together.
-- **Click a column header to sort** (it replaces the Sort menu), **click it again to flip the order.** A column starts in its natural order: names A to Z, numbers highest first. Following the WAI-ARIA sortable table example, each sortable header is a button with `aria-sort`, a ↕ marks the columns you can sort by, and ▲ / ▼ shows the sorted one; the header gets a background on hover. Status isn't sortable and has no icon.
+- **Click a column header to sort** (it replaces the Sort menu), **click it again to flip the order.** A column starts in its natural order: names A to Z, numbers highest first, statuses playing first. Following the WAI-ARIA sortable table example, each sortable header is a button with `aria-sort`, a ↕ marks the columns you can sort by, and ▲ / ▼ shows the sorted one; the header gets a background on hover.
 - **Pages of 50 mods**, with the pager at the bottom of the table, as in Carbon's data table: rows per page (25, 50, 100 or all), "101–150 of 253 mods", and previous / page numbers / next. A new search, slot or filter goes back to page 1; the page is in the URL. The pager only appears when there are more than 25 mods.
 - **A Deaths column**, as in the Journal.
+- **Sides only under the bar** ("75/100 sides"): the chapter count was the same as the side count for 239 of 272 mods, so it was dropped (user, 2026-10-05).
 - **Opened rows expand in place**, under a thin indent line.
 - Text is left-aligned, numbers right-aligned, and the bars share one column edge.
 - Rejected: a grid of postcard tiles like chapter select. It looks good at first, but 253 tiles are slow to scan and can't be sorted like columns.
@@ -81,7 +98,7 @@ One table, Journal-style:
 ## Principles
 
 1. **Scan first, read second:** a row answers "how done is this?" at a glance, through the bar.
-2. **Celeste's own words and colors:** sides, hearts, checkpoints. The page says *cleared*, *playing* and *not opened* for sides, and *playing* for a mod or level set in progress. (The CLI and the JSON keep "in progress": only the page's wording changes.)
+2. **Celeste's own words:** sides, hearts, checkpoints, and the statuses below.
 3. **Form carries state:** fill, outline and dash say how far a side is, in one color; the letter says which side.
 4. **Motion only answers the player:** a row may expand smoothly when opened. No entrance animations.
 5. **Each figure gets its own label**, not a dot-joined string (the Olympus ID line is the one exception, above).

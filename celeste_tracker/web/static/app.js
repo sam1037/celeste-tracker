@@ -17,7 +17,7 @@ function fmtTime(ticks) {
 }
 
 const PER_PAGE = 50;
-const state = { data: null, key: "all", show: "played", sort: "time", dir: "", page: 1, per: PER_PAGE, q: "", open: new Set(), openSet: new Set(),
+const state = { data: null, key: "all", show: "all", sort: "time", dir: "", page: 1, per: PER_PAGE, q: "", open: new Set(), openSet: new Set(),
                 openCh: new Set() };
 const setId = (m, ls) => `${m.id}/${ls.name}`; // a level set can be split across mods (Glyph + Glyph D side)
 let index = { modOfSid: {}, search: {} };
@@ -28,7 +28,7 @@ let sessionsOpen = null; // the player's choice once they open or close the pane
 function readHash() {
   const p = new URLSearchParams(location.hash.slice(1));
   state.key = p.get("slot") || "all";
-  state.show = p.get("show") || "played";
+  state.show = FILTERS[p.get("show")] ? p.get("show") : (OLD_SHOW[p.get("show")] || "all");
   state.sort = SORTS[p.get("sort")] ? p.get("sort") : "time";
   state.dir = ["asc", "desc"].includes(p.get("dir")) ? p.get("dir") : "";
   state.page = Math.max(1, parseInt(p.get("page"), 10) || 1);
@@ -42,7 +42,7 @@ function readHash() {
 function writeHash() {
   const p = new URLSearchParams();
   if (state.key !== "all") p.set("slot", state.key);
-  if (state.show !== "played") p.set("show", state.show);
+  if (state.show !== "all") p.set("show", state.show);
   if (state.sort !== "time") p.set("sort", state.sort);
   if (state.dir && state.dir !== FIRST_DIR[state.sort]) p.set("dir", state.dir);
   if (state.page > 1) p.set("page", state.page);
@@ -89,16 +89,28 @@ function buildIndex(data) {
   }
 }
 
-const UNFINISHED = new Set(["in progress", "started"]);
-const COMPLETE = new Set(["complete", "all opened done"]);
-const FILTERS = {
-  played: (m, v) => v.status !== "not started",
-  unfinished: (m, v) => UNFINISHED.has(v.status) && !m.user.dropped,
-  complete: (m, v) => COMPLETE.has(v.status),
-  notstarted: (m, v) => v.status === "not started",
-  dropped: (m) => !!m.user.dropped,
-  all: () => true,
+// The page shows three statuses for a mod or level set (doc/UI.md, "Statuses"): the server's "in progress" and
+// "started" are both playing, and "all opened done" (a mod not in the Mods folder, every opened side cleared) is
+// complete, with its totals marked "?". Sides: cleared, playing, not opened. The CLI and the JSON keep the
+// server's words.
+const PAGE_STATUS = { "in progress": "playing", started: "playing", "all opened done": "complete", completed: "cleared" };
+const pageStatus = (s) => PAGE_STATUS[s] || s;
+const STATUS_HELP = {
+  playing: "Opened, not finished: some sides still to clear",
+  complete: "Every side cleared",
+  "not started": "Never opened",
+  cleared: "This side is cleared",
+  "not opened": "Never opened",
 };
+// Show filters by those statuses, so the menu and the Status column use the same words.
+const FILTERS = {
+  all: () => true,
+  playing: (m, v) => pageStatus(v.status) === "playing",
+  complete: (m, v) => pageStatus(v.status) === "complete",
+  notstarted: (m, v) => v.status === "not started",
+};
+const OLD_SHOW = { played: "all", unfinished: "playing", dropped: "all" };  // bookmarks from before
+const STATUS_RANK = { playing: 0, complete: 1, "not started": 2 };
 // Sort keys, each comparing in ascending order; FIRST_DIR is the direction a column starts in when clicked
 // (names A to Z, numbers high to low). Clicking the sorted column again flips it.
 const SORTS = {
@@ -107,8 +119,11 @@ const SORTS = {
   name: (a, b) => a.m.name.localeCompare(b.m.name),
   deaths: (a, b) => a.v.deaths - b.v.deaths,
   rating: (a, b) => (a.m.user.rating || 0) - (b.m.user.rating || 0),
+  // playing, then complete, then not started; within one status, the most sides cleared first
+  status: (a, b) => STATUS_RANK[pageStatus(a.v.status)] - STATUS_RANK[pageStatus(b.v.status)] ||
+    (sortDir() === "asc" ? -1 : 1) * SORTS.progress(a, b),
 };
-const FIRST_DIR = { time: "desc", progress: "desc", name: "asc", deaths: "desc", rating: "desc" };
+const FIRST_DIR = { time: "desc", progress: "desc", name: "asc", deaths: "desc", rating: "desc", status: "asc" };
 const sortDir = () => state.dir || FIRST_DIR[state.sort];
 
 function visibleMods() {
@@ -127,12 +142,13 @@ function bar(v) {
   return `<div class="bar" title="${esc(title)}"><i style="width:${(100 * v.sides_done) / (v.sides_total || 1)}%"></i></div>`;
 }
 
-// The page's words for the server's statuses (doc/UI.md, principle 2); the CLI and JSON keep their own.
-const LABELS = { "in progress": "playing", completed: "cleared" };
-const label = (s) => LABELS[s] || s;
+const label = pageStatus;
 
-function status(s) {
-  return `<span class="status s-${cls(s)}">${esc(label(s))}</span>`;
+function status(s, unsure = false) {
+  const st = pageStatus(s);
+  const help = STATUS_HELP[st] + (unsure && st === "complete"
+    ? ". This mod isn't in your Mods folder, so its real total is unknown: every side you opened is cleared" : "");
+  return `<span class="status s-${cls(st)}" title="${esc(help)}">${esc(st)}</span>`;
 }
 
 function chip(s, heart = false) {
@@ -164,9 +180,8 @@ function modCard({ m, v }) {
     <div class="mod-head" role="button" tabindex="0" aria-expanded="${open}">
       <span class="caret">▸</span>
       <span class="name">${esc(m.name)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</span>
-      <span class="progress">${bar(v)}<small class="num"><span>${v.sides_done}/${v.sides_total}${q(m)} sides</span>` +
-        `<span>${v.maps_done}/${v.maps_total}${q(m)} chapters</span></small></span>
-      <span>${status(v.status)}</span>
+      <span class="progress">${bar(v)}<small class="num">${v.sides_done}/${v.sides_total}${q(m)} sides</small></span>
+      <span>${status(v.status, !known(m))}</span>
       <span class="num right hide-sm">${v.status === "not started" ? "-" : fmtNum(v.deaths)}</span>
       <span class="num right hide-sm">${v.status === "not started" ? "-" : fmtTime(v.ticks)}</span>
       <span class="hide-sm">${tags(m, v)}</span>
@@ -311,11 +326,16 @@ function renderSessions() {
 
 function renderSummary(rows) {
   const played = state.data.mods.map((m) => viewOf(m)).filter((v) => v.status !== "not started");
-  const done = played.filter((v) => COMPLETE.has(v.status)).length;
+  const done = played.filter((v) => pageStatus(v.status) === "complete").length;
   const sides = played.reduce((a, v) => [a[0] + v.sides_done, a[1] + v.sides_total], [0, 0]);
   const fig = (label, n, of) => `<span>${label} <b>${fmtNum(n)}</b>${of === undefined ? "" : ` of ${fmtNum(of)}`}</span>`;
   $("summary").innerHTML = fig("Sides cleared", sides[0], sides[1]) + fig("Mods complete", done, played.length) +
-    (rows.length !== played.length ? fig("Showing", rows.length) : "");
+    (state.show !== "all" || state.q.trim() ? fig("Showing", rows.length) : "");
+  // Each Show option with how many mods it has in this slot.
+  const all = state.data.mods.map((m) => ({ m, v: viewOf(m) }));
+  for (const o of $("show").options) {
+    o.textContent = `${o.dataset.label} (${all.filter(({ m, v }) => FILTERS[o.value](m, v)).length})`;
+  }
 }
 
 // The header row over the mods (same grid as .mod-head). Click a column name to sort by it, again to flip it.
@@ -330,7 +350,7 @@ function listHead() {
       `<span class="icon" aria-hidden="true">${icon}</span></button></span>`;
   };
   return `<div class="list-head" role="row"><span></span>${col("name", "Mod", "", "name")}` +
-    `${col("progress", "Sides", "", "sides cleared")}<span role="columnheader">Status</span>` +
+    `${col("progress", "Sides", "", "sides cleared")}${col("status", "Status")}` +
     `${col("deaths", "Deaths", "right hide-sm")}${col("time", "Time", "right hide-sm", "time played")}` +
     `${col("rating", "Slots and tags", "right hide-sm", "your rating")}</div>`;
 }

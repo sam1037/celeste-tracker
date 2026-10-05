@@ -154,9 +154,8 @@ button:hover { border-color: var(--summit); }
 .progress small { color: var(--muted); font-size: 12px; display: flex; gap: 14px; }
 
 .status { font-size: 12px; white-space: nowrap; }
-.s-complete, .s-completed, .s-all-opened-done { font-weight: 700; }
-.s-complete::before, .s-completed::before, .s-all-opened-done::before { content: "✓ "; }
-.s-started { color: var(--muted); }
+.s-complete, .s-cleared { font-weight: 700; }
+.s-complete::before, .s-cleared::before { content: "✓ "; }
 .s-not-started, .s-not-opened { color: var(--faint); }
 .heart { color: var(--progress); }
 
