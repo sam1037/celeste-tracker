@@ -48,7 +48,7 @@ celeste_tracker/
   store.py      SQLite: user fields, mod-scan cache, snapshots (later)
   export.py     model -> JSON
   cli.py        argparse, text and markdown rendering
-  web/          server.py + static/index.html, app.js, style.css: the --serve page
+  web/          server.py + static/index.html, app.js, style.css, fonts/: the --serve page
 tests/
   fixtures/     small made-up .celeste files and mod zips, safe to commit
 ```
@@ -159,6 +159,8 @@ The `schema` number goes up on breaking changes, so the UI can tell what it got.
 Snapshots are only taken when the tool runs. Dates are "seen by" dates, as precise as how often it runs. The desktop app can take one on launch.
 
 ## UI (`--serve`)
+
+How the page looks (tokens, the side strip, layout) is in [UI.md](UI.md). This section is how it's built.
 
 - `web/server.py`: `http.server` on 127.0.0.1 only, single-threaded. `GET /` serves `static/index.html`, `app.js` and `style.css` (nothing else); `GET /api/library` is the schema 2 JSON (compact, ~2.3 MB for the author's 32 slots, built once per change in ~0.1 s and kept in memory) plus a `version`; `GET /api/status` returns the version; `POST /api/user {key, field, value}` sets one store field.
 - The server keeps the parsed slots in memory. An edit rebuilds the model from them (no file reads); `/api/status` and `/api/library` stat the slot files (on a thread pool) and reparse when one changed, so the page, which polls `/api/status` every 5 s, follows the game's saves. `?refresh=1` also rescans the Mods folder.

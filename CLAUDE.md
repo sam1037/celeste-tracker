@@ -6,6 +6,7 @@ Read the docs in `doc/` first:
 
 - `doc/PRD.md`: the goal, users, use cases, the agreed definition of "completed", the requirements (MVP / should have / later), non-goals and open product questions.
 - `doc/DESIGN.md`: tech stack, layers, package layout, data model, storage, testing and build order.
+- `doc/UI.md`: how the `--serve` page looks and why: the brief, tokens (colors, font), the A/B/C side strip, layout and build order. Read it before changing the page; UI work also uses the `frontend-design` skill.
 - `doc/NOTES.md`: done/todo status per requirement, the save and mod file format as verified on real saves, the known issues, open technical questions and the next build step.
 
 ## Run and test
