@@ -157,10 +157,20 @@ The `schema` number goes up on breaking changes, so the UI can tell what it got.
 
 Snapshots are only taken when the tool runs. Dates are "seen by" dates, as precise as how often it runs. The desktop app can take one on launch.
 
+## UI (`--serve`)
+
+- `web/server.py`: `http.server` on 127.0.0.1 only, single-threaded. `GET /` serves `static/index.html`, `app.js` and `style.css` (nothing else); `GET /api/library` is the schema 2 JSON (compact, ~2.4 MB for the author's 32 slots, ~30 ms) plus a `version`; `GET /api/status` returns the version; `POST /api/user {key, field, value}` sets one store field.
+- The server keeps the parsed slots in memory. An edit rebuilds the model from them (no file reads); `/api/status` and `/api/library` stat the slot files (on a thread pool) and reparse when one changed, so the page, which polls `/api/status` every 5 s, follows the game's saves. `?refresh=1` also rescans the Mods folder.
+- Security: requests must name `localhost`/`127.0.0.1` in `Host` (DNS rebinding); POSTs need the `X-Celeste-Tracker: 1` header, which a page on another site can't send without a CORS preflight the server never answers. The page puts every string through `esc()`; verified in Chrome with a mod renamed to an `<img onerror>` payload.
+- `app.js` applies no rules: statuses and totals come from the JSON. It filters, sorts and draws: mod rows → level sets (collabs only) → chapters → sides, skipping a level with one entry. View state (slot, filter, sort, search, open mods / level sets / chapters) is in the URL hash.
+- No framework and no build step: ~400 lines of JS. Revisit if the UI grows.
+
 ## Testing
 
 - `pytest` with fixtures in `tests/fixtures/`: small hand-written saves and mod zips covering B/C folding, B/C-only maps, AltSidesHelper `-D` maps, placeholder sides, the recycle bin and the session. Real saves never go in git.
 - Before committing, also run against the author's real slots 1 and 31 locally. Later: keep their JSON output in `local/` and diff it after changes.
+- The server: `tests/test_server.py` runs it on a free port (pages, API, host check, header check, edits, picking up a changed save).
+- The page: render it with the Windows Chrome from WSL, headless, against a server on real saves with a scratch `--config`, and look at the screenshots (`--screenshot`) or the rendered DOM (`--dump-dom`). Views are opened through the URL hash. Chrome won't make a window narrower than ~500 px, so phone layouts are checked at 500.
 
 ## Build order
 
@@ -169,7 +179,7 @@ Snapshots are only taken when the tool runs. Dates are "seen by" dates, as preci
 3. All slots (#8), mod name (#9), config file. (done)
 4. Mods as the top level (PRD #1, #3, #8, #9, #12): catalog / progress split, chapters grouped by zip, the combined view as the default (`--slot N` filters), `moddb.py` and GameBanana names, JSON schema 2. The overview gets one row per mod, with the level sets indented under a mod that has several; `--set` also accepts a mod name. (done; the combined CLI view leaves out the long unfinished-chapters list and points to `--set` / `--slot N`)
 5. Store: move notes over, add user fields and mod renames, cache the mod scan. (done)
-6. `serve` UI.
+6. `serve` UI. (done)
 7. Snapshots (dates), `binmap.py` (checkpoint and berry totals, heart presence).
 8. For other players: `pywebview` window, PyInstaller build, auto-detect the Celeste folder.
 

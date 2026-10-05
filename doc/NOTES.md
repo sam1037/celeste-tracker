@@ -19,6 +19,8 @@ Build status, the save and mod file format, and open technical questions. What t
 | 11 | Read-only | holds today, keep it |
 | 12 | Offline, nothing sent | holds. The only network use is two GETs for the public mod list, at most weekly (`--offline` to skip); the cache is `moddb.json` next to the config |
 
+UI (Later): `--serve` done, see DESIGN "UI". Desktop window and the Windows download are still todo.
+
 Should have: config file done (`--save-config`). User fields done: note, rating (`--rate`, 1-5), difficulty (free text), dropped (`--drop`/`--undrop`), mod rename (`--rename`), in `tracker.db` next to the config. Extra stats (best time, best deaths, berries per side) are in the model and JSON but not shown yet.
 
 Technical notes on the "Later" items:
@@ -68,4 +70,4 @@ Technical notes on the "Later" items:
 ## TODO
 
 - See how players track progress manually in Excel sheets, to find which columns matter. First pass (2026-10-04): no public personal sheets found. The community challenge lists (Hardest Maps Clear List, goldberries.net) give each side its own entry and mark the level of clearing (clear, full clear, golden). This is why the side became the unit. Real personal sheets would still help: ask in r/celestegame or the Celeste Discord.
-- Next build step: DESIGN.md step 6, the `serve` UI (test with headless Chrome screenshots: `chrome.exe --headless --screenshot` works from WSL).
+- Next build step: DESIGN.md step 7: snapshots (dates) and `binmap.py` (checkpoint and berry totals, heart presence). Or step 8 (desktop window) if the UI should come first.

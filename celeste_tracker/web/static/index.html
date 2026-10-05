@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Celeste Tracker</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1>Celeste Tracker</h1>
+      <span id="summary" class="muted">Loading your saves…</span>
+    </div>
+    <div class="actions">
+      <span id="live" class="muted" title="The page reloads by itself when the game saves">● live</span>
+      <button id="refresh" type="button" title="Read the Mods folder and all saves again">Refresh</button>
+    </div>
+  </header>
+
+  <section class="toolbar" aria-label="Filters">
+    <input id="q" type="search" placeholder="Search by mod name, ID, level set or chapter" autocomplete="off">
+    <label>Slot <select id="slot"></select></label>
+    <label>Show <select id="show">
+      <option value="played">Played</option>
+      <option value="unfinished">Unfinished</option>
+      <option value="complete">Complete</option>
+      <option value="notstarted">Not started</option>
+      <option value="dropped">Dropped</option>
+      <option value="all">All mods</option>
+    </select></label>
+    <label>Sort <select id="sort">
+      <option value="time">Time played</option>
+      <option value="progress">Progress</option>
+      <option value="name">Name</option>
+      <option value="deaths">Deaths</option>
+      <option value="rating">My rating</option>
+    </select></label>
+  </section>
+
+  <section id="sessions" class="sessions" hidden></section>
+  <main id="list" class="list" aria-live="polite"></main>
+  <p id="error" class="error" hidden></p>
+
+  <script src="/app.js"></script>
+</body>
+</html>

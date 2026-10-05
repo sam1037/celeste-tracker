@@ -12,6 +12,7 @@ With `--mods` it reads your Mods folder (zip file lists, `everest.yaml` and `Dia
 S="/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Saves"   # Windows saves, from WSL
 
 uv run celeste_progress.py --saves "$S" --mods --save-config         # once: remember the folders
+uv run celeste_progress.py --serve                                   # the page: open http://localhost:8765
 uv run celeste_progress.py                                           # every mod, all slots combined
 uv run celeste_progress.py --slot 1                                  # one slot, with its unfinished chapters
 uv run celeste_progress.py --set "Sentient Forest"                   # one mod: its chapters and sides, per slot
@@ -24,6 +25,8 @@ uv run celeste_progress.py --slot 1 --dump                           # raw XML o
 ```
 
 `python -m celeste_tracker` works the same as `celeste_progress.py`.
+
+`--serve [PORT]` starts a local page (only reachable from your own computer) with the same data: one row per mod with a progress bar, search, a slot picker, filters (unfinished, complete, dropped…) and sorting. Click a mod to open it: a collab opens to its level sets, each level set to its chapters, and a chapter to its A/B/C sides with each slot's result. Your rating, difficulty, dropped flag, name and note can be edited there too. The page reloads by itself when the game saves, and the URL keeps what you opened, so a view can be bookmarked.
 
 `--save-config` stores `--saves` and `--mods` in a config file (`~/.local/share/celeste-tracker/config.toml` on Linux/WSL, `%APPDATA%\celeste-tracker\config.toml` on Windows). Later runs use it; flags still win, and `--no-mods` skips the Mods folder. The store (`tracker.db`: your notes and ratings, plus a cache of the Mods folder scan) and the mod list cache (`moddb.json`) sit next to it; `--offline` never downloads, `--refresh-moddb` downloads now. Without a config, the tool looks in the default Saves folder for your OS. Under WSL you need `--saves` or the config.
 

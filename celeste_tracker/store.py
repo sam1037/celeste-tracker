@@ -39,7 +39,9 @@ class Store:
     def __init__(self, path):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(self.path)
+        # The UI server may run on another thread than the one that opened the store (tests, the desktop window);
+        # it handles one request at a time, so the connection is never used by two threads at once.
+        self.db = sqlite3.connect(self.path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         # WAL with synchronous=NORMAL: commits don't wait for an fsync (100+ ms each on WSL's disk); a crash can
         # lose the last change at most, never corrupt the file.

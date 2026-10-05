@@ -429,6 +429,8 @@ def parse_args(argv):
     ap.add_argument("--markdown", metavar="FILE", help="also write a markdown table to this file")
     ap.add_argument("--json", metavar="FILE", help="write everything parsed as JSON to FILE ('-' for stdout)")
     ap.add_argument("--dump", action="store_true", help="print the XML structure of one slot and exit")
+    ap.add_argument("--serve", nargs="?", type=int, const=8765, metavar="PORT",
+                    help="open the tracker as a page in your browser, at http://localhost:PORT (default 8765)")
     ap.add_argument("--config", help=f"config file (default: {config_path()}); the store (tracker.db) and the mod "
                                      "list cache sit next to it")
     ap.add_argument("--save-config", action="store_true",
@@ -482,7 +484,15 @@ def main(argv=None):
             print(f"Moved {n} note(s) from celeste_notes.json into {store.path} (the old file is kept).",
                   file=sys.stderr)
 
-    mods = load_mods(mods_dir_for(slot_paths[0][1], mods_arg) if mods_arg else None, store.mod_cache())
+    mods_dir = mods_dir_for(slot_paths[0][1], mods_arg) if mods_arg else None
+    if args.serve is not None:
+        from .web.server import App, serve
+        titles = load_titles(cfg_file.parent / "moddb.json", offline=args.offline, refresh=args.refresh_moddb) \
+            if mods_dir else {}
+        all_slots = not (args.file or args.slot is not None)
+        serve(App(store, mods_dir, titles, slot_paths[0][1].parent if all_slots else None, slot_paths), args.serve)
+        return
+    mods = load_mods(mods_dir, store.mod_cache())
     titles = load_titles(cfg_file.parent / "moddb.json", offline=args.offline, refresh=args.refresh_moddb) \
         if mods.maps else {}
     lib = load_library(slot_paths, mods, titles, store.user_fields())

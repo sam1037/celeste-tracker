@@ -19,6 +19,19 @@ uv run celeste_progress.py --saves "$S" --mods             # the default: all 32
 uv run pytest                                               # tests, on made-up saves in tests/fixtures
 ```
 
+Testing the page (`--serve`): run the server on real saves with a scratch config, then render it with headless Windows Chrome and look at the PNG (Read shows images). Open views through the URL hash (`#q=…&open=<mod id>&sets=<mod id>/<level set>&ch=<chapter sid>`, several IDs joined by `%0A`).
+
+```bash
+SP=<scratchpad>; mkdir -p $SP/ui && cp ~/.local/share/celeste-tracker/moddb.json $SP/ui/
+uv run celeste_progress.py --config $SP/ui/c.toml --saves "$S" --mods --offline --serve 8765   # in the background
+W=$(wslpath -w $SP/ui)
+"/mnt/c/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --disable-gpu --no-first-run \
+  --user-data-dir="$W\\chrome-profile" --window-size=1400,1000 --virtual-time-budget=8000 \
+  --screenshot="$W\\shot.png" "http://localhost:8765/#q=sentient&open=Sentient%20Forest"
+```
+
+`--dump-dom` instead of `--screenshot` prints the rendered HTML. `--force-dark-mode` checks the dark theme. Chrome won't go narrower than ~500 px. Ignore its `LockFileEx` errors.
+
 - Mods folder: `/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Mods` (~450 zips). `--mods` scans it in ~3 s.
 - Verify changes by running against slot 1 and slot 31, not only mock files.
 - The user has a config (`~/.local/share/celeste-tracker/config.toml`), so a bare `uv run celeste_progress.py` shows their real view. The first run of a week downloads the public mod list into `moddb.json` next to it; pass `--offline` to avoid that.
