@@ -1,11 +1,14 @@
-"""The data model: Slot > LevelSet > Map > Side. The side is the unit of progress (doc/PRD.md).
+"""The data model (doc/DESIGN.md, "Data model"): one catalog of what exists, with each slot's progress on it.
 
-build_slot() combines the parsed save with what the Mods folder knows: which maps a set has and which
-sides each map has. Statuses and totals are filled in by rules.apply().
+Catalog: Mod > LevelSet > Chapter > Side, built once from the Mods folder, the vanilla list and the chapters
+the slots mention. Progress: each Side has one View per slot that has a record of it (keyed by slot key).
+rules.apply() then fills in statuses and totals, and the "all" (all slots combined) views.
 """
 from dataclasses import dataclass, field
 from pathlib import Path
 
+VANILLA_MOD = "Celeste"
+VANILLA_SET = "Celeste (vanilla)"
 
 # Vanilla chapters: SID -> (title, sides, has a heart). Verified on 32 real save slots: these three
 # chapters are stored with HeartGem=false even when cleared, and only chapters 1-7 and Core have B/C sides.
@@ -31,41 +34,9 @@ class Checkpoint:
 
 
 @dataclass
-class Side:
-    side: str                    # 'A', 'B' or 'C'
-    exists: bool | None          # from the mod's .bin files or the vanilla list; None = unknown
-    has_heart: bool | None       # None = unknown (mods, until map .bin parsing)
-    opened: bool = False
-    cleared: bool = False
-    heart: bool = False
-    deaths: int = 0
-    ticks: int = 0
-    best_ticks: int = 0
-    best_deaths: int = 0
-    berries: int = 0
-    checkpoints: list[Checkpoint] = field(default_factory=list)
-    status: str = ""             # rules.SIDE_STATUSES
-
-
-@dataclass
-class Map:
-    sid: str
-    title: str
-    sides: dict[str, Side]       # only sides that exist or were opened
-    status: str = ""             # rules.MAP_STATUSES
-
-
-@dataclass
-class LevelSet:
-    name: str
-    title: str
-    mod_name: str
-    loaded: bool                 # False: Everest didn't load the mod at the last save (recycle bin)
-    vanilla: bool
-    sides_known: bool            # the set's maps and sides come from mod files (or the vanilla list)
-    maps: list[Map]
-    last_played: bool = False
-    # Filled in by rules.apply():
+class View:
+    """Status and totals of one node (mod, level set, chapter or side) for one slot, or for all slots combined.
+    A side's view counts the side itself (sides_total 1), so every node's totals are sums over its sides."""
     status: str = ""
     sides_done: int = 0
     sides_no_heart: int = 0
@@ -75,11 +46,58 @@ class LevelSet:
     deaths: int = 0
     ticks: int = 0
     berries: int = 0
-    open_checkpoints: int = 0    # checkpoints reached in sides not yet completed
+    open_checkpoints: int = 0           # checkpoints reached in sides not yet completed
     latest_checkpoint: dict | None = None  # {'sid', 'side', 'room', 'title'}
+    loaded: bool = True                 # False: Everest didn't load the mod at the last save (recycle bin)
+    slots: list[str] = field(default_factory=list)  # slots with progress here
+    # Sides only:
+    cleared: bool = False
+    heart: bool = False
+    best_ticks: int = 0
+    best_deaths: int = 0
+    checkpoints: list[Checkpoint] = field(default_factory=list)
 
-    def find_map(self, sid):
-        return next((m for m in self.maps if m.sid == sid), None)
+
+@dataclass
+class Side:
+    side: str                    # 'A', 'B' or 'C'
+    exists: bool | None          # from the mod's .bin files or the vanilla list; None = unknown
+    has_heart: bool | None       # None = unknown (mods, until map .bin parsing)
+    progress: dict[str, View] = field(default_factory=dict)  # slot key or "all" -> view
+
+
+@dataclass
+class Chapter:                   # what modders call a map; keyed by its SID
+    sid: str
+    title: str
+    sides: dict[str, Side]
+    progress: dict[str, View] = field(default_factory=dict)
+
+
+@dataclass
+class LevelSet:
+    name: str
+    title: str
+    chapters: list[Chapter]      # the chapters of this level set that this mod provides
+    progress: dict[str, View] = field(default_factory=dict)
+
+
+@dataclass
+class Mod:
+    id: str                      # everest.yaml Name; "Celeste" for vanilla; the level set name if no mod was found
+    name: str                    # what players see (doc/DESIGN.md, "Mod names")
+    name_source: str             # gamebanana | map title | level set title | mod id | vanilla
+    gamebanana_title: str
+    found: bool                  # in the Mods folder (or vanilla): its chapters and sides are known
+    vanilla: bool
+    sets: list[LevelSet]
+    progress: dict[str, View] = field(default_factory=dict)
+
+    def chapters(self):
+        return [ch for ls in self.sets for ch in ls.chapters]
+
+    def find_chapter(self, sid):
+        return next((ch for ch in self.chapters() if ch.sid == sid), None)
 
 
 @dataclass
@@ -95,57 +113,109 @@ class Session:
 
 @dataclass
 class Slot:
+    key: str                     # "1" for 1.celeste; the file name for any other file
     number: int | None
     path: Path
     name: str
     last_played_sid: str
     session: Session | None
-    sets: list[LevelSet]
+    not_loaded: list[str]        # level sets in the recycle bin
 
 
-def build_slot(raw, mods, number=None, path=None):
-    sets = [build_set(rs, mods) for rs in raw["sets"]]
-    last = raw["last_area"]
-    for s in sets:
-        s.last_played = bool(last) and s.find_map(last) is not None
-    session = None
-    if raw["session"]:
-        rs = raw["session"]
-        side = next((m.sides.get(rs["side"]) for s in sets for m in s.maps if m.sid == rs["sid"]), None)
-        session = Session(rs["sid"], rs["side"], rs["room"], rs["start_checkpoint"], rs["deaths"],
-                          title=map_title(rs["sid"], mods), checkpoints=side.checkpoints if side else [])
-    return Slot(number, Path(path) if path else None, raw["name"], last, session, sets)
+@dataclass
+class Library:
+    slots: list[Slot]
+    mods: list[Mod]
 
 
-def map_title(sid, mods):
-    return VANILLA[sid][0] if sid in VANILLA else mods.title(sid)
+def slot_key(number, path):
+    return str(number) if number is not None else Path(path).stem
 
 
-def build_set(rs, mods):
-    if rs["vanilla"]:
-        known = {sid: (set(sides), heart) for sid, (_, sides, heart) in VANILLA.items()}
-    else:
-        known = {sid: (sides, None) for sid, sides in mods.maps.get(rs["name"], {}).items()}
-    by_sid = {a["sid"]: a for a in rs["areas"]}
-    order = list(by_sid) + sorted(known.keys() - by_sid.keys())
-    maps = []
-    for sid in order:
-        exists_in, has_heart = known.get(sid, (None, None))
-        saved = {s["side"]: s for s in by_sid[sid]["sides"]} if sid in by_sid else {}
-        sides = {}
-        for letter in "ABC":
-            raw_side = saved.get(letter)
-            opened = bool(raw_side and raw_side["opened"])
-            exists = (letter in exists_in) if exists_in is not None else None
-            if not (exists or opened):  # the save's placeholder records for sides a map doesn't have
-                continue
-            side = Side(letter, exists, has_heart)
-            if raw_side:
-                for k in ("opened", "cleared", "heart", "deaths", "ticks", "best_ticks", "best_deaths", "berries"):
-                    setattr(side, k, raw_side[k])
-                side.checkpoints = [Checkpoint(r, mods.checkpoint(sid, r)) for r in raw_side["checkpoints"]]
-            sides[letter] = side
-        maps.append(Map(sid, map_title(sid, mods), sides))
-    return LevelSet(name=rs["name"], title="" if rs["vanilla"] else mods.title(rs["name"]),
-                    mod_name="" if rs["vanilla"] else mods.mod_of.get(rs["name"], ""),
-                    loaded=rs["loaded"], vanilla=rs["vanilla"], sides_known=bool(known), maps=maps)
+class _Builder:
+    """Collects the catalog: mods, their level sets and chapters, without duplicates."""
+
+    def __init__(self, mods_info):
+        self.info = mods_info
+        self.mods = {}      # mod ID -> {'found', 'vanilla', 'sets': {set name: {sid: Chapter}}}
+        self.chapters = {}  # sid -> Chapter
+
+    def add(self, mod_id, set_name, sid, sides, has_heart, found, vanilla=False, title=None):
+        mod = self.mods.setdefault(mod_id, {"found": found, "vanilla": vanilla, "sets": {}})
+        exists = None if sides is None else True
+        ch = Chapter(sid, self.info.title(sid) if title is None else title,
+                     {s: Side(s, exists, has_heart) for s in "ABC" if sides and s in sides})
+        mod["sets"].setdefault(set_name, {})[sid] = ch
+        self.chapters[sid] = ch
+        return ch
+
+
+def build_library(loaded, mods_info, titles=None):
+    """loaded: [(slot number, path, parse_save() result)]. titles: {mod ID: {'title', 'author'}} (moddb)."""
+    titles = titles or {}
+    b = _Builder(mods_info)
+    for sid, (title, sides, heart) in VANILLA.items():
+        b.add(VANILLA_MOD, VANILLA_SET, sid, set(sides), heart, found=True, vanilla=True, title=title)
+    for set_name, chapters in mods_info.maps.items():
+        for sid, sides in sorted(chapters.items()):
+            b.add(mods_info.owner[sid], set_name, sid, sides, None, found=True)
+
+    slots = []
+    for number, path, raw in loaded:
+        key = slot_key(number, path)
+        for rs in raw["sets"]:
+            for area in rs["areas"]:
+                opened = [s for s in area["sides"] if s["opened"]]
+                if not opened:
+                    continue
+                ch = b.chapters.get(area["sid"])
+                if ch is None:  # no mod in the Mods folder has it: a mod of its own, named after its level set
+                    owner = VANILLA_MOD if rs["vanilla"] else rs["name"]
+                    ch = b.add(owner, rs["name"], area["sid"], None, None, found=rs["vanilla"], vanilla=rs["vanilla"])
+                for s in opened:
+                    side = ch.sides.get(s["side"])
+                    if side is None:  # opened in the save, but the mod files don't have it (or are unknown)
+                        known = next(iter(ch.sides.values())).exists if ch.sides else None
+                        side = ch.sides.setdefault(s["side"], Side(s["side"], False if known else None, None))
+                    side.progress[key] = View(
+                        cleared=s["cleared"], heart=s["heart"], deaths=s["deaths"], ticks=s["ticks"],
+                        best_ticks=s["best_ticks"], best_deaths=s["best_deaths"], berries=s["berries"],
+                        checkpoints=[Checkpoint(r, mods_info.checkpoint(ch.sid, r)) for r in s["checkpoints"]],
+                        slots=[key])
+                ch.sides = dict(sorted(ch.sides.items()))
+        session = None
+        if raw["session"]:
+            rs = raw["session"]
+            ch = b.chapters.get(rs["sid"])
+            side = ch.sides.get(rs["side"]) if ch else None
+            view = side.progress.get(key) if side else None
+            session = Session(rs["sid"], rs["side"], rs["room"], rs["start_checkpoint"], rs["deaths"],
+                              title=ch.title if ch else "", checkpoints=view.checkpoints if view else [])
+        slots.append(Slot(key, number, Path(path), raw["name"], raw["last_area"], session,
+                          [rs["name"] for rs in raw["sets"] if not rs["loaded"]]))
+
+    mods = []
+    for mod_id, m in sorted(b.mods.items()):
+        sets = [LevelSet(name, "" if m["vanilla"] else mods_info.title(name), list(chs.values()))
+                for name, chs in sorted(m["sets"].items())]
+        if not any(ls.chapters for ls in sets):
+            continue
+        gb = titles.get(mod_id, {}).get("title", "")
+        name, source = mod_name(mod_id, m["vanilla"], gb, sets)
+        mods.append(Mod(mod_id, name, source, gb, m["found"], m["vanilla"], sets))
+    return Library(slots, mods)
+
+
+def mod_name(mod_id, vanilla, gamebanana_title, sets):
+    """The first available of: GameBanana title, the chapter's title (one chapter), the level set's title
+    (one level set), the mod ID."""
+    if vanilla:
+        return VANILLA_MOD, "vanilla"
+    if gamebanana_title:
+        return gamebanana_title, "gamebanana"
+    chapters = [ch for ls in sets for ch in ls.chapters]
+    if len(chapters) == 1 and chapters[0].title:
+        return chapters[0].title, "map title"
+    if len(sets) == 1 and sets[0].title:
+        return sets[0].title, "level set title"
+    return mod_id, "mod id"

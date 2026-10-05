@@ -1,19 +1,23 @@
-"""Command line: argument parsing and text / markdown rendering of the model."""
+"""Command line: argument parsing and text / markdown rendering of the model (doc/DESIGN.md, "Showing the tree")."""
 import argparse
 import sys
 from pathlib import Path
 
-from .core import load_slots
+from .core import load_library
 from .export import to_json
+from .model import View
+from .moddb import load_titles
 from .mods import load_mods
 from .paths import (config_path, find_save, find_saves_dir, list_slots, load_config, mods_dir_for,
                     write_config)
+from .rules import ALL
 from .save import dump
 from .store import DEFAULT_NOTES, load_json, save_json
 
 TICKS_PER_SECOND = 10_000_000
 NOT_LOADED = " [not loaded]"
-MOD_WIDTH = 24
+SLOTS_WIDTH = 14
+RANK = {"in progress": 0, "completed": 1, "not opened": 2}
 
 
 def fmt_time(ticks):
@@ -36,27 +40,67 @@ def short(text, width):
     return text if len(text) <= width else text[:width - 1] + "…"
 
 
-def map_label(m):
-    return f"{m.title} ({m.sid})" if m.title else m.sid
+def chapter_label(ch):
+    return f"{ch.title} ({ch.sid})" if ch.title else ch.sid
 
 
 def set_label(ls):
-    base = f"{ls.title} ({ls.name})" if ls.title else ls.name
-    return base + ("" if ls.loaded else NOT_LOADED)
+    """Under its mod, a level set without a title only needs the last part of its ID ('0-Gyms')."""
+    return ls.title or ls.name.rpartition("/")[2] or ls.name
 
 
-def sides_cell(ls):
-    return f"{ls.sides_done}/{ls.sides_total}" + ("" if ls.sides_known else "?")
+def mod_label(mod, v):
+    return mod.name + ("" if v.loaded else NOT_LOADED)
 
 
-def maps_cell(ls):
-    return f"{ls.maps_done}/{ls.maps_total}" + ("" if ls.sides_known else "?")
+def known(mod):
+    return mod.found or mod.vanilla
+
+
+def sides_cell(v, mod):
+    return f"{v.sides_done}/{v.sides_total}" + ("" if known(mod) else "?")
+
+
+def maps_cell(v, mod):
+    return f"{v.maps_done}/{v.maps_total}" + ("" if known(mod) else "?")
+
+
+def slots_cell(v):
+    return short(",".join(v.slots), SLOTS_WIDTH)
+
+
+def view_of(node, key):
+    return node.progress.get(key) or View(status="not started")
+
+
+def counted_sides(ch, key):
+    return [s for s in ch.sides.values() if s.exists or key in s.progress]
+
+
+def side_status(s, key):
+    return s.progress[key].status if key in s.progress else "not opened"
+
+
+def side_summary(ch, key):
+    """'done: A B; C: in progress, checkpoints 2 (b-01, c-01); not opened: D' for a chapter not completed."""
+    sides = counted_sides(ch, key)
+    done = [s.side for s in sides if side_status(s, key) == "completed"]
+    new = [s.side for s in sides if side_status(s, key) == "not opened"]
+    parts = [f"done: {' '.join(done)}"] if done else []
+    for s in sides:
+        st = side_status(s, key)
+        if st not in ("completed", "not opened"):
+            cps = s.progress[key].checkpoints
+            parts.append(f"{s.side}: {st}" + (f", checkpoints {fmt_cps(cps)}" if cps else ""))
+    if new:
+        parts.append(f"not opened: {' '.join(new)}")
+    return "; ".join(parts)
 
 
 def fmt_session(slot):
     sess = slot.session
-    name = f"{sess.title} ({sess.sid}" if sess.title else f"{sess.sid} ("
-    out = f"Resume: {name}{', ' if sess.title else ''}{sess.side}-side), room {sess.room}"
+    name = f"{sess.title} ({sess.sid}, " if sess.title else f"{sess.sid} ("
+    out = f"Resume: {name}{sess.side}-side), room {sess.room}"
     if sess.start_checkpoint:
         out += f", started from checkpoint room {sess.start_checkpoint}"
     out += f", {sess.deaths} death(s) this session"
@@ -65,198 +109,261 @@ def fmt_session(slot):
     return out
 
 
-def ckpt_note(ls, slot):
-    """Current room for the last-played set, else its latest checkpoint."""
-    if ls.last_played and slot.session:
+# ---------------------------------------------------------------- views
+
+def view_key(lib):
+    """One slot loaded: its own view. Several: all slots combined."""
+    return lib.slots[0].key if len(lib.slots) == 1 else ALL
+
+
+def single_slot(lib, key):
+    return lib.slots[0] if key != ALL or len(lib.slots) == 1 else None
+
+
+def last_played(mod, slot):
+    return bool(slot and slot.last_played_sid and mod.find_chapter(slot.last_played_sid))
+
+
+def visible_mods(lib, key):
+    slot = single_slot(lib, key)
+    mods = [m for m in lib.mods if view_of(m, key).status != "not started"]
+    return sorted(mods, key=lambda m: (not last_played(m, slot), -m.progress[key].ticks, m.name.lower()))
+
+
+def ckpt_note(mod, v, slot):
+    """The saved room for the last-played mod of a single slot, else the latest checkpoint."""
+    if slot and slot.session and mod.find_chapter(slot.session.sid):
         return f" (room {slot.session.room})"
-    lc = ls.latest_checkpoint
+    lc = v.latest_checkpoint
     return f" (ckpt {lc['title'] or lc['room']})" if lc else ""
 
 
-def side_summary(m):
-    """'done: A B; C: in progress, checkpoints 2 (b-01, c-01)' for a map that isn't completed."""
-    done = [s.side for s in m.sides.values() if s.status == "completed"]
-    new = [s.side for s in m.sides.values() if s.status == "not opened"]
-    parts = [f"done: {' '.join(done)}"] if done else []
-    for s in m.sides.values():
-        if s.status not in ("completed", "not opened"):
-            cps = f", checkpoints {fmt_cps(s.checkpoints)}" if s.checkpoints else ""
-            parts.append(f"{s.side}: {s.status}{cps}")
-    if new:
-        parts.append(f"not opened: {' '.join(new)}")
-    return "; ".join(parts)
+def mod_notes(mod, notes):
+    return [notes[k] for k in [mod.id] + [ls.name for ls in mod.sets] if k in notes]
 
 
 # ---------------------------------------------------------------- overview
 
-def overview_rows(slots):
-    return [(slot, ls) for slot in slots for ls in slot.sets if ls.status != "not started"]
-
-
-def render_text(slots, notes, mods):
-    multi = len(slots) > 1
-    rows = overview_rows(slots)
-    labels = [set_label(ls) for _, ls in rows]
-    w = max([len(x) for x in labels] + [9])
-    show_mod = any(ls.mod_name for _, ls in rows)
-    mw = min(max([len(ls.mod_name) for _, ls in rows] + [3]), MOD_WIDTH)
-    mod_head = f"  {'Mod':<{mw}}" if show_mod else ""
-    slot_head = "Slot  " if multi else ""
-    out = [f"{slot_head}{'Level set':<{w}}{mod_head}  {'Sides':<7}  {'Maps':<7}  {'Status':<15}  "
-           f"{'Deaths':>6}  {'Time':<9}  {'Berries':>7}  Ckpts"]
-    out.append("-" * (len(slot_head) + w + len(mod_head) + 75))
-    for (slot, ls), lab in zip(rows, labels):
-        mark = " *" if ls.last_played and not multi else ""
-        slot_cell = f"{slot.number if slot.number is not None else '-':>4}  " if multi else ""
-        mod_cell = f"  {short(ls.mod_name, mw):<{mw}}" if show_mod else ""
-        out.append(f"{slot_cell}{lab:<{w}}{mod_cell}  {sides_cell(ls):<7}  {maps_cell(ls):<7}  "
-                   f"{ls.status:<15}  {ls.deaths:>6}  {fmt_time(ls.ticks):<9}  {ls.berries:>7}  "
-                   f"{ls.open_checkpoints:>5}{ckpt_note(ls, slot)}{mark}")
-        if ls.name in notes:
-            out.append(f"{'':<{len(slot_cell) + w}}    note: {notes[ls.name]}")
+def render_text(lib, key, notes, mods_info):
+    slot = single_slot(lib, key)
+    multi = slot is None
+    mods = visible_mods(lib, key)
+    rows = []  # (label, view, mod)
+    for m in mods:
+        v = m.progress[key]
+        rows.append((mod_label(m, v), v, m))
+        if len(m.sets) > 1:  # a collab: its level sets underneath (a mod with one set skips that level)
+            for i, ls in enumerate(m.sets):
+                branch = "└" if i == len(m.sets) - 1 else "├"
+                rows.append((f"  {branch} {set_label(ls)}", view_of(ls, key), m))
+    w = max([len(r[0]) for r in rows] + [3])
+    slots_head = f"  {'Slots':<{SLOTS_WIDTH}}" if multi else ""
+    out = [f"{'Mod':<{w}}  {'Sides':<8}  {'Maps':<8}  {'Status':<15}  {'Deaths':>6}  {'Time':<9}  {'Berries':>7}"
+           f"{slots_head}  Ckpts"]
+    out.append("-" * (w + len(slots_head) + 82))
+    for label, v, m in rows:
+        is_mod = not label.startswith("  ")
+        mark = " *" if is_mod and last_played(m, slot) else ""
+        slots = f"  {slots_cell(v):<{SLOTS_WIDTH}}" if multi else ""
+        ck = f"{v.open_checkpoints:>5}{ckpt_note(m, v, slot) if is_mod else ''}"
+        out.append(f"{label:<{w}}  {sides_cell(v, m):<8}  {maps_cell(v, m):<8}  {v.status:<15}  {v.deaths:>6}  "
+                   f"{fmt_time(v.ticks):<9}  {v.berries:>7}{slots}  {ck}{mark}".rstrip())
+        if is_mod:
+            for n in mod_notes(m, notes):
+                out.append(f"{'':<{w}}    note: {n}")
     out.append("")
-    for slot in slots:
-        prefix = f"Slot {slot.number}: " if multi else ""
-        if slot.last_played_sid and not multi:
-            out.append(f"* = contains your last-played map ({slot.last_played_sid})")
-        if slot.session:
-            out.append(prefix + fmt_session(slot))
+    for s in lib.slots:
+        if not multi and s.last_played_sid:
+            out.append(f"* = contains your last-played map ({s.last_played_sid})")
+        if s.session:
+            out.append((f"Slot {s.key}: " if multi else "") + fmt_session(s))
     out.append("Sides = sides completed (cleared + heart, or cleared when the side has no heart) out of all sides; "
-               "Maps = maps with every side completed. A map's B and C sides count once each.")
-    if any(ls.status == "hearts missing" or ls.sides_no_heart for _, ls in rows):
+               "Maps = chapters with every side completed. A chapter's B and C sides count once each.")
+    if multi:
+        out.append(f"All {len(lib.slots)} slots combined: a side counts as done if it's completed in any slot; deaths "
+                   "and time add up. Slots = where you played it.")
+    views = [v for _, v, _ in rows]
+    if any(v.sides_no_heart for v in views):
         out.append("hearts missing = every side is cleared but some hearts aren't collected. For mods the tool can't "
                    "yet tell whether a side has a heart at all (lobbies often don't), so those sides aren't counted as done.")
-    if any(not ls.sides_known for _, ls in rows):
-        out.append("? = total unknown: no mod for that set was found" + (" in the Mods folder" if mods.maps else
-                   " (use --mods)") + ", so only what you've opened is counted.")
-    out.append("Ckpts = checkpoints reached in sides not yet completed. (room X) = your saved room, only for the "
-               "last-played set; (ckpt X) = latest checkpoint listed. A save doesn't record how many a map has.")
-    if any(not ls.loaded for _, ls in rows):
-        out.append("[not loaded] = Everest didn't load that mod the last time the game saved; its progress is kept aside.")
-    if multi:
-        out.append("Use --slot N for the unfinished maps of one slot.")
+    if any(not known(m) for _, _, m in rows):
+        out.append("? = total unknown: that mod isn't in the Mods folder" + ("" if mods_info.maps else " (use --mods)")
+                   + ", so only what you've opened is counted.")
+    out.append("Ckpts = checkpoints reached in sides not yet completed. (room X) = your saved room; (ckpt X) = latest "
+               "checkpoint listed. A save doesn't record how many a chapter has.")
+    if any(not v.loaded for v in views):
+        out.append("[not loaded] = Everest didn't load that mod the last time the game saved"
+                   + (" (in any slot that has it)" if multi else "") + "; its progress is kept aside.")
+    if multi:  # the list of unfinished chapters over all slots is too long to read; one mod or slot at a time
+        out.append("For a mod's chapters and sides: --set NAME. For one slot's unfinished chapters: --slot N.")
         return "\n".join(out)
 
-    shown = {ls.name for _, ls in rows}
-    unfinished = [(ls, [m for m in ls.maps if m.status == "in progress"]) for _, ls in rows]
-    unfinished = [(ls, ms) for ls, ms in unfinished if ms]
+    shown = {m.id for m in mods} | {ls.name for m in mods for ls in m.sets}
+    unfinished = [(m, [ch for ch in m.chapters() if view_of(ch, key).status == "in progress"]) for m in mods]
+    unfinished = [(m, chs) for m, chs in unfinished if chs]
     if unfinished:
         out.append("\nOpened but not completed:")
-        for ls, ms in unfinished:
-            out.append(f"  {set_label(ls)}")
-            for m in ms:
-                shown.add(m.sid)
-                note = f"   <- {notes[m.sid]}" if m.sid in notes else ""
-                out.append(f"    - {map_label(m)}  {side_summary(m)}{note}")
+        for m, chs in unfinished:
+            out.append(f"  {mod_label(m, m.progress[key])}")
+            for ch in sorted(chs, key=lambda c: -c.progress[key].ticks):
+                shown.add(ch.sid)
+                note = f"   <- {notes[ch.sid]}" if ch.sid in notes else ""
+                out.append(f"    - {chapter_label(ch)}  {side_summary(ch, key)}{note}")
     rest = {k: v for k, v in notes.items() if k not in shown}
     if rest:
         out.append("\nOther notes:")
-        known = {m.sid for _, ls in rows for m in ls.maps}
+        known_ids = {m.id for m in lib.mods} | {ls.name for m in lib.mods for ls in m.sets} | \
+                    {ch.sid for m in lib.mods for ch in m.chapters()}
         for k, v in rest.items():
-            out.append(f"  {k}: {v}" + ("" if k in known else "  (not in save)"))
+            out.append(f"  {k}: {v}" + ("" if k in known_ids else "  (not in save)"))
     return "\n".join(out)
 
 
-def render_markdown(slots, notes):
-    multi = len(slots) > 1
-    head = ["Slot"] * multi + ["Level set", "Mod", "Sides", "Maps", "Status", "Deaths", "Time", "Berries",
-                               "Checkpoints", "Unfinished maps", "Notes"]
+def render_markdown(lib, key, notes):
+    multi = single_slot(lib, key) is None
+    head = ["Mod", "Sides", "Maps", "Status", "Deaths", "Time", "Berries"] + ["Slots"] * multi + \
+           ["Checkpoints", "Unfinished chapters", "Notes"]
     out = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
-    for slot, ls in overview_rows(slots):
-        name = set_label(ls) + (" (last played)" if ls.last_played else "")
-        maps = ", ".join(f"{map_label(m)} [{side_summary(m)}]" for m in ls.maps if m.status == "in progress")
-        sids = {m.sid for m in ls.maps}
-        rn = "; ".join(f"{k}: {v}" for k, v in notes.items() if k == ls.name or k in sids)
-        cells = [str(slot.number)] * multi + [
-            name, ls.mod_name, sides_cell(ls), maps_cell(ls), ls.status, str(ls.deaths), fmt_time(ls.ticks),
-            str(ls.berries), f"{ls.open_checkpoints}{ckpt_note(ls, slot)}", maps, rn]
+    slot = single_slot(lib, key)
+    for m in visible_mods(lib, key):
+        v = m.progress[key]
+        name = mod_label(m, v) + (" (last played)" if last_played(m, slot) else "")
+        chs = ", ".join(f"{chapter_label(ch)} [{side_summary(ch, key)}]" for ch in m.chapters()
+                        if view_of(ch, key).status == "in progress")
+        sids = {m.id} | {ls.name for ls in m.sets} | {ch.sid for ch in m.chapters()}
+        rn = "; ".join(f"{k}: {n}" for k, n in notes.items() if k in sids)
+        cells = [name, sides_cell(v, m), maps_cell(v, m), v.status, str(v.deaths), fmt_time(v.ticks), str(v.berries)] \
+            + [",".join(v.slots)] * multi + [f"{v.open_checkpoints}{ckpt_note(m, v, slot)}", chs, rn]
         out.append("| " + " | ".join(c.replace("|", "\\|") for c in cells) + " |")
     return "\n".join(out) + "\n"
 
 
-# ---------------------------------------------------------------- one level set
+# ---------------------------------------------------------------- one mod
 
-def find_set(key, slot):
-    """The one level set KEY names: exact ID, title or mod name, else a unique case-insensitive substring."""
-    cands = [ls for ls in slot.sets if ls.maps]
+def find_mod(key, lib, view):
+    """(mod, level set or None) that KEY names: a mod's ID or name, or a level set's ID or title.
+    Exact first, else a unique case-insensitive substring; when several mods match, the one played wins."""
+    targets = [(m, None, (m.id, m.name)) for m in lib.mods] + \
+              [(m, ls, (ls.name, ls.title)) for m in lib.mods for ls in m.sets]
     low = key.lower()
-    hits = [ls for ls in cands if key in (ls.name, ls.title, ls.mod_name)]
-    hits = hits or [ls for ls in cands if any(low in x.lower() for x in (ls.name, ls.title, ls.mod_name))]
-    if not hits:
-        sys.exit(f"No level set matches '{key}'.")
-    if len(hits) > 1:
-        sys.exit(f"'{key}' matches several level sets, be more specific:\n  "
-                 + "\n  ".join(set_label(h) for h in hits[:15]))
-    return hits[0]
+    hits = [(m, ls) for m, ls, names in targets if key in names]
+    hits = hits or [(m, ls) for m, ls, names in targets if any(n and low in n.lower() for n in names)]
+    by_mod = {}
+    for m, ls in hits:
+        by_mod.setdefault(m.id, (m, []))[1].append(ls)
+    if len(by_mod) > 1:
+        played = {k: x for k, x in by_mod.items() if view_of(x[0], view).status != "not started"}
+        by_mod = played if len(played) == 1 else by_mod
+    if not by_mod:
+        sys.exit(f"No mod or level set matches '{key}'.")
+    if len(by_mod) > 1:
+        sys.exit(f"'{key}' matches several mods, be more specific:\n  "
+                 + "\n  ".join(f"{m.name} ({m.id})" for m, _ in list(by_mod.values())[:15]))
+    m, sets = next(iter(by_mod.values()))
+    only = sets[0] if len(sets) == 1 and sets[0] is not None and len(m.sets) > 1 else None
+    return m, only
 
 
-def render_set(ls, slot, notes):
-    """Every map of one level set and each of its sides, including the ones never opened."""
-    rank = {"in progress": 0, "completed": 1, "not opened": 2}
-    maps = sorted(ls.maps, key=lambda m: rank[m.status])  # stable inside each group
-    n_prog = sum(m.status == "in progress" for m in maps)
-    n_new = sum(m.status == "not opened" for m in maps)
-    mod = f"  (mod: {ls.mod_name})" if ls.mod_name and ls.mod_name not in (ls.title, ls.name) else ""
-    out = [set_label(ls) + mod,
-           f"Sides {sides_cell(ls)} done, maps {maps_cell(ls)} done ({n_prog} in progress, {n_new} not opened)"
-           + (f", {ls.sides_no_heart} side(s) cleared without the heart" if ls.sides_no_heart else ""), ""]
-    labels = [(m.title + (f" ({m.sid.rpartition('/')[2]})" if not ls.vanilla else "")) if m.title
-              else m.sid.rpartition("/")[2] for m in maps]
-    w = max([len(x) for x in labels] + [3])
-    out.append(f"{'Map':<{w}}  Side  {'Status':<17}  {'Deaths':>6}  {'Time':<9}  {'Berries':>7}  Checkpoints")
-    out.append("-" * (w + 70))
-    for m, lab in zip(maps, labels):
-        star = " *" if m.sid == slot.last_played_sid else ""
-        note = f"   <- {notes[m.sid]}" if m.sid in notes else ""
-        if not m.sides:
-            out.append(f"{lab:<{w}}  {'-':<4}  {'not opened':<17}{star}{note}")
-            continue
-        for i, s in enumerate(m.sides.values()):
-            if s.opened:
-                cells = f"{s.deaths:>6}  {fmt_time(s.ticks):<9}  {s.berries:>7}  {fmt_cps(s.checkpoints)}"
-            else:
-                cells = f"{'-':>6}  {'-':<9}  {'-':>7}"
-            first = i == 0
-            out.append(f"{lab if first else '':<{w}}  {s.side:<4}  {s.status:<17}  {cells}"
-                       f"{star if first else ''}{note if first else ''}".rstrip())
+def side_cells(sv):
+    if sv is None:
+        return f"{'-':>6}  {'-':<9}  {'-':>7}"
+    return f"{sv.deaths:>6}  {fmt_time(sv.ticks):<9}  {sv.berries:>7}  {fmt_cps(sv.checkpoints)}"
+
+
+def slot_breakdown(s, key):
+    """'slot 1: completed · slot 8: in progress (288 deaths)' for a side played in several slots."""
+    per = [(k, v) for k, v in s.progress.items() if k != ALL]
+    if key != ALL or len(per) < 2:
+        return ""
+    return " · ".join(f"slot {k}: {v.status}" + ("" if v.status == "completed" else f" ({v.deaths} deaths)")
+                      for k, v in per)
+
+
+def render_mod(mod, key, lib, notes, only_set=None):
+    """Every chapter and side of one mod (or one of its level sets), including the ones never opened."""
+    v = view_of(mod, key)
+    head = mod_label(mod, v) + (f"  (mod ID: {mod.id})" if mod.id != mod.name else "")
+    chapters = only_set.chapters if only_set else mod.chapters()
+    n_prog = sum(view_of(ch, key).status == "in progress" for ch in chapters)
+    n_new = sum(view_of(ch, key).status == "not opened" for ch in chapters)
+    v = view_of(only_set, key) if only_set else v  # one level set of a collab: its own totals
+    out = [head, f"Sides {sides_cell(v, mod)} done, chapters {maps_cell(v, mod)} done "
+                 f"({n_prog} in progress, {n_new} not opened)"
+           + (f", {v.sides_no_heart} side(s) cleared without the heart" if v.sides_no_heart else "")
+           + (f"; played in slots {', '.join(v.slots)}" if key == ALL and len(lib.slots) > 1 and v.slots else "")]
+    for n in mod_notes(mod, notes):
+        out.append(f"note: {n}")
+    one_chapter = len(mod.chapters()) == 1  # e.g. Sentient Forest: straight to its sides
+    sets = [only_set] if only_set else mod.sets
+    for ls in sets:
+        if len(mod.sets) > 1:
+            lv = view_of(ls, key)
+            out.append(f"\n{ls.title + ' (' + ls.name + ')' if ls.title else ls.name}: "
+                       f"sides {sides_cell(lv, mod)}, {lv.status}")
+        chs = sorted(ls.chapters, key=lambda c: RANK.get(view_of(c, key).status, 3))
+        labels = [(ch.title or ch.sid.rpartition("/")[2]) for ch in chs]
+        w = 0 if one_chapter else max([len(x) for x in labels] + [7])
+        lead = "" if one_chapter else f"{'Chapter':<{w}}  "
+        out.append("")
+        out.append(f"{lead}Side  {'Status':<17}  {'Deaths':>6}  {'Time':<9}  {'Berries':>7}  Checkpoints")
+        out.append("-" * (len(lead) + 70))
+        for ch, lab in zip(chs, labels):
+            star = " *" if any(ch.sid == s.last_played_sid for s in lib.slots if key in (ALL, s.key)) else ""
+            note = f"   <- {notes[ch.sid]}" if ch.sid in notes else ""
+            sides = counted_sides(ch, key) or list(ch.sides.values())
+            if not sides:  # a chapter only known from another slot, with no side opened in this one
+                out.append(f"{f'{lab:<{w}}  ' if lead else ''}{'-':<4}  {'not opened':<17}{star}{note}")
+                continue
+            for i, s in enumerate(sides):
+                first = i == 0
+                name = f"{lab if first else '':<{w}}  " if lead else ""
+                out.append(f"{name}{s.side:<4}  {side_status(s, key):<17}  {side_cells(s.progress.get(key))}"
+                           f"{star if first else ''}{note if first else ''}".rstrip())
+                breakdown = slot_breakdown(s, key)
+                if breakdown:
+                    out.append(f"{'':<{len(name)}}      {breakdown}")
     out.append("")
-    if ls.find_map(slot.last_played_sid):
-        out.append("* = your last-played map")
-    if ls.sides_no_heart:
+    if any(ch.sid == s.last_played_sid for s in lib.slots for ch in chapters):
+        out.append("* = your last-played map" + ("" if len(lib.slots) == 1 else " in a slot"))
+    if v.sides_no_heart:
         out.append("cleared, no heart = cleared without collecting the heart. For mods the tool can't yet tell "
                    "whether that side has a heart at all.")
-    if not ls.sides_known:
-        out.append("Only maps and sides you've opened are listed: no mod for this set was found"
-                   + (" in the Mods folder." if ls.title or ls.mod_name else ". Use --mods to read the Mods folder."))
+    if not known(mod):
+        out.append("Only chapters and sides you've opened are listed: this mod isn't in the Mods folder.")
     return "\n".join(out)
 
 
 # ---------------------------------------------------------------- notes
 
-def resolve_note_key(key, slots):
-    """Match KEY to a level set or map ID (or its in-game title): exact ID, else a unique substring."""
+def resolve_note_key(key, lib):
+    """Match KEY to a mod ID, level set or chapter ID (or its name/title): exact, else a unique substring."""
     titles = {}
-    for slot in slots:
-        for ls in slot.sets:
+    for m in lib.mods:
+        titles.setdefault(m.id, m.name)
+        for ls in m.sets:
             titles.setdefault(ls.name, ls.title)
-            for m in ls.maps:
-                titles.setdefault(m.sid, m.title)
+        for ch in m.chapters():
+            titles.setdefault(ch.sid, ch.title)
     if key in titles:
         return key
     low = key.lower()
+    exact = [n for n, t in titles.items() if t and t.lower() == low]
+    exact_mods = [n for n in exact if any(n == m.id for m in lib.mods)]
+    if len(exact_mods) == 1 or len(exact) == 1:  # "Sonder" is the mod and its chapter: the mod wins
+        return (exact_mods or exact)[0]
     hits = [n for n, t in titles.items() if low in n.lower() or (t and low in t.lower())]
     if len(hits) == 1:
         return hits[0]
     if len(hits) > 1:
         sys.exit(f"'{key}' matches several entries, be more specific:\n  "
-                 + "\n  ".join(f"{titles[n]} ({n})" if titles[n] else n for n in hits[:12]))
-    print(f"Note: '{key}' wasn't found in the save; storing the note under that exact key.")
+                 + "\n  ".join(f"{titles[n]} ({n})" if titles[n] and titles[n] != n else n for n in hits[:12]))
+    print(f"Note: '{key}' wasn't found; storing the note under that exact key.")
     return key
 
 
-def set_note(notes_path, key, note, slots):
+def set_note(notes_path, key, note, lib):
     notes = load_json(notes_path, {})
-    key = resolve_note_key(key, slots)
+    key = resolve_note_key(key, lib)
     if note.strip():
         notes[key] = note.strip()
         print(f"Saved note for {key}: {note.strip()}")
@@ -271,22 +378,25 @@ def set_note(notes_path, key, note, slots):
 # ---------------------------------------------------------------- main
 
 def parse_args(argv):
-    ap = argparse.ArgumentParser(description="Celeste mod progress from save files, without loading the mods.")
-    ap.add_argument("--slot", type=int, default=0, help="save slot number (default 0)")
-    ap.add_argument("--all", action="store_true", help="every save slot in the Saves folder")
+    ap = argparse.ArgumentParser(description="Celeste mod progress from save files, without loading the mods. "
+                                             "By default, all save slots combined.")
+    ap.add_argument("--slot", type=int, help="only this save slot")
+    ap.add_argument("--all", action="store_true", help="all save slots combined (the default)")
     ap.add_argument("--saves", help="path to the Saves folder")
     ap.add_argument("--file", help="path to a specific .celeste save file")
     ap.add_argument("--mods", nargs="?", const="auto", metavar="FOLDER",
-                    help="read titles, map and side totals from the Mods folder (default: next to Saves)")
+                    help="read chapters, sides and titles from the Mods folder (default: next to Saves)")
     ap.add_argument("--no-mods", action="store_true", help="don't read the Mods folder, even if the config says to")
-    ap.add_argument("--set", metavar="KEY", help="every map and side of one level set (ID, title, mod name or part)")
+    ap.add_argument("--offline", action="store_true", help="don't download the mod list for GameBanana titles")
+    ap.add_argument("--refresh-moddb", action="store_true", help="download the mod list now, even if the cache is fresh")
+    ap.add_argument("--set", metavar="KEY", help="every chapter and side of one mod (name, ID, level set, or part)")
     ap.add_argument("--note", nargs=2, metavar=("KEY", "TEXT"),
-                    help="set a note on a level set or map (empty TEXT removes it)")
+                    help="set a note on a mod, level set or chapter (empty TEXT removes it)")
     ap.add_argument("--notes", default=str(DEFAULT_NOTES), help="notes file")
     ap.add_argument("--markdown", metavar="FILE", help="also write a markdown table to this file")
     ap.add_argument("--json", metavar="FILE", help="write everything parsed as JSON to FILE ('-' for stdout)")
-    ap.add_argument("--dump", action="store_true", help="print the XML structure and exit")
-    ap.add_argument("--config", help=f"config file (default: {config_path()})")
+    ap.add_argument("--dump", action="store_true", help="print the XML structure of one slot and exit")
+    ap.add_argument("--config", help=f"config file (default: {config_path()}); the mod list cache sits next to it")
     ap.add_argument("--save-config", action="store_true",
                     help="store the given --saves and --mods in the config file, so later runs don't need them")
     return ap.parse_args(argv)
@@ -312,52 +422,57 @@ def main(argv=None):
         print(cfg_file.read_text(encoding="utf-8").rstrip())
         return
 
-    if args.all:
-        if args.file or args.set or args.dump:
-            sys.exit("--all can't be combined with --file, --set or --dump.")
+    if args.file or args.slot is not None:
+        path = find_save(args.file, saves, args.slot or 0)
+        slot_paths = [(slot_number(path), path)]
+    else:
         saves_dir = find_saves_dir(saves)
         if not saves_dir or not saves_dir.is_dir():
-            sys.exit("Could not find the Saves folder. Use --saves <folder>.")
+            sys.exit("Could not find the Saves folder. Use --saves <folder>, --slot N or --file <path>.")
         slot_paths = list_slots(saves_dir)
         if not slot_paths:
             sys.exit(f"No save slots (N.celeste) in {saves_dir}.")
-    else:
-        path = find_save(args.file, saves, args.slot)
-        slot_paths = [(slot_number(path), path)]
     if args.dump:
+        if len(slot_paths) != 1:
+            sys.exit("--dump needs --slot N or --file <path>.")
         dump(slot_paths[0][1])
         return
 
     mods = load_mods(mods_dir_for(slot_paths[0][1], mods_arg) if mods_arg else None)
-    slots = load_slots(slot_paths, mods)
+    titles = load_titles(cfg_file.parent / "moddb.json", offline=args.offline, refresh=args.refresh_moddb) \
+        if mods.maps else {}
+    lib = load_library(slot_paths, mods, titles)
+    key = view_key(lib)
 
     if args.note:
-        key, text = args.note
-        set_note(args.notes, key, text, slots)
+        k, text = args.note
+        set_note(args.notes, k, text, lib)
         return
     if args.json == "-":
-        print(to_json(slots, mods))
+        print(to_json(lib, mods))
         return
     notes = load_json(args.notes, {})
     if args.set:
-        print(render_set(find_set(args.set, slots[0]), slots[0], notes))
+        mod, only = find_mod(args.set, lib, key)
+        print(render_mod(mod, key, lib, notes, only))
         return
-    if not overview_rows(slots):
-        print(f"No level-set progress found in {slot_paths[0][1]}. Try --dump to inspect the file structure.")
+    if not visible_mods(lib, key):
+        print(f"No progress found in {slot_paths[0][1]}. Try --dump to inspect the file structure.")
         return
 
-    if args.all:
-        print(f"Saves: {slot_paths[0][1].parent} ({len(slots)} slots)")
+    if len(lib.slots) > 1:
+        print(f"Saves: {slot_paths[0][1].parent} ({len(lib.slots)} slots combined)")
     else:
         print(f"Save: {slot_paths[0][1]}")
     if mods.source:
-        print(f"Mods: {mods.source} ({mods.summary()})")
+        named = sum(1 for m in lib.mods if m.name_source == "gamebanana")
+        print(f"Mods: {mods.source} ({mods.summary()}; {named} named from GameBanana)")
     print()
-    print(render_text(slots, notes, mods))
+    print(render_text(lib, key, notes, mods))
 
     if args.markdown:
-        Path(args.markdown).write_text(render_markdown(slots, notes), encoding="utf-8")
+        Path(args.markdown).write_text(render_markdown(lib, key, notes), encoding="utf-8")
         print(f"\nMarkdown written to {args.markdown}")
     if args.json:
-        Path(args.json).write_text(to_json(slots, mods), encoding="utf-8")
+        Path(args.json).write_text(to_json(lib, mods), encoding="utf-8")
         print(f"\nJSON written to {args.json}")

@@ -1,4 +1,4 @@
-from celeste_tracker.mods import mod_name, split_side
+from celeste_tracker.mods import ModFiles, assign_owners, mod_name, split_side
 from celeste_tracker.paths import list_slots
 from celeste_tracker.save import parse_save
 
@@ -27,10 +27,20 @@ def test_scan_folds_b_and_c_sides(mods):
                                               "Test/Collab/M3-D", "Test/Collab/Extra-D"}
 
 
-def test_scan_mod_names(mods):
-    assert mods.mod_of["Test/Sides"] == "Sides Mod"
-    assert mods.mod_of["Test/Collab"] == "Collab"      # zip name; the add-on adds fewer maps
-    assert mods.mod_of["Test/Blizzard"] == "Blizzard"  # unzipped folder
+def test_scan_chapter_owners(mods):
+    assert mods.owner["Test/Sides/Forest"] == "Sides Mod"        # everest.yaml Name
+    assert mods.owner["Test/Collab/M1"] == "Collab"              # no everest.yaml: the zip name
+    assert mods.owner["Test/Collab/Extra-D"] == "Collab D Side"  # an add-on to the same level set: its own mod
+    assert mods.owner["Test/Blizzard/1-blizzard"] == "Blizzard"  # unzipped folder; no A file, owned via B/C
+    assert mods.mods["Collab"].chapters == {"Test/Collab/Lobby", "Test/Collab/M1", "Test/Collab/M2",
+                                            "Test/Collab/M3-D"}
+
+
+def test_duplicate_file_goes_to_the_mod_with_more_files_in_the_set():
+    maps = {"S": {"S/a": {"A"}, "S/b": {"A"}}}
+    holders = {("S/a", "A"): ["Dup", "Big"], ("S/b", "A"): ["Big"]}
+    mods = {"Big": ModFiles("Big", "big.zip"), "Dup": ModFiles("Dup", "dup.zip")}
+    assert assign_owners(maps, holders, mods) == {"S/a": "Big", "S/b": "Big"}
 
 
 def test_titles(mods):

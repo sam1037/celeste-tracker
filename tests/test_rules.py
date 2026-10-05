@@ -1,104 +1,128 @@
-from celeste_tracker.core import load_slot
+from celeste_tracker.core import load_library
 from celeste_tracker.mods import ModInfo
-from celeste_tracker.model import LevelSet, Map, Side
-from celeste_tracker.rules import apply_set, side_status
+from celeste_tracker.model import View
+from celeste_tracker.rules import ALL, set_status, side_status
 
 from conftest import SLOTS
 
 
-def by_name(slot):
-    return {ls.name: ls for ls in slot.sets}
+def lib1(mods, titles=None):
+    return load_library([(1, SLOTS / "1.celeste")], mods, titles)
 
 
-def statuses(m):
-    return {k: s.status for k, s in m.sides.items()}
+def mod(lib, mod_id):
+    return next(m for m in lib.mods if m.id == mod_id)
+
+
+def statuses(ch, key):
+    return {k: (s.progress[key].status if key in s.progress else "not opened") for k, s in ch.sides.items()}
 
 
 def test_side_status():
-    assert side_status(Side("A", True, None)) == "not opened"
-    assert side_status(Side("A", True, None, opened=True)) == "in progress"
-    assert side_status(Side("A", True, None, opened=True, cleared=True, heart=True)) == "completed"
-    # Unknown whether there is a heart: cleared alone isn't enough.
-    assert side_status(Side("A", True, None, opened=True, cleared=True)) == "cleared, no heart"
-    # Known to have no heart: cleared is enough (PRD).
-    assert side_status(Side("A", True, False, opened=True, cleared=True)) == "completed"
-    # Known to have a heart, not collected.
-    assert side_status(Side("A", True, True, opened=True, cleared=True)) == "cleared, no heart"
+    assert side_status(View(), None) == "in progress"  # a view exists only for opened sides
+    assert side_status(View(cleared=True, heart=True), None) == "completed"
+    assert side_status(View(cleared=True), None) == "cleared, no heart"  # unknown whether there is a heart
+    assert side_status(View(cleared=True), False) == "completed"         # known to have no heart (PRD)
+    assert side_status(View(cleared=True), True) == "cleared, no heart"  # has one, not collected
 
 
-def test_map_with_three_sides(mods):
-    sets = by_name(load_slot(SLOTS / "1.celeste", mods, 1))
-    ls = sets["Test/Sides"]
-    forest = ls.maps[0]
-    assert forest.title == "The Forest"
-    assert statuses(forest) == {"A": "completed", "B": "completed", "C": "in progress"}
-    assert forest.status == "in progress"
-    assert (ls.sides_done, ls.sides_total, ls.maps_done, ls.maps_total) == (2, 3, 0, 1)
-    assert ls.status == "in progress"
-    assert ls.mod_name == "Sides Mod" and ls.title == "Side Set"
-    assert ls.latest_checkpoint == {"sid": "Test/Sides/Forest", "side": "C", "room": "c-01", "title": "Deep Woods"}
-    assert ls.open_checkpoints == 1  # A's checkpoint doesn't count: A is completed
-    assert ls.deaths == 287 + 1300 + 288
+def test_set_status():
+    assert set_status(View(sides_done=2, sides_total=2), 2, True) == "complete"
+    assert set_status(View(sides_done=2, sides_total=2), 2, False) == "all opened done"
+    assert set_status(View(sides_done=1, sides_no_heart=1, sides_total=2), 2, True) == "hearts missing"
+    assert set_status(View(sides_done=1, sides_total=3), 1, True) == "in progress"
+    assert set_status(View(sides_total=3), 1, True) == "started"
+    assert set_status(View(sides_total=3), 0, True) == "not started"
 
 
-def test_collab_counts_unopened_maps(mods):
-    ls = by_name(load_slot(SLOTS / "1.celeste", mods, 1))["Test/Collab"]
-    st = {m.sid.rpartition("/")[2]: m.status for m in ls.maps}
-    assert st == {"Lobby": "in progress", "M1": "completed", "M2": "not opened", "M3-D": "not opened",
-                  "Extra-D": "not opened"}
-    assert statuses(ls.find_map("Test/Collab/Lobby")) == {"A": "cleared, no heart"}
-    # The save's empty B/C placeholders are dropped: these maps only have an A side.
-    assert (ls.sides_done, ls.sides_no_heart, ls.sides_total) == (1, 1, 5)
-    assert (ls.maps_done, ls.maps_total) == (1, 5)
-    assert ls.status == "in progress"
+def test_chapter_with_three_sides(mods):
+    m = mod(lib1(mods), "Sides Mod")
+    assert (m.name, m.name_source) == ("The Forest", "map title")  # one chapter, no GameBanana title
+    forest = m.chapters()[0]
+    assert statuses(forest, "1") == {"A": "completed", "B": "completed", "C": "in progress"}
+    assert forest.progress["1"].status == "in progress"
+    v = m.progress["1"]
+    assert (v.sides_done, v.sides_total, v.maps_done, v.maps_total) == (2, 3, 0, 1)
+    assert v.status == "in progress"
+    assert v.latest_checkpoint == {"sid": "Test/Sides/Forest", "side": "C", "room": "c-01", "title": "Deep Woods"}
+    assert v.open_checkpoints == 1  # A's checkpoint doesn't count: A is completed
+    assert v.deaths == 287 + 1300 + 288
+
+
+def test_gamebanana_title_wins(mods):
+    m = mod(lib1(mods, {"Sides Mod": {"title": "Forest Journey", "author": "x"}}), "Sides Mod")
+    assert (m.name, m.name_source, m.gamebanana_title) == ("Forest Journey", "gamebanana", "Forest Journey")
+
+
+def test_collab_and_its_add_on_are_two_mods(mods):
+    lib = lib1(mods)
+    collab = mod(lib, "Collab")
+    st = {ch.sid.rpartition("/")[2]: ch.progress["1"].status for ch in collab.chapters()}
+    assert st == {"Lobby": "in progress", "M1": "completed", "M2": "not opened", "M3-D": "not opened"}
+    assert statuses(collab.find_chapter("Test/Collab/Lobby"), "1") == {"A": "cleared, no heart"}
+    v = collab.progress["1"]
+    # The save's empty B/C placeholders are dropped: these chapters only have an A side.
+    assert (v.sides_done, v.sides_no_heart, v.sides_total, v.maps_done, v.maps_total) == (1, 1, 4, 1, 4)
+    assert v.status == "in progress"
+    addon = mod(lib, "Collab D Side")
+    assert [ch.sid for ch in addon.chapters()] == ["Test/Collab/Extra-D"]
+    assert addon.progress[ALL].status == "not started"
 
 
 def test_vanilla_uses_built_in_list(mods):
-    ls = by_name(load_slot(SLOTS / "1.celeste", mods, 1))["Celeste (vanilla)"]
-    assert (ls.sides_total, ls.maps_total) == (27, 11)  # all chapters, though the save lists two
-    assert statuses(ls.find_map("Celeste/0-Intro")) == {"A": "completed"}  # Prologue has no heart
-    assert statuses(ls.find_map("Celeste/1-ForsakenCity")) == {"A": "completed", "B": "in progress", "C": "not opened"}
-    assert ls.find_map("Celeste/LostLevels").title == "Farewell"
-    assert (ls.sides_done, ls.maps_done) == (2, 1)
-    assert ls.status == "in progress"
+    m = mod(lib1(mods), "Celeste")
+    v = m.progress["1"]
+    assert (v.sides_total, v.maps_total) == (27, 11)  # all chapters, though the save lists two
+    assert statuses(m.find_chapter("Celeste/0-Intro"), "1") == {"A": "completed"}  # Prologue has no heart
+    assert statuses(m.find_chapter("Celeste/1-ForsakenCity"), "1") == \
+        {"A": "completed", "B": "in progress", "C": "not opened"}
+    assert m.find_chapter("Celeste/LostLevels").title == "Farewell"
+    assert (v.sides_done, v.maps_done, v.status) == (2, 1, "in progress")
 
 
-def test_unknown_and_b_c_only_maps(mods):
-    sets = by_name(load_slot(SLOTS / "1.celeste", mods, 1))
-    gone = sets["Gone/Old"]
-    assert not gone.sides_known and not gone.loaded
-    assert (gone.sides_done, gone.sides_total) == (0, 1)
-    assert gone.status == "started"
-    blizzard = sets["Test/Blizzard"].maps[0]
-    assert statuses(blizzard) == {"B": "in progress", "C": "not opened"}
+def test_unknown_mod_and_b_c_only_chapter(mods):
+    lib = lib1(mods)
+    gone = mod(lib, "Gone/Old")  # not in the Mods folder: a mod named after its level set
+    assert not gone.found and gone.name == "Gone/Old"
+    assert (gone.progress["1"].sides_done, gone.progress["1"].sides_total) == (0, 1)
+    assert gone.progress["1"].status == "started" and not gone.progress["1"].loaded  # in the recycle bin
+    blizzard = mod(lib, "Blizzard").chapters()[0]
+    assert statuses(blizzard, "1") == {"B": "in progress", "C": "not opened"}
 
 
 def test_without_mods_only_opened_sides_count():
-    ls = by_name(load_slot(SLOTS / "1.celeste", ModInfo(), 1))["Test/Sides"]
-    assert not ls.sides_known
-    assert (ls.sides_done, ls.sides_total) == (2, 3)  # all three were opened
-    assert ls.title == "" and ls.mod_name == ""
+    m = mod(lib1(ModInfo()), "Test/Sides")
+    assert not m.found
+    assert (m.progress["1"].sides_done, m.progress["1"].sides_total) == (2, 3)  # all three were opened
 
 
-def test_slot_session_and_order(mods):
-    slot = load_slot(SLOTS / "1.celeste", mods, 1)
-    assert slot.sets[0].name == "Test/Sides" and slot.sets[0].last_played
-    assert slot.session.side == "C" and slot.session.room == "c-02"
-    assert [c.room for c in slot.session.checkpoints] == ["c-01"]
-    assert slot.session.title == "The Forest"
+def test_slots_combined(mods):
+    lib = load_library([(1, SLOTS / "1.celeste"), (2, SLOTS / "2.celeste")], mods)
+    collab = mod(lib, "Collab")
+    assert collab.progress["1"].sides_done == 1 and collab.progress["2"].sides_done == 1
+    v = collab.progress[ALL]
+    assert (v.sides_done, v.sides_total, v.slots) == (2, 4, ["1", "2"])  # M1 in slot 1, M2 in slot 2
+    prologue = mod(lib, "Celeste").find_chapter("Celeste/0-Intro").sides["A"]
+    assert list(prologue.progress) == ["1", "2", ALL] and prologue.progress[ALL].slots == ["1", "2"]
 
 
-def set_with(*sides):
-    ls = LevelSet("X", "", "", True, False, True, [Map("X/m", "", {s.side: s for s in sides})])
-    apply_set(ls)
-    return ls
+def test_best_status_is_decided_per_slot(tmp_path, mods):
+    """Cleared in one slot, heart only in another: not completed, since no single save shows both."""
+    def save(path, cleared, heart, deaths):
+        path.write_text(f'''<SaveData><Name>x</Name><LevelSets><LevelSetStats Name="Test/Sides"><Areas>
+            <AreaStats SID="Test/Sides/Forest"><Modes>
+            <AreaModeStats Completed="{cleared}" HeartGem="{heart}" Deaths="{deaths}" TimePlayed="10" BestTime="5"
+              BestDeaths="{deaths}" TotalStrawberries="1"><Checkpoints /></AreaModeStats>
+            </Modes></AreaStats></Areas></LevelSetStats></LevelSets></SaveData>''')
+        return path
+    lib = load_library([(1, save(tmp_path / "1.celeste", "true", "false", 3)),
+                        (2, save(tmp_path / "2.celeste", "false", "true", 4))], mods)
+    a = mod(lib, "Sides Mod").chapters()[0].sides["A"]
+    assert a.progress["1"].status == "cleared, no heart" and a.progress["2"].status == "in progress"
+    assert a.progress[ALL].status == "cleared, no heart"
+    assert (a.progress[ALL].deaths, a.progress[ALL].berries, a.progress[ALL].best_deaths) == (7, 2, 3)
 
 
-def test_set_statuses():
-    done = dict(opened=True, cleared=True, heart=True)
-    assert set_with(Side("A", True, None, **done)).status == "complete"
-    assert set_with(Side("A", True, None, **done), Side("B", True, None, opened=True, cleared=True)).status \
-        == "hearts missing"
-    assert set_with(Side("A", True, None, **done), Side("B", True, None)).status == "in progress"
-    assert set_with(Side("A", True, None, opened=True), Side("B", True, None)).status == "started"
-    assert set_with(Side("A", True, None)).status == "not started"
+def test_view_keys_are_in_slot_order(mods):
+    lib = load_library([(2, SLOTS / "2.celeste"), (1, SLOTS / "1.celeste")], mods)
+    assert list(mod(lib, "Collab").progress) == ["2", "1", ALL]  # the order the slots were given in

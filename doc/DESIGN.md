@@ -73,7 +73,7 @@ Progress: one per slot
                 berries, checkpoints_reached[]
 ```
 
-`rules.py` combines the two into a **view**: every catalog node (mod, level set, chapter, side) gets a status and totals, either for one slot or for all slots combined (below). Front ends only read views.
+`rules.py` combines the two into a **view**: every catalog node (mod, level set, chapter, side) gets a status and totals, either for one slot or for all slots combined (below). Front ends only read views. Mods, level sets and chapters get a view for every slot their mod was played in (so an unplayed tier shows as not started); sides only have views for slots where they were opened, so a missing view means "not opened".
 
 Side status: completed / cleared, no heart / in progress / not opened. Map status: completed / in progress / not opened. Level set status: complete, hearts missing (every side cleared, some hearts not collected), in progress, started, not started, or all opened done (no mod files, so the totals only cover what was opened). A mod's status uses the same values, computed over all its sides; its totals are the sums of its sets.
 
@@ -123,7 +123,7 @@ Everest publishes two files that Olympus and Everest's updater use:
 
 Mod ID → file ID → title. Example: `SonderCrispy` → file 1669303 → "Sonder" by Crispybag.
 
-- `moddb.py` downloads both with `urllib`, keeps only the mod ID → {title, author} map, and saves it as `moddb.json` in the user data folder. It refreshes when the cache is older than 7 days. `--refresh-moddb` forces a refresh, `--offline` never connects.
+- `moddb.py` downloads both with `urllib` (gzip: ~3 MB instead of 13.5), keeps only the mod ID → {title, author} map (~460 KB), and saves it as `moddb.json` next to the config file. It refreshes when the cache is older than 7 days. `--refresh-moddb` forces a refresh, `--offline` never connects.
 - No YAML library: a small line parser reads only the keys above. Tests cover it with trimmed copies of both files.
 - When the download fails (no internet, site down), it uses the old cache, or falls back to rules 2-4 with a one-line note. Nothing ever fails because of the network.
 - Privacy (PRD #12): plain GET requests for public files, with a User-Agent naming the tool. Nothing about the player's saves or mods is sent.
@@ -166,7 +166,7 @@ Snapshots are only taken when the tool runs. Dates are "seen by" dates, as preci
 1. Split the script into the package, keeping today's output, and add tests. (done)
 2. Side-based model and rules (PRD #6, #7) and `--json` (#10). (done)
 3. All slots (#8), mod name (#9), config file. (done)
-4. Mods as the top level (PRD #1, #3, #8, #9, #12): catalog / progress split, chapters grouped by zip, the combined view as the default (`--slot N` filters), `moddb.py` and GameBanana names, JSON schema 2. The overview gets one row per mod, with the level sets indented under a mod that has several; `--set` also accepts a mod name.
+4. Mods as the top level (PRD #1, #3, #8, #9, #12): catalog / progress split, chapters grouped by zip, the combined view as the default (`--slot N` filters), `moddb.py` and GameBanana names, JSON schema 2. The overview gets one row per mod, with the level sets indented under a mod that has several; `--set` also accepts a mod name. (done; the combined CLI view leaves out the long unfinished-chapters list and points to `--set` / `--slot N`)
 5. Store: move notes over, add user fields and mod renames, cache the mod scan.
 6. `serve` UI.
 7. Snapshots (dates), `binmap.py` (checkpoint and berry totals, heart presence).

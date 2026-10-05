@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 
 import pytest
 
@@ -9,44 +10,81 @@ from conftest import SLOTS
 
 @pytest.fixture
 def run(tmp_path, capsys):
-    """Run the CLI with a scratch config and notes file, so tests never touch the user's real ones."""
+    """Run the CLI with a scratch config, notes file and mod list cache, offline, so tests never touch the
+    user's real files or the network."""
     def _run(*args):
-        main(["--config", str(tmp_path / "config.toml"), "--notes", str(tmp_path / "notes.json"), *args])
+        main(["--config", str(tmp_path / "config.toml"), "--notes", str(tmp_path / "notes.json"), "--offline", *args])
         return capsys.readouterr().out
     return _run
 
 
-def test_overview(run, mods_dir):
+def line_of(out, start):
+    return next(l for l in out.splitlines() if l.startswith(start))
+
+
+def test_overview_one_slot(run, mods_dir):
     out = run("--file", str(SLOTS / "1.celeste"), "--mods", str(mods_dir))
-    line = next(l for l in out.splitlines() if l.startswith("Side Set (Test/Sides)"))
-    assert "Sides Mod" in line and "2/3" in line and "0/1" in line and "in progress" in line
+    line = line_of(out, "The Forest")  # the mod, named after its only chapter
+    assert "2/3" in line and "0/1" in line and "in progress" in line
     assert line.endswith("(room c-02) *")
     assert "Resume: The Forest (Test/Sides/Forest, C-side), room c-02" in out
     assert "The Forest (Test/Sides/Forest)  done: A B; C: in progress" in out
     assert "Gone/Old [not loaded]" in out and "0/1?" in out
+    assert "Collab D Side" not in out  # not started: hidden
 
 
-def test_set_view(run, mods_dir):
+def test_all_slots_combined_is_the_default(run, mods_dir):
+    out = run("--saves", str(SLOTS), "--mods", str(mods_dir))
+    assert "(2 slots combined)" in out
+    collab = line_of(out, "Collab ")
+    assert "2/4" in collab and "1,2" in collab  # M1 done in slot 1, M2 in slot 2
+    assert "Slot 1: Resume:" in out
+    one = run("--saves", str(SLOTS), "--mods", str(mods_dir), "--slot", "2")
+    assert "1/4" in line_of(one, "Collab ")
+
+
+def test_collab_shows_its_level_sets(run, tmp_path):
+    mods = tmp_path / "Mods2"
+    mods.mkdir()
+    from conftest import write_zip
+    write_zip(mods / "Big.zip", {"Maps/Big/1-Easy/m1.bin": b"", "Maps/Big/2-Hard/m2.bin": b"",
+                                 "Dialog/English.txt": "Big_1_Easy= Easy\nBig_2_Hard= Hard\n"})
+    save = tmp_path / "1.celeste"
+    save.write_text('''<SaveData><LevelSets><LevelSetStats Name="Big/1-Easy"><Areas><AreaStats SID="Big/1-Easy/m1">
+        <Modes><AreaModeStats Completed="true" HeartGem="true" Deaths="1" TimePlayed="5"><Checkpoints />
+        </AreaModeStats></Modes></AreaStats></Areas></LevelSetStats></LevelSets></SaveData>''')
+    out = run("--file", str(save), "--mods", str(mods))
+    lines = out.splitlines()
+    i = lines.index(line_of(out, "Big "))
+    assert "1/2" in lines[i]
+    assert lines[i + 1].startswith("  ├ Easy") and "complete" in lines[i + 1]
+    assert lines[i + 2].startswith("  └ Hard") and "not started" in lines[i + 2]
+    detail = run("--file", str(save), "--mods", str(mods), "--set", "Hard")  # a level set: just that one
+    assert "Hard (Big/2-Hard): sides 0/1, not started" in detail and "Easy" not in detail
+    assert "Sides 0/1 done, chapters 0/1 done (0 in progress, 1 not opened)" in detail  # the tier's own totals
+
+
+def test_set_view_of_a_one_chapter_mod_lists_sides(run, mods_dir):
     out = run("--file", str(SLOTS / "1.celeste"), "--mods", str(mods_dir), "--set", "Sides Mod")
-    assert "Sides 2/3 done, maps 0/1 done (1 in progress, 0 not opened)" in out
-    assert any(l.split()[:1] == ["C"] and "in progress" in l and 'c-01 "Deep Woods"' in l for l in out.splitlines())
+    assert out.startswith("The Forest  (mod ID: Sides Mod)")
+    assert "Sides 2/3 done, chapters 0/1 done (1 in progress, 0 not opened)" in out
+    assert "Chapter" not in out  # one chapter: straight to its sides
+    assert any(l.startswith("C ") and "in progress" in l and 'c-01 "Deep Woods"' in l for l in out.splitlines())
+
+
+def test_set_view_combined_shows_each_slot(run, mods_dir):
+    out = run("--saves", str(SLOTS), "--mods", str(mods_dir), "--set", "Celeste")
+    assert "slot 1: completed · slot 2: completed" in out  # the Prologue, cleared in both slots
 
 
 def test_json(run, mods_dir):
     data = json.loads(run("--file", str(SLOTS / "1.celeste"), "--mods", str(mods_dir), "--json", "-"))
-    assert data["schema"] == 1
-    sets = {s["name"]: s for s in data["slots"][0]["sets"]}
-    forest = sets["Test/Sides"]["maps"][0]
-    assert forest["sides"]["C"]["status"] == "in progress"
-    assert forest["sides"]["A"]["checkpoints"] == [{"room": "b-01", "title": ""}]
-
-
-def test_all_slots(run, mods_dir):
-    out = run("--all", "--saves", str(SLOTS), "--mods", str(mods_dir))
-    assert "(2 slots)" in out
-    collab = [l for l in out.splitlines() if "(Test/Collab)" in l or l.split()[1:2] == ["Test/Collab"]]
-    assert [l.split()[0] for l in collab] == ["1", "2"]  # the same set, once per slot
-    assert "Slot 1: Resume:" in out
+    assert data["schema"] == 2
+    assert [s["key"] for s in data["slots"]] == ["1"]
+    forest = next(m for m in data["mods"] if m["id"] == "Sides Mod")["sets"][0]["chapters"][0]
+    assert forest["sides"]["C"]["progress"]["1"]["status"] == "in progress"
+    assert forest["sides"]["C"]["progress"]["all"]["status"] == "in progress"
+    assert forest["sides"]["A"]["progress"]["1"]["checkpoints"] == [{"room": "b-01", "title": ""}]
 
 
 def test_note(run, tmp_path):
@@ -56,19 +94,33 @@ def test_note(run, tmp_path):
     assert "<- stopped at C" in run("--file", str(SLOTS / "1.celeste"))
 
 
+def test_note_on_a_name_shared_by_a_mod_and_its_chapter_goes_to_the_mod(run, tmp_path, mods_dir):
+    out = run("--file", str(SLOTS / "1.celeste"), "--mods", str(mods_dir), "--note", "The Forest", "great map")
+    assert "Saved note for Sides Mod" in out
+    assert "note: great map" in run("--file", str(SLOTS / "1.celeste"), "--mods", str(mods_dir))
+
+
 def test_save_config_then_run_without_flags(run, tmp_path, mods_dir):
     run("--saves", str(SLOTS), "--mods", str(mods_dir), "--save-config")
     assert f'saves = "{SLOTS.resolve()}"' in (tmp_path / "config.toml").read_text()
-    out = run("--all")  # Saves and Mods come from the config
-    assert "(2 slots)" in out and "Sides Mod" in out
-    assert "Sides Mod" not in run("--all", "--no-mods")
+    out = run()  # Saves and Mods come from the config
+    assert "(2 slots combined)" in out and "The Forest" in out
+    assert "The Forest" not in run("--no-mods")
 
 
-def test_unreadable_slot_is_skipped_in_all(run, tmp_path, capsys):
+def test_cached_gamebanana_titles_are_used(run, tmp_path, mods_dir):
+    (tmp_path / "moddb.json").write_text(json.dumps({
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "mods": {"Sides Mod": {"title": "Forest Journey", "author": "x"}}}))
+    out = run("--file", str(SLOTS / "1.celeste"), "--mods", str(mods_dir))
+    assert line_of(out, "Forest Journey") and "1 named from GameBanana" in out
+
+
+def test_unreadable_slot_is_skipped(run, tmp_path, capsys):
     saves = tmp_path / "Saves"
     saves.mkdir()
     (saves / "1.celeste").write_bytes((SLOTS / "1.celeste").read_bytes())
     (saves / "2.celeste").write_text("<SaveData><Areas>")  # cut off mid-write
-    main(["--config", str(tmp_path / "c.toml"), "--notes", str(tmp_path / "n.json"), "--all", "--saves", str(saves)])
+    main(["--config", str(tmp_path / "c.toml"), "--notes", str(tmp_path / "n.json"), "--offline", "--saves", str(saves)])
     out, err = capsys.readouterr()
-    assert "(1 slots)" in out and "skipping" in err
+    assert "Save:" in out and "skipping" in err

@@ -6,18 +6,18 @@ Build status, the save and mod file format, and open technical questions. What t
 
 | # | Requirement (see PRD) | Status |
 |---|---|---|
-| 1 | Progress per mod and level set | per level set: done (sides done/total is the main number, maps done/total next to it). Per mod: todo (DESIGN step 4) |
+| 1 | Progress per mod and level set | done. One row per mod; a mod with several level sets lists them underneath. Sides done/total is the main number, chapters done/total next to it |
 | 2 | In-game titles | done (`--mods`, from each mod's `Dialog/English.txt`; vanilla titles are built in) |
-| 3 | Real map and side totals | per level set: done (`--mods`, from the zips' `Maps/` lists). Per mod: todo. `-B`/`-C` files fold into their map. Vanilla's chapters and sides are built in |
-| 4 | Detail view of one set | done (`--set`): one row per side |
+| 3 | Real chapter and side totals | done, per level set and per mod (`--mods`, from the zips' `Maps/` lists). `-B`/`-C` files fold into their map. Vanilla's chapters and sides are built in |
+| 4 | Detail view | done (`--set`): one mod or one level set, one row per side; a one-chapter mod goes straight to its sides; in the combined view, a line per side with each slot's result |
 | 5 | Checkpoints per side and saved room | done |
 | 6 | Status per side | done (`rules.side_status`) |
 | 7 | Completion rules | done (`rules.py`). Vanilla knows which sides have no heart; for mods that's unknown until `.bin` parsing, so a cleared side without its heart shows "cleared, no heart" and doesn't count as done |
-| 8 | All slots in one view | partly: `--all` lists every slot's sets with a Slot column (repeats a set once per slot). Combined view (one row per mod, best status per side): todo, DESIGN step 4. An unreadable slot is skipped with a warning |
-| 9 | Mod name | partly. Today the Mod column shows the mod ID from `everest.yaml` (first top-level `Name:`), else the zip or folder name; when several mods add maps to one set, the one adding the most names it. GameBanana titles and the fallback rule: todo (DESIGN step 4) |
-| 10 | JSON export | done (`--json FILE`, `-` for stdout), schema 1. All 32 of my slots: 11 MB, mostly the 2,119 "not started" sets the save lists |
+| 8 | All slots in one view | done: the default. One row per mod with a Slots column; `--slot N` for one slot. An unreadable slot is skipped with a warning |
+| 9 | Mod name | done. GameBanana title from the mod list (260 of my 272 mods), else chapter title, level set title, mod ID (OmoriPack shows "Cold") |
+| 10 | JSON export | done (`--json FILE`, `-` for stdout), schema 2: one catalog tree, progress per slot and `all`. All 32 of my slots: 5.7 MB |
 | 11 | Read-only | holds today, keep it |
-| 12 | Offline, nothing sent | holds today (no network use yet) |
+| 12 | Offline, nothing sent | holds. The only network use is two GETs for the public mod list, at most weekly (`--offline` to skip); the cache is `moddb.json` next to the config |
 
 Should have: the config file is done (`--save-config`, `config.toml` in the user data folder). Extra stats and user fields are todo.
 
@@ -62,9 +62,10 @@ Technical notes on the "Later" items:
 ## Open technical questions
 
 - Which mod sides have no heart (the PRD treats those as completed once cleared): probably needs the `.bin`. Until then, a cleared side with `HeartGem=false` can't be told apart from one whose heart was skipped.
-- Is the JSON too big for the UI? Decide in the UI step whether to drop "not started" sets or split the file.
+- Is the JSON (5.7 MB for 32 slots) too big for the UI? Decide in the UI step.
+- The default run takes ~7 s on WSL (3 s Mods scan, the rest 32 slot files on `/mnt/c`); the first run of the week adds ~4 s for the mod list. The mod-scan cache in step 5 should help.
 
 ## TODO
 
 - See how players track progress manually in Excel sheets, to find which columns matter. First pass (2026-10-04): no public personal sheets found. The community challenge lists (Hardest Maps Clear List, goldberries.net) give each side its own entry and mark the level of clearing (clear, full clear, golden). This is why the side became the unit. Real personal sheets would still help: ask in r/celestegame or the Celeste Discord.
-- Next build step: DESIGN.md step 4, mods as the top level with GameBanana names. (Answers the old "Mod name?" note.)
+- Next build step: DESIGN.md step 5, the SQLite store (move notes over, user fields and mod renames, cache the mod scan).

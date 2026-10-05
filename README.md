@@ -2,7 +2,9 @@
 
 See your Celeste mod progress straight from the save files, without enabling the mods (loading many mods slows the game down). Standard library only.
 
-Progress is counted in **sides**: a map's A, B and C sides each count once. A side is done when it's cleared and its heart is collected (or just cleared, for sides with no heart). For each level set it shows sides and maps done out of total, status, mod name, deaths, time, berries and checkpoints reached, plus where you saved and quit. With `--mods` it also reads your Mods folder (zip file lists, `everest.yaml` and `Dialog/English.txt` only) for real map and side totals, mod names and in-game titles.
+One row per **mod**, named the way you know it from Olympus (its GameBanana title), with collabs split into their level sets underneath. Progress is counted in **sides**: a chapter's A, B and C sides each count once, and a side is done when it's cleared and its heart is collected (or just cleared, for sides with no heart). By default all your save slots are combined: a side counts as done if you completed it in any slot, and deaths and time add up.
+
+With `--mods` it reads your Mods folder (zip file lists, `everest.yaml` and `Dialog/English.txt` only) for each mod's chapters and sides and their in-game titles. Mod names come from Everest's public mod list (the same one Olympus uses), downloaded once a week and cached; nothing about your saves is sent. Without internet it uses the chapter's title, then the level set's title, then the mod's ID.
 
 ## Run
 
@@ -10,22 +12,22 @@ Progress is counted in **sides**: a map's A, B and C sides each count once. A si
 S="/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Saves"   # Windows saves, from WSL
 
 uv run celeste_progress.py --saves "$S" --mods --save-config         # once: remember the folders
-uv run celeste_progress.py --slot 1                                  # overview of a slot
-uv run celeste_progress.py --all                                     # every slot, with a Slot column
-uv run celeste_progress.py --slot 1 --set Expert                     # every map and side of one level set
-uv run celeste_progress.py --slot 1 --note hikki "stopped at the ice part"
-uv run celeste_progress.py --slot 1 --markdown progress.md
-uv run celeste_progress.py --all --json progress.json                # everything parsed, for other tools ('-' = stdout)
+uv run celeste_progress.py                                           # every mod, all slots combined
+uv run celeste_progress.py --slot 1                                  # one slot, with its unfinished chapters
+uv run celeste_progress.py --set "Sentient Forest"                   # one mod: its chapters and sides, per slot
+uv run celeste_progress.py --note hikki "stopped at the ice part"
+uv run celeste_progress.py --markdown progress.md
+uv run celeste_progress.py --json progress.json                      # everything parsed, for other tools ('-' = stdout)
 uv run celeste_progress.py --slot 1 --dump                           # raw XML outline, for debugging
 ```
 
 `python -m celeste_tracker` works the same as `celeste_progress.py`.
 
-`--save-config` stores `--saves` and `--mods` in a config file (`~/.local/share/celeste-tracker/config.toml` on Linux/WSL, `%APPDATA%\celeste-tracker\config.toml` on Windows). Later runs use it; flags still win, and `--no-mods` skips the Mods folder. Without any of this, the tool looks in the default Saves folder for your OS. Under WSL you need `--saves` or the config.
+`--save-config` stores `--saves` and `--mods` in a config file (`~/.local/share/celeste-tracker/config.toml` on Linux/WSL, `%APPDATA%\celeste-tracker\config.toml` on Windows). Later runs use it; flags still win, and `--no-mods` skips the Mods folder. The mod list cache (`moddb.json`) sits next to it; `--offline` never downloads, `--refresh-moddb` downloads now. Without a config, the tool looks in the default Saves folder for your OS. Under WSL you need `--saves` or the config.
 
-`--set` takes a level set ID, its in-game title, its mod name, or a unique part of one. `--note` takes a level set or map ID, its title, or a unique part. Notes are stored in `celeste_notes.json` in the project folder.
+`--set` takes a mod's name or ID, a level set's ID or title, or a unique part of one; a collab's level set shows just that tier. `--note` takes a mod ID, level set or chapter ID, a title, or a unique part. Notes are stored in `celeste_notes.json` in the project folder.
 
-Statuses: a side is *completed*, *cleared, no heart*, *in progress* or *not opened*. A level set is *complete*, *hearts missing* (everything cleared, some hearts not collected), *in progress*, *started*, or *all opened done* when there's no mod in the Mods folder to give the real totals (those totals are marked `?`). For mods, the tool can't yet tell whether a side has a heart at all, so a cleared side without one is never counted as done.
+Statuses: a side is *completed*, *cleared, no heart*, *in progress* or *not opened*. A mod or level set is *complete*, *hearts missing* (everything cleared, some hearts not collected), *in progress*, *started*, *not started*, or *all opened done* when the mod isn't in the Mods folder to give the real totals (those totals are marked `?`). For mods, the tool can't yet tell whether a side has a heart at all, so a cleared side without one is never counted as done.
 
 The tool only reads your saves and mods; it never writes to them.
 
