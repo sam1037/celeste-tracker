@@ -9,7 +9,7 @@ Build status, the save and mod file format, and open technical questions. What t
 | 1 | Progress per mod and level set | done. One row per mod; a mod with several level sets lists them underneath. Sides done/total is the main number, chapters done/total next to it |
 | 2 | In-game titles | done (`--mods`, from each mod's `Dialog/English.txt`, including values on the lines under their key; vanilla titles are built in) |
 | 3 | Real chapter and side totals | done, per level set and per mod (`--mods`, from the zips' `Maps/` lists). `-B`/`-C` files fold into their map. Vanilla's chapters and sides are built in |
-| 4 | Detail view | done (`--set`): one mod or one level set, one row per side; a one-chapter mod goes straight to its sides; in the combined view, a line per side with each slot's result |
+| 4 | Detail view | done (`--set`): one mod or one level set, one row per side; a one-chapter mod goes straight to its sides; in the all-slots view, which slot is shown and the other slots with their counts |
 | 5 | Checkpoints per side and saved room | done |
 | 6 | Status per side | done (`rules.side_status`) |
 | 7 | Completion rules | done (`rules.py`): a side is completed when cleared; hearts are counted separately. Collab gyms are left out of the catalog (`model.is_gym`) |

@@ -15,7 +15,7 @@ uv run celeste_progress.py --saves "$S" --mods --save-config         # once: rem
 uv run celeste_progress.py --serve                                   # the page: open http://localhost:8765
 uv run celeste_progress.py                                           # every mod, from its furthest slot
 uv run celeste_progress.py --slot 1                                  # one slot, with its unfinished chapters
-uv run celeste_progress.py --set "Sentient Forest"                   # one mod: its chapters and sides, per slot
+uv run celeste_progress.py --set "Sentient Forest"                   # one mod: its chapters and sides, and the slots you played it in
 uv run celeste_progress.py --note hikki "stopped at the ice part"
 uv run celeste_progress.py --rate "Sentient Forest" 5             # also: --difficulty KEY TEXT, --drop / --undrop KEY
 uv run celeste_progress.py --rename mindcrack "MINDCRACK"           # your own name for a mod ("" undoes it)
@@ -26,7 +26,7 @@ uv run celeste_progress.py --slot 1 --dump                           # raw XML o
 
 `python -m celeste_tracker` works the same as `celeste_progress.py`.
 
-`--serve [PORT]` starts a local page (only reachable from your own computer) with the same data: one row per mod with a progress bar, search, a slot picker, filters (unfinished, complete, dropped…) and sorting. Click a mod to open it: a collab opens to its level sets, each level set to its chapters, and a chapter to its A/B/C sides with each slot's result. Your rating, difficulty, dropped flag, name and note can be edited there too. The page reloads by itself when the game saves, and the URL keeps what you opened, so a view can be bookmarked.
+`--serve [PORT]` starts a local page (only reachable from your own computer) with the same data: one table row per mod with its A/B/C progress, the slot it comes from, search, a slot picker, a Show menu (all mods, playing, complete, not started) and sorting by any column header. Click a mod to open it: a collab opens to its level sets, each level set to its chapters, and a chapter to its A/B/C sides. The page reloads by itself when the game saves, and the URL keeps what you opened, so a view can be bookmarked. Ratings, notes and the other fields of your own are edited with the CLI for now (the page shows them, but its edit fields are hidden). The page's design plan is `doc/UI.md`.
 
 `--save-config` stores `--saves` and `--mods` in a config file (`~/.local/share/celeste-tracker/config.toml` on Linux/WSL, `%APPDATA%\celeste-tracker\config.toml` on Windows). Later runs use it; flags still win, and `--no-mods` skips the Mods folder. The store (`tracker.db`: your notes and ratings, plus a cache of the Mods folder scan) and the mod list cache (`moddb.json`) sit next to it; `--offline` never downloads, `--refresh-moddb` downloads now. Without a config, the tool looks in the default Saves folder for your OS. Under WSL you need `--saves` or the config.
 
@@ -48,5 +48,6 @@ uv run pytest     # tests use made-up saves in tests/fixtures, never real ones
 - `tests/`: pytest tests and made-up fixture saves
 - `doc/PRD.md`: goal, users, requirements and the definition of "completed"
 - `doc/DESIGN.md`: tech stack and architecture
+- `doc/UI.md`: the design plan for the `--serve` page
 - `doc/NOTES.md`: build status, the save format and open questions
 - `local/`: your own save copies for testing (gitignored)

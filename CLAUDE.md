@@ -18,7 +18,7 @@ S="/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Saves"   # the user
 uv run celeste_progress.py --saves "$S" --slot 1 --mods     # slot 1: ~110 level sets, the big real test
 uv run celeste_progress.py --saves "$S" --slot 31 --mods    # slot 31: small test slot the user plays to make test cases
 uv run celeste_progress.py --file local/31.celeste          # an older copy of slot 31, works offline
-uv run celeste_progress.py --saves "$S" --mods             # the default: all 32 slots combined, ~1.2 s
+uv run celeste_progress.py --saves "$S" --mods             # the default: all 32 slots, each mod from its furthest slot, ~1.2 s
 uv run pytest                                               # tests, on made-up saves in tests/fixtures
 ```
 

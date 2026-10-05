@@ -74,7 +74,7 @@ Progress: one per slot
                 berries, checkpoints_reached[]
 ```
 
-`rules.py` combines the two into a **view**: every catalog node (mod, level set, chapter, side) gets a status and totals, either for one slot or for all slots combined (below). Front ends only read views. Mods, level sets and chapters get a view for every slot their mod was played in (so an unplayed tier shows as not started); sides only have views for slots where they were opened, so a missing view means "not opened".
+`rules.py` combines the two into a **view**: every catalog node (mod, level set, chapter, side) gets a status and totals, either for one slot or for all slots (below: each mod from its furthest slot). Front ends only read views. Mods, level sets and chapters get a view for every slot their mod was played in (so an unplayed tier shows as not started); sides only have views for slots where they were opened, so a missing view means "not opened".
 
 Side status: completed (= cleared) / in progress / not opened. Map status: completed / in progress / not opened. Level set status: complete, in progress, started, not started, or all opened done (no mod files, so the totals only cover what was opened). A mod's status uses the same values, computed over all its sides; its totals are the sums of its sets.
 
@@ -140,7 +140,7 @@ Mod ID → file ID → title. Example: `SonderCrispy` → file 1669303 → "Sond
                                    "sides": {"A": {"has_heart": null, "progress": {"all": {"status": "…", …}, "1": {…}}}}}]}]}]}
 ```
 
-One catalog tree. Every node carries `progress`, keyed by `"all"` (combined) and by slot number, with the status and totals `rules.py` computed, so the UI never applies rules itself. Schema 1 had a separate tree per slot. Mod, level set and chapter views also have `by_side`, the sides done and total per letter (finished vanilla: `{"A": [11, 11], "B": [8, 8], "C": [8, 8]}`), for the page's A/B/C strip ([UI.md](UI.md)); it was added without a schema bump, since nothing that existed changed.
+One catalog tree. Every node carries `progress`, keyed by `"all"` (the mod's furthest slot, named in `slot`) and by slot number, with the status and totals `rules.py` computed, so the UI never applies rules itself. Schema 1 had a separate tree per slot. Mod, level set and chapter views also have `by_side`, the sides done and total per letter (finished vanilla: `{"A": [11, 11], "B": [8, 8], "C": [8, 8]}`), for the page's A/B/C strip ([UI.md](UI.md)); it was added without a schema bump, since nothing that existed changed.
 
 The `schema` number goes up on breaking changes, so the UI can tell what it got.
 
@@ -179,7 +179,7 @@ How the page looks (tokens, the side strip, layout) is in [UI.md](UI.md). This s
 1. Split the script into the package, keeping today's output, and add tests. (done)
 2. Side-based model and rules (PRD #6, #7) and `--json` (#10). (done)
 3. All slots (#8), mod name (#9), config file. (done)
-4. Mods as the top level (PRD #1, #3, #8, #9, #12): catalog / progress split, chapters grouped by zip, the combined view as the default (`--slot N` filters), `moddb.py` and GameBanana names, JSON schema 2. The overview gets one row per mod, with the level sets indented under a mod that has several; `--set` also accepts a mod name. (done; the combined CLI view leaves out the long unfinished-chapters list and points to `--set` / `--slot N`)
+4. Mods as the top level (PRD #1, #3, #8, #9, #12): catalog / progress split, chapters grouped by zip, the all-slots view as the default (`--slot N` filters; since 2026-10-05 each mod shows its furthest slot instead of a per-side merge), `moddb.py` and GameBanana names, JSON schema 2. The overview gets one row per mod, with the level sets indented under a mod that has several; `--set` also accepts a mod name. (done; the combined CLI view leaves out the long unfinished-chapters list and points to `--set` / `--slot N`)
 5. Store: move notes over, add user fields and mod renames, cache the mod scan. (done)
 6. `--serve` UI. (done)
 7. Snapshots (dates), `binmap.py` (checkpoint and berry totals, heart presence).
