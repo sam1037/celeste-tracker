@@ -12,7 +12,7 @@ How the tracker is built. What it does is in [PRD.md](PRD.md). Status and file-f
 | Code layout | A `celeste_tracker/` package, replacing the single script | The script is ~670 lines, and the later items add a store, a server and a `.bin` parser |
 | Storage | SQLite file in the user data folder (never in the repo) | Needed for snapshots (dates), editable fields and caches. `sqlite3` is in the standard library |
 | Mod names | GameBanana titles from Everest's public mod database (maddie480.ovh), downloaded with `urllib`, cached in the user data folder | The zip only holds the mod ID; the title players know is only on GameBanana. Optional: everything works offline |
-| UI | One HTML/JS page that reads the JSON API. First served by `celeste-tracker serve` in the browser, then shown in a `pywebview` desktop window | The same page works in both. No build step while the UI is small |
+| UI | One HTML/JS page that reads the JSON API. First served by `--serve` in the browser, then shown in a `pywebview` desktop window | The same page works in both. No build step while the UI is small |
 | Distribution (later) | PyInstaller `.exe` for Windows players | Players don't need Python, uv or WSL |
 
 Users today: only the author, running from WSL. Later: other players, mostly on Windows. Choices that only matter for other players (installer, auto-detecting the Celeste folder, a desktop window) can wait, but nothing should block them. In particular, the core must not assume WSL paths.
@@ -48,7 +48,7 @@ celeste_tracker/
   store.py      SQLite: user fields, mod-scan cache, snapshots (later)
   export.py     model -> JSON
   cli.py        argparse, text and markdown rendering
-  web/          server.py + static/index.html, app.js (later)
+  web/          server.py + static/index.html, app.js, style.css: the --serve page
 tests/
   fixtures/     small made-up .celeste files and mod zips, safe to commit
 ```
@@ -160,7 +160,7 @@ Snapshots are only taken when the tool runs. Dates are "seen by" dates, as preci
 
 ## UI (`--serve`)
 
-- `web/server.py`: `http.server` on 127.0.0.1 only, single-threaded. `GET /` serves `static/index.html`, `app.js` and `style.css` (nothing else); `GET /api/library` is the schema 2 JSON (compact, ~2.4 MB for the author's 32 slots, ~30 ms) plus a `version`; `GET /api/status` returns the version; `POST /api/user {key, field, value}` sets one store field.
+- `web/server.py`: `http.server` on 127.0.0.1 only, single-threaded. `GET /` serves `static/index.html`, `app.js` and `style.css` (nothing else); `GET /api/library` is the schema 2 JSON (compact, ~2.3 MB for the author's 32 slots, built once per change in ~0.1 s and kept in memory) plus a `version`; `GET /api/status` returns the version; `POST /api/user {key, field, value}` sets one store field.
 - The server keeps the parsed slots in memory. An edit rebuilds the model from them (no file reads); `/api/status` and `/api/library` stat the slot files (on a thread pool) and reparse when one changed, so the page, which polls `/api/status` every 5 s, follows the game's saves. `?refresh=1` also rescans the Mods folder.
 - Security: requests must name `localhost`/`127.0.0.1` in `Host` (DNS rebinding); POSTs need the `X-Celeste-Tracker: 1` header, which a page on another site can't send without a CORS preflight the server never answers. The page puts every string through `esc()`; verified in Chrome with a mod renamed to an `<img onerror>` payload.
 - `app.js` applies no rules: statuses and totals come from the JSON. It filters, sorts and draws: mod rows → level sets (collabs only) → chapters → sides, skipping a level with one entry. View state (slot, filter, sort, search, open mods / level sets / chapters) is in the URL hash.
@@ -180,7 +180,7 @@ Snapshots are only taken when the tool runs. Dates are "seen by" dates, as preci
 3. All slots (#8), mod name (#9), config file. (done)
 4. Mods as the top level (PRD #1, #3, #8, #9, #12): catalog / progress split, chapters grouped by zip, the combined view as the default (`--slot N` filters), `moddb.py` and GameBanana names, JSON schema 2. The overview gets one row per mod, with the level sets indented under a mod that has several; `--set` also accepts a mod name. (done; the combined CLI view leaves out the long unfinished-chapters list and points to `--set` / `--slot N`)
 5. Store: move notes over, add user fields and mod renames, cache the mod scan. (done)
-6. `serve` UI. (done)
+6. `--serve` UI. (done)
 7. Snapshots (dates), `binmap.py` (checkpoint and berry totals, heart presence).
 8. For other players: `pywebview` window, PyInstaller build, auto-detect the Celeste folder.
 

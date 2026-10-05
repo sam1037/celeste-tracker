@@ -15,7 +15,7 @@ S="/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Saves"   # the user
 uv run celeste_progress.py --saves "$S" --slot 1 --mods     # slot 1: ~110 level sets, the big real test
 uv run celeste_progress.py --saves "$S" --slot 31 --mods    # slot 31: small test slot the user plays to make test cases
 uv run celeste_progress.py --file local/31.celeste          # an older copy of slot 31, works offline
-uv run celeste_progress.py --saves "$S" --mods             # the default: all 32 slots combined, ~7 s
+uv run celeste_progress.py --saves "$S" --mods             # the default: all 32 slots combined, ~1.2 s
 uv run pytest                                               # tests, on made-up saves in tests/fixtures
 ```
 
@@ -32,7 +32,7 @@ W=$(wslpath -w $SP/ui)
 
 `--dump-dom` instead of `--screenshot` prints the rendered HTML. `--force-dark-mode` checks the dark theme. Chrome won't go narrower than ~500 px. Ignore its `LockFileEx` errors.
 
-- Mods folder: `/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Mods` (~450 zips). `--mods` scans it in ~3 s.
+- Mods folder: `/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Mods` (~450 zips). `--mods` scans it in ~3 s the first time, then ~0.1 s: unchanged zips come from the cache in `tracker.db`.
 - Verify changes by running against slot 1 and slot 31, not only mock files.
 - The user has a config (`~/.local/share/celeste-tracker/config.toml`), so a bare `uv run celeste_progress.py` shows their real view. The first run of a week downloads the public mod list into `moddb.json` next to it; pass `--offline` to avoid that.
 - In tests, pass `--offline` and a scratch `--config`: the mod list cache lives next to the config, and tests must never use the network.

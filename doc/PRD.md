@@ -112,7 +112,7 @@ Status for each requirement is tracked in [NOTES.md](NOTES.md#status).
 
 - For every level set in a real save, done/total and status match what the game shows when the mod is loaded.
 - Every mod that is on GameBanana shows its GameBanana title.
-- Running it is faster than starting the game with the mods enabled (today: ~3 s with `--mods` on ~450 zips).
+- Running it is faster than starting the game with the mods enabled (2026-10-05: ~1.2 s for all 32 slots with `--mods` on ~450 zips, ~3 s on the first run while the mod-scan cache fills).
 
 ## Open questions
 

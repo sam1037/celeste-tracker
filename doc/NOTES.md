@@ -15,7 +15,7 @@ Build status, the save and mod file format, and open technical questions. What t
 | 7 | Completion rules | done (`rules.py`): a side is completed when cleared; hearts are counted separately. Collab gyms are left out of the catalog (`model.is_gym`) |
 | 8 | All slots in one view | done: the default. One row per mod with a Slots column; `--slot N` for one slot. An unreadable slot is skipped with a warning |
 | 9 | Mod name | done. GameBanana title from the mod list (260 of my 272 mods), else chapter title, level set title, mod ID (OmoriPack shows "Cold") |
-| 10 | JSON export | done (`--json FILE`, `-` for stdout), schema 2: one catalog tree, progress per slot and `all`. All 32 of my slots: 5.7 MB |
+| 10 | JSON export | done (`--json FILE`, `-` for stdout), schema 2: one catalog tree, progress per slot and `all`. All 32 of my slots: 5.6 MB indented, 2.3 MB compact (what `--serve` sends) |
 | 11 | Read-only | holds today, keep it |
 | 12 | Offline, nothing sent | holds. The only network use is two GETs for the public mod list, at most weekly (`--offline` to skip); the cache is `moddb.json` next to the config |
 
@@ -67,8 +67,8 @@ Technical notes on the "Later" items:
 ## Open technical questions
 
 - Which mod sides have a heart at all (for a "hearts x/y" count): probably needs the `.bin`. Not needed for completion any more.
-- Is the JSON (5.7 MB for 32 slots) too big for the UI? Decide in the UI step.
 - Speed on WSL (2026-10-05): the default run takes 1.2 s (was 7 s), 3 s the first time the store is filled. Every file check on `/mnt/c` costs ~4 ms, so the Mods scan uses scandir, a thread pool for stat calls and zip reads, and the `mod_cache` table. The first run of the week adds ~4 s for the mod list.
+- JSON size for the UI (settled): the page loads the whole library at once, compact (2.3 MB for 32 slots; rebuilding the model and the JSON after an edit or a save takes ~0.1 s), which is fine on localhost. Revisit only if it gets slow.
 
 ## TODO
 
