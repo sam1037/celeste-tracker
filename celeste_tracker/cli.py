@@ -66,7 +66,24 @@ def maps_cell(v, mod):
 
 
 def slots_cell(v):
-    return short(",".join(v.slots), SLOTS_WIDTH)
+    """The slot shown and how many others the mod was played in: '8 (+5)'."""
+    if not v.slot:
+        return ""
+    others = len(v.slots) - 1
+    return short(f"{v.slot}" + (f" (+{others})" if others > 0 else ""), SLOTS_WIDTH)
+
+
+def also_played(mod, key):
+    """'Shown: slot 8, the furthest; also played in slot 1 (2/3), slot 31 (0/3)' for the all-slots view."""
+    v = mod.progress.get(key)
+    if key != ALL or not v or not v.slot:
+        return ""
+    others = [k for k in v.slots if k != v.slot]
+    out = f"Shown: slot {v.slot}, the furthest"
+    if others:
+        out += "; also played in " + ", ".join(
+            f"slot {k} ({mod.progress[k].sides_done}/{mod.progress[k].sides_total})" for k in others)
+    return out
 
 
 def view_of(node, key):
@@ -112,7 +129,7 @@ def fmt_session(slot):
 # ---------------------------------------------------------------- views
 
 def view_key(lib):
-    """One slot loaded: its own view. Several: all slots combined."""
+    """One slot loaded: its own view. Several: the "all" view (each mod from its furthest slot)."""
     return lib.slots[0].key if len(lib.slots) == 1 else ALL
 
 
@@ -170,7 +187,7 @@ def render_text(lib, key, user, mods_info):
                 branch = "└" if i == len(m.sets) - 1 else "├"
                 rows.append((f"  {branch} {set_label(ls)}", view_of(ls, key), m))
     w = max([len(r[0]) for r in rows] + [3])
-    slots_head = f"  {'Slots':<{SLOTS_WIDTH}}" if multi else ""
+    slots_head = f"  {'Slot':<{SLOTS_WIDTH}}" if multi else ""
     mw = max([len(mine_cell(m.user)) for m in mods] + [0])
     mine_head = f"  {'Mine':<{max(mw, 4)}}" if mw else ""
     out = [f"{'Mod':<{w}}  {'Sides':<8}  {'Maps':<8}  {'Status':<15}  {'Deaths':>6}  {'Time':<9}  {'Berries':>7}"
@@ -179,7 +196,7 @@ def render_text(lib, key, user, mods_info):
     for label, v, m in rows:
         is_mod = not label.startswith("  ")
         mark = " *" if is_mod and last_played(m, slot) else ""
-        slots = f"  {slots_cell(v):<{SLOTS_WIDTH}}" if multi else ""
+        slots = f"  {slots_cell(v) if is_mod else '':<{SLOTS_WIDTH}}" if multi else ""
         mine = f"  {mine_cell(m.user) if is_mod else '':<{max(mw, 4)}}" if mw else ""
         ck = f"{v.open_checkpoints:>5}{ckpt_note(m, v, slot) if is_mod else ''}"
         out.append(f"{label:<{w}}  {sides_cell(v, m):<8}  {maps_cell(v, m):<8}  {v.status:<15}  {v.deaths:>6}  "
@@ -196,8 +213,8 @@ def render_text(lib, key, user, mods_info):
     out.append("Sides = sides cleared out of all sides (crystal hearts don't count; --set shows them); "
                "Maps = chapters with every side cleared. A chapter's B and C sides count once each.")
     if multi:
-        out.append(f"All {len(lib.slots)} slots combined: a side counts as done if it's completed in any slot; deaths "
-                   "and time add up. Slots = where you played it.")
+        out.append(f"All {len(lib.slots)} slots: each mod shows the slot where you got furthest in it (Slot; "
+                   "+N = other slots you played it in). Nothing is added up across slots.")
     views = [v for _, v, _ in rows]
     if any(not known(m) for _, _, m in rows):
         out.append("? = total unknown: that mod isn't in the Mods folder" + ("" if mods_info.maps else " (use --mods)")
@@ -234,7 +251,7 @@ def render_text(lib, key, user, mods_info):
 
 def render_markdown(lib, key, user):
     multi = single_slot(lib, key) is None
-    head = ["Mod", "Sides", "Maps", "Status", "Deaths", "Time", "Berries"] + ["Slots"] * multi + \
+    head = ["Mod", "Sides", "Maps", "Status", "Deaths", "Time", "Berries"] + ["Slot"] * multi + \
            ["Checkpoints", "Unfinished chapters", "Mine", "Notes"]
     out = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     slot = single_slot(lib, key)
@@ -246,7 +263,7 @@ def render_markdown(lib, key, user):
         sids = {m.id} | {ls.name for ls in m.sets} | {ch.sid for ch in m.chapters()}
         rn = "; ".join(f"{k}: {f['note']}" for k, f in user.items() if k in sids and f.get("note"))
         cells = [name, sides_cell(v, m), maps_cell(v, m), v.status, str(v.deaths), fmt_time(v.ticks), str(v.berries)] \
-            + [",".join(v.slots)] * multi + [f"{v.open_checkpoints}{ckpt_note(m, v, slot)}", chs, mine_cell(m.user), rn]
+            + [slots_cell(v)] * multi + [f"{v.open_checkpoints}{ckpt_note(m, v, slot)}", chs, mine_cell(m.user), rn]
         out.append("| " + " | ".join(c.replace("|", "\\|") for c in cells) + " |")
     return "\n".join(out) + "\n"
 
@@ -283,25 +300,6 @@ def side_cells(sv):
     return f"{sv.deaths:>6}  {fmt_time(sv.ticks):<9}  {sv.berries:>7}  {fmt_cps(sv.checkpoints)}"
 
 
-def slot_breakdown(s, key):
-    """'completed in slots 1, 2 · in progress in slot 8 (288 deaths)' for a side played in several slots;
-    more than 6 slots with one status are just counted ('completed in 31 slots')."""
-    per = [(k, v) for k, v in s.progress.items() if k != ALL]
-    if key != ALL or len(per) < 2:
-        return ""
-    groups = {}
-    for k, v in per:
-        groups.setdefault(v.status, []).append((k, v))
-    parts = []
-    for st, items in groups.items():
-        if len(items) > 6:
-            parts.append(f"{st} in {len(items)} slots")
-        else:
-            deaths = "" if st == "completed" else f" ({', '.join(str(v.deaths) for _, v in items)} deaths)"
-            parts.append(f"{st} in slot{'s' if len(items) > 1 else ''} {', '.join(k for k, _ in items)}{deaths}")
-    return " · ".join(parts)
-
-
 def render_mod(mod, key, lib, user, only_set=None):
     """Every chapter and side of one mod (or one of its level sets), including the ones never opened."""
     v = view_of(mod, key)
@@ -313,7 +311,9 @@ def render_mod(mod, key, lib, user, only_set=None):
     out = [head, f"Sides {sides_cell(v, mod)} done, chapters {maps_cell(v, mod)} done "
                  f"({n_prog} in progress, {n_new} not opened)"
            + (f", {v.hearts} heart(s) collected" if v.hearts else "")
-           + (f"; played in slots {', '.join(v.slots)}" if key == ALL and len(lib.slots) > 1 and v.slots else "")]
+]
+    if also_played(mod, key):
+        out.append(also_played(mod, key))
     if mine_cell(mod.user):
         out.append(f"Mine: {mine_cell(mod.user)}")
     for n in mod_notes(mod, user):
@@ -346,9 +346,6 @@ def render_mod(mod, key, lib, user, only_set=None):
                 st = side_status(s, key) + (" ♥" if sv and sv.heart else "")
                 out.append(f"{name}{s.side:<4}  {st:<17}  {side_cells(sv)}"
                            f"{star if first else ''}{note if first else ''}".rstrip())
-                breakdown = slot_breakdown(s, key)
-                if breakdown:
-                    out.append(f"{'':<{len(name)}}      {breakdown}")
     out.append("")
     if any(ch.sid == s.last_played_sid for s in lib.slots for ch in chapters):
         out.append("* = your last-played map" + ("" if len(lib.slots) == 1 else " in a slot"))
@@ -413,9 +410,10 @@ def edit_field(store, lib, flag, key, value):
 
 def parse_args(argv):
     ap = argparse.ArgumentParser(description="Celeste mod progress from save files, without loading the mods. "
-                                             "By default, all save slots combined.")
+                                             "By default, all save slots: each mod from the slot that got "
+                                             "furthest in it.")
     ap.add_argument("--slot", type=int, help="only this save slot")
-    ap.add_argument("--all", action="store_true", help="all save slots combined (the default)")
+    ap.add_argument("--all", action="store_true", help="all save slots, each mod from its furthest slot (the default)")
     ap.add_argument("--saves", help="path to the Saves folder")
     ap.add_argument("--file", help="path to a specific .celeste save file")
     ap.add_argument("--mods", nargs="?", const="auto", metavar="FOLDER",
@@ -528,7 +526,7 @@ def main(argv=None):
         return
 
     if len(lib.slots) > 1:
-        print(f"Saves: {slot_paths[0][1].parent} ({len(lib.slots)} slots combined)")
+        print(f"Saves: {slot_paths[0][1].parent} ({len(lib.slots)} slots; each mod from its furthest slot)")
     else:
         print(f"Save: {slot_paths[0][1]}")
     if mods.source:

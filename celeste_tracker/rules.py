@@ -3,9 +3,11 @@
 - Side completed: cleared. The crystal heart doesn't count: many sides have none (lobbies, prologues), and for
   mods the save can't tell. Hearts collected are counted separately (View.hearts), as information.
 - Chapter completed: every side it has is completed. Level set / mod completed: every chapter in it is.
-- All slots combined (doc/DESIGN.md): a side's status is the best of its per-slot statuses (each decided
-  inside one slot); deaths, time and berries add up; best time and best deaths are the best of any slot.
+- All slots (doc/DESIGN.md): each mod shows the slot that got furthest in it (furthest_slot). Every node's
+  "all" view is a copy of that slot's view, so nothing is added up or mixed across slots.
 """
+from dataclasses import replace
+
 from .model import View
 
 ALL = "all"
@@ -27,19 +29,12 @@ def count_side(v):
     return v
 
 
-def combine_side(views):
-    """The "all" view of a side from its per-slot views."""
-    best = min(views.values(), key=lambda v: SIDE_STATUSES.index(v.status))
-    longest = max(views.values(), key=lambda v: v.ticks)
-    cleared_runs = [v for v in views.values() if v.best_ticks]
-    return count_side(View(
-        status=best.status, cleared=best.cleared, heart=any(v.heart for v in views.values()),
-        deaths=sum(v.deaths for v in views.values()), ticks=sum(v.ticks for v in views.values()),
-        berries=sum(v.berries for v in views.values()),
-        best_ticks=min((v.best_ticks for v in cleared_runs), default=0),
-        best_deaths=min((v.best_deaths for v in cleared_runs), default=0),
-        checkpoints=longest.checkpoints,  # no dates in the save: the slot with the most time on it
-        slots=list(views)))
+def furthest_slot(views, opened):
+    """The slot that got furthest in a mod, from its per-slot views: most sides completed, then most sides
+    opened, then most checkpoints reached on unfinished sides, then most time played. None if never played."""
+    played = [k for k, v in views.items() if opened[k]]
+    return max(played, key=lambda k: (views[k].sides_done, opened[k], views[k].open_checkpoints, views[k].ticks),
+               default=None)
 
 
 def rollup(chapters, key, order):
@@ -117,8 +112,6 @@ def apply(lib):
                     v.status = side_status(v)
                     count_side(v)
                 s.progress = {k: per_slot[k] for k in sorted(per_slot, key=order)}
-                if per_slot:
-                    s.progress[ALL] = combine_side(per_slot)
         # Every chapter and level set gets all of the mod's keys, so what wasn't played in a slot still shows
         # (as not opened / not started). Sides only have views where they were opened.
         mod_keys = sorted(keys_of(mod.chapters()), key=order)  # slots in order, then "all"
@@ -136,11 +129,29 @@ def apply(lib):
                 in_bin = [sl for sl in v.slots if ls.name in not_loaded[sl]]
                 v.loaded = mod.vanilla or not v.slots or len(in_bin) < len(v.slots)
                 ls.progress[k] = v
-        mod.progress = {}
+        mod.progress, opened_in = {}, {}
         for k in mod_keys:
-            v, opened = rollup(mod.chapters(), k, order)
-            v.status = set_status(v, opened, known)
+            v, opened_in[k] = rollup(mod.chapters(), k, order)
+            v.status = set_status(v, opened_in[k], known)
             v.loaded = any(ls.progress[k].loaded for ls in mod.sets if k in ls.progress and ls.progress[k].slots) \
                 or not v.slots
             mod.progress[k] = v
+        show_furthest_slot(mod, mod_keys, opened_in)
     return lib
+
+
+def show_furthest_slot(mod, keys, opened_in):
+    """Make every node's "all" view a copy of the mod's furthest slot, keeping the list of slots it was played in.
+    A mod never played keeps its "all" view from rollup (not started, with the catalog's totals)."""
+    slot_keys = [k for k in keys if k != ALL]
+    best = furthest_slot({k: mod.progress[k] for k in slot_keys}, opened_in)
+    if best is None:
+        return
+    for node in [mod, *mod.sets, *mod.chapters()]:
+        played = [k for k in slot_keys if node.progress[k].slots]
+        node.progress[ALL] = replace(node.progress[best], slot=best, slots=played)
+    for ch in mod.chapters():
+        for s in ch.sides.values():
+            s.progress.pop(ALL, None)
+            if best in s.progress:  # a side not opened in that slot has no "all" view: not opened
+                s.progress[ALL] = replace(s.progress[best], slot=best, slots=list(s.progress))

@@ -70,7 +70,7 @@ def test_library_is_the_model_json(server):
     assert data["schema"] == 2 and data["version"] >= 1
     assert [s["key"] for s in data["slots"]] == ["1", "2"]
     collab = next(m for m in data["mods"] if m["id"] == "Collab")
-    assert collab["progress"]["all"]["sides_done"] == 3
+    assert (collab["progress"]["all"]["sides_done"], collab["progress"]["all"]["slot"]) == (2, "1")
 
 
 def test_other_hosts_are_refused(server):

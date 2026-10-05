@@ -36,9 +36,9 @@ def test_overview_one_slot(run, mods_dir):
 
 def test_all_slots_combined_is_the_default(run, mods_dir):
     out = run("--saves", str(SLOTS), "--mods", str(mods_dir))
-    assert "(2 slots combined)" in out
+    assert "(2 slots; each mod from its furthest slot)" in out
     collab = line_of(out, "Collab ")
-    assert "3/4" in collab and "1,2" in collab  # Lobby and M1 done in slot 1, M2 in slot 2
+    assert "2/4" in collab and "1 (+1)" in collab  # slot 1 (Lobby, M1) is furthest; also played in slot 2
     assert "Slot 1: Resume:" in out
     one = run("--saves", str(SLOTS), "--mods", str(mods_dir), "--slot", "2")
     assert "1/4" in line_of(one, "Collab ")
@@ -73,9 +73,9 @@ def test_set_view_of_a_one_chapter_mod_lists_sides(run, mods_dir):
     assert any(l.startswith("C ") and "in progress" in l and 'c-01 "Deep Woods"' in l for l in out.splitlines())
 
 
-def test_set_view_combined_shows_each_slot(run, mods_dir):
-    out = run("--saves", str(SLOTS), "--mods", str(mods_dir), "--set", "Celeste")
-    assert "completed in slots 1, 2" in out  # the Prologue, cleared in both slots
+def test_set_view_names_the_slot_shown_and_the_others(run, mods_dir):
+    out = run("--saves", str(SLOTS), "--mods", str(mods_dir), "--set", "Collab")
+    assert "Shown: slot 1, the furthest; also played in slot 2 (1/4)" in out
 
 
 def test_json(run, mods_dir):
@@ -105,7 +105,7 @@ def test_save_config_then_run_without_flags(run, tmp_path, mods_dir):
     run("--saves", str(SLOTS), "--mods", str(mods_dir), "--save-config")
     assert f'saves = "{SLOTS.resolve()}"' in (tmp_path / "config.toml").read_text()
     out = run()  # Saves and Mods come from the config
-    assert "(2 slots combined)" in out and "The Forest" in out
+    assert "(2 slots; each mod from its furthest slot)" in out and "The Forest" in out
     assert "The Forest" not in run("--no-mods")
 
 

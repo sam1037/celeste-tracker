@@ -82,13 +82,12 @@ Side status: completed (= cleared) / in progress / not opened. Map status: compl
 - Placeholder B/C records in the save (the save always lists three) are dropped when the mod files show the side doesn't exist.
 - Totals: sides done / sides total is the main number, maps done / maps total next to it.
 
-### All slots combined (the default view)
+### All slots (the default view): each mod's furthest slot
 
-- **Side status: the best across slots**, in the order completed > in progress > not opened. A heart collected in any slot shows as collected.
-- **Deaths, time and berries: added up across slots** (total effort). Best time and best deaths: the best across slots.
-- Each side keeps its per-slot results, so expanding it shows "slot 1: completed · slot 8: in progress, 288 deaths".
-- A mod row lists the slots it was played in. `[not loaded]` only shows when Everest hadn't loaded the mod in every slot that has it.
-- The latest checkpoint and the saved room come from the slot with the most time on that side; the save has no dates to pick the most recent one.
+- **Each mod shows one slot's progress: the slot that got furthest in it.** Furthest = most sides completed, then most sides opened, then most checkpoints reached on unfinished sides, then most time played. The whole mod (every level set, chapter and side) comes from that slot, so its numbers are one real save's: nothing is added up or mixed across slots.
+- The `"all"` view of every node in the mod is a copy of that slot's view, with `slot` = the chosen slot and `slots` = every slot the node was played in. The per-slot views stay, so "also played in: slot 1 (2/3), slot 31 (0/3)" can be shown.
+- Checked on the author's 32 slots (2026-10-05): of the 59 mods played in more than one slot, the furthest slot already has every side completed in any slot, so nothing is lost. (The earlier per-side merge added up deaths, time and berries, which double-counted berries, and could call a chapter complete from two different slots.)
+- `[not loaded]` and the latest checkpoint come from the chosen slot too.
 - One slot is a filter on the same view (`--slot N`, and a slot picker in the UI).
 
 ### Grouping level sets into mods

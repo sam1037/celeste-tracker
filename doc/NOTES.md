@@ -13,7 +13,7 @@ Build status, the save and mod file format, and open technical questions. What t
 | 5 | Checkpoints per side and saved room | done |
 | 6 | Status per side | done (`rules.side_status`) |
 | 7 | Completion rules | done (`rules.py`): a side is completed when cleared; hearts are counted separately. Collab gyms are left out of the catalog (`model.is_gym`) |
-| 8 | All slots in one view | done: the default. One row per mod with a Slots column; `--slot N` for one slot. An unreadable slot is skipped with a warning |
+| 8 | All slots in one view | done: the default. Each mod shows its furthest slot (`rules.furthest_slot`), named in the Slot column ("8 (+5)" = 5 other slots); `--set` lists the other slots with their counts. `--slot N` for one slot. An unreadable slot is skipped with a warning. (Until 2026-10-05 sides were merged across slots, which double-counted berries) |
 | 9 | Mod name | done. GameBanana title from the mod list (260 of my 272 mods), else chapter title, level set title, mod ID (OmoriPack shows "Cold") |
 | 10 | JSON export | done (`--json FILE`, `-` for stdout), schema 2: one catalog tree, progress per slot and `all`. All 32 of my slots: 5.6 MB indented, 2.3 MB compact (what `--serve` sends) |
 | 11 | Read-only | holds today, keep it |

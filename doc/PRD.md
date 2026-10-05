@@ -68,7 +68,7 @@ Status for each requirement is tracked in [NOTES.md](NOTES.md#status).
 | 5 | Checkpoints reached per side, and the saved room of the current session |
 | 6 | Status per side (A/B/C): cleared, heart, deaths, time, checkpoints |
 | 7 | Apply the completion rules above (side, map, level set) |
-| 8 | All slots in one view, by default: one row per mod across slots. A side counts as done if it's completed in any slot; deaths and time add up across slots; opening a side shows each slot's result. Filter to one slot |
+| 8 | All slots in one view, by default: one row per mod, showing the progress of the slot that got furthest in that mod (named on the row), with the other slots it was played in listed when opened. Nothing is added up or mixed across slots. Filter to one slot |
 | 9 | Name each mod the way players know it: its GameBanana title (e.g. "Sonder", not the zip's ID `SonderCrispy`). When that isn't available (offline, or the mod isn't on GameBanana): the map's title for a one-map mod, else the level set's title for a one-set mod, else the mod ID |
 | 10 | Export everything parsed as JSON, so the UI reads data instead of re-parsing saves |
 | 11 | Read-only: never write to save files, safe to run while the game is open |

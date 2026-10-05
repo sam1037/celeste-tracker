@@ -47,7 +47,7 @@ class Checkpoint:
 
 @dataclass
 class View:
-    """Status and totals of one node (mod, level set, chapter or side) for one slot, or for all slots combined.
+    """Status and totals of one node (mod, level set, chapter or side) for one slot, or for all slots ("all": the mod's furthest slot).
     A side's view counts the side itself (sides_total 1), so every node's totals are sums over its sides."""
     status: str = ""
     sides_done: int = 0
@@ -63,6 +63,7 @@ class View:
     latest_checkpoint: dict | None = None  # {'sid', 'side', 'room', 'title'}
     loaded: bool = True                 # False: Everest didn't load the mod at the last save (recycle bin)
     slots: list[str] = field(default_factory=list)  # slots with progress here
+    slot: str | None = None             # "all" views only: the slot shown, the mod's furthest (rules.furthest_slot)
     # Sides only:
     cleared: bool = False
     heart: bool = False

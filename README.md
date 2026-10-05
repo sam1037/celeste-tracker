@@ -2,7 +2,7 @@
 
 See your Celeste mod progress straight from the save files, without enabling the mods (loading many mods slows the game down). Standard library only.
 
-One row per **mod**, named the way you know it from Olympus (its GameBanana title), with collabs split into their level sets underneath. Progress is counted in **sides**: a chapter's A, B and C sides each count once, and a side is done when it's cleared (crystal hearts are shown, but don't count). By default all your save slots are combined: a side counts as done if you completed it in any slot, and deaths and time add up.
+One row per **mod**, named the way you know it from Olympus (its GameBanana title), with collabs split into their level sets underneath. Progress is counted in **sides**: a chapter's A, B and C sides each count once, and a side is done when it's cleared (crystal hearts are shown, but don't count). By default all your save slots are shown together: each mod shows the slot where you got furthest in it (the row says which), and opening it lists the other slots you played it in.
 
 With `--mods` it reads your Mods folder (zip file lists, `everest.yaml` and `Dialog/English.txt` only) for each mod's chapters and sides and their in-game titles. Mod names come from Everest's public mod list (the same one Olympus uses), downloaded once a week and cached; nothing about your saves is sent. Without internet it uses the chapter's title, then the level set's title, then the mod's ID.
 
@@ -13,7 +13,7 @@ S="/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Saves"   # Windows 
 
 uv run celeste_progress.py --saves "$S" --mods --save-config         # once: remember the folders
 uv run celeste_progress.py --serve                                   # the page: open http://localhost:8765
-uv run celeste_progress.py                                           # every mod, all slots combined
+uv run celeste_progress.py                                           # every mod, from its furthest slot
 uv run celeste_progress.py --slot 1                                  # one slot, with its unfinished chapters
 uv run celeste_progress.py --set "Sentient Forest"                   # one mod: its chapters and sides, per slot
 uv run celeste_progress.py --note hikki "stopped at the ice part"

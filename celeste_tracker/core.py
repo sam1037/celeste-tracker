@@ -23,7 +23,7 @@ def read_slots(slot_paths):
 
 def build(loaded, mods, titles=None, user=None):
     """Parsed slots + mod data + the player's fields -> Library with statuses and totals for each slot and for
-    all slots combined. Cheap: the UI server calls it again after every edit."""
+    all slots (each mod from its furthest slot). Cheap: the UI server calls it again after every edit."""
     return rules.apply(build_library(loaded, mods, titles, user))
 
 

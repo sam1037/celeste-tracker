@@ -105,18 +105,24 @@ def test_without_mods_only_opened_sides_count():
     assert (m.progress["1"].sides_done, m.progress["1"].sides_total) == (2, 3)  # all three were opened
 
 
-def test_slots_combined(mods):
+def test_all_slots_shows_each_mods_furthest_slot(mods):
     lib = load_library([(1, SLOTS / "1.celeste"), (2, SLOTS / "2.celeste")], mods)
     collab = mod(lib, "Collab")
     assert collab.progress["1"].sides_done == 2 and collab.progress["2"].sides_done == 1
     v = collab.progress[ALL]
-    assert (v.sides_done, v.sides_total, v.slots) == (3, 4, ["1", "2"])  # Lobby, M1 in slot 1; M2 in slot 2
+    # Slot 1 (Lobby and M1 done) beats slot 2 (M2 done): the mod shows slot 1 only, nothing added up.
+    assert (v.slot, v.sides_done, v.sides_total, v.slots) == ("1", 2, 4, ["1", "2"])
+    assert v.deaths == collab.progress["1"].deaths
+    m2 = collab.find_chapter("Test/Collab/M2")
+    assert m2.progress[ALL].status == "not opened" and m2.progress[ALL].slots == ["2"]  # done in slot 2 only
+    assert ALL not in m2.sides["A"].progress  # not opened in the slot shown
     prologue = mod(lib, "Celeste").find_chapter("Celeste/0-Intro").sides["A"]
-    assert list(prologue.progress) == ["1", "2", ALL] and prologue.progress[ALL].slots == ["1", "2"]
+    assert list(prologue.progress) == ["1", "2", ALL]
+    assert (prologue.progress[ALL].slot, prologue.progress[ALL].slots) == ("1", ["1", "2"])
 
 
-def test_best_status_is_decided_per_slot(tmp_path, mods):
-    """Cleared in one slot, heart only in another: completed (clearing is what counts), heart collected."""
+def test_furthest_slot_wins_whole(tmp_path, mods):
+    """Cleared in slot 1, heart only in slot 2: slot 1 is shown as it is (completed, no heart), not a mix."""
     def save(path, cleared, heart, deaths):
         path.write_text(f'''<SaveData><Name>x</Name><LevelSets><LevelSetStats Name="Test/Sides"><Areas>
             <AreaStats SID="Test/Sides/Forest"><Modes>
@@ -128,8 +134,21 @@ def test_best_status_is_decided_per_slot(tmp_path, mods):
                         (2, save(tmp_path / "2.celeste", "false", "true", 4))], mods)
     a = mod(lib, "Sides Mod").chapters()[0].sides["A"]
     assert a.progress["1"].status == "completed" and a.progress["2"].status == "in progress"
-    assert a.progress[ALL].status == "completed" and a.progress[ALL].heart
-    assert (a.progress[ALL].deaths, a.progress[ALL].berries, a.progress[ALL].best_deaths) == (7, 2, 3)
+    v = a.progress[ALL]
+    assert (v.slot, v.status, v.heart, v.deaths, v.berries) == ("1", "completed", False, 3, 1)
+
+
+def test_tie_on_sides_done_goes_to_the_slot_that_opened_more(tmp_path, mods):
+    def save(path, sides):
+        modes = "".join(f'<AreaModeStats Completed="false" Deaths="{d}" TimePlayed="{d * 10}"><Checkpoints />'
+                        f'</AreaModeStats>' for d in sides)  # 0 deaths and 0 time: not opened
+        path.write_text(f'''<SaveData><LevelSets><LevelSetStats Name="Test/Sides"><Areas>
+            <AreaStats SID="Test/Sides/Forest"><Modes>{modes}</Modes></AreaStats></Areas></LevelSetStats>
+            </LevelSets></SaveData>''')
+        return path
+    lib = load_library([(1, save(tmp_path / "1.celeste", [5, 0, 0])),
+                        (2, save(tmp_path / "2.celeste", [1, 1, 0]))], mods)
+    assert mod(lib, "Sides Mod").progress[ALL].slot == "2"  # 0 done in both; slot 2 opened A and B
 
 
 def test_view_keys_are_in_slot_order(mods):
