@@ -22,16 +22,20 @@ Defined once in `style.css` (`:root`, plus the dark values under `prefers-color-
 
 | Token | Light | Dark | Role |
 |---|---|---|---|
-| `--snow` | `#eef1f6` | `#141822` | page background, cool like snow on the mountain |
-| `--surface` | `#ffffff` | `#1c2130` | the table and panels |
-| `--surface-alt` | `#f5f3fa` | `#222738` | every second row |
-| `--ink` | `#1b2233` | `#e6e9f2` | text (deep navy, not tinted black) |
-| `--muted` | `#5d6780` | `#9aa3b8` | secondary text |
-| `--line` | `#dde2ec` | `#2d3346` | rules and borders |
-| `--summit` | `#6a4bb0` | `#a98be6` | accent: links, focus, the wordmark (the purple the page already had) |
-| `--progress` | `#3c7fd4` | `#6ea5ec` | the progress bar, side chips and hearts: one color for every side |
+| `--snow` | `#f1f3f6` | `#12161e` | page background: plain cool grey |
+| `--surface` | `#ffffff` | `#1a1f29` | the table and panels |
+| `--surface-alt` | `#f7f8fa` | `#1f2531` | every second row |
+| `--ink` | `#1a2130` | `#e4e8ef` | text (deep navy, not tinted black) |
+| `--muted` | `#5b6578` | `#98a2b4` | secondary text |
+| `--faint` | `#9ca3b1` | `#5b6475` | not started, not opened |
+| `--line` | `#e0e4ea` | `#2a313d` | rules and borders |
+| `--track` | `#e7eaf0` | `#29303c` | the empty part of a bar |
+| `--summit` | `#2f6fd0` | `#5b95e6` | accent: links, focus, the wordmark |
+| `--progress` | `#2f6fd0` | `#5b95e6` | the progress bar, side chips and hearts: one color for every side |
 
-Status isn't a color of its own: green "complete" and blue "in progress" are gone. Sides show their state by form (below). The user found the palette "not the best" (2026-10-05); alternatives are being compared, and this table changes with the choice.
+Status isn't a color of its own: green "complete" and blue "in progress" are gone. Sides show their state by form (below).
+
+This is the "Ice blue" palette, one hue on plain greys. The user found the first one (navy text, a lavender row tint, purple wordmark and blue bars) "not the best", compared four palettes on the same view (purple, green, blue, and the current one), and chose this one (2026-10-05).
 
 **Type:** one family, **Atkinson Hyperlegible Next** (Braille Institute, SIL OFL; built for legibility, distinct without being showy). It ships with the page in `static/fonts/` (Latin and Latin Extended, ~53 KB, licence in `OFL.txt`), because the page must work offline and contact nothing (PRD #12); system fonts are the fallback for other scripts. Sizes: 20 px wordmark, 15 px mod names, 13 px table text, 12 px secondary text and column headers. Numbers use tabular figures and align right.
 
@@ -93,6 +97,6 @@ Checked against the `frontend-design` skill's list of generic defaults:
 
 1. Font and tokens, side strips (with `by_side` from `rules.py`), side chips in heart colors, "playing". (done)
 2. One table with a header row, sorting by column header, Deaths column, labeled totals in the top bar, the Olympus-style second line. (done; the Sort menu is gone, and "Slots and tags" sorts by the player's rating)
-3. After the user's review (2026-10-05): one color for every side, the edit fields hidden. (done) A new palette: being compared.
+3. After the user's review (2026-10-05): one color for every side, the edit fields hidden, the Ice blue palette. (done)
 
 Check each step with `playwright-cli` on the real saves (scratch config), light and dark.
