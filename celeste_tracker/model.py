@@ -53,6 +53,7 @@ class View:
     sides_done: int = 0
     hearts: int = 0                     # sides whose crystal heart was collected (not part of "completed")
     sides_total: int = 0
+    by_side: dict[str, list[int]] = field(default_factory=dict)  # 'A'/'B'/'C' -> [done, total] (not on sides)
     maps_done: int = 0
     maps_total: int = 0
     deaths: int = 0

@@ -45,6 +45,17 @@ def test_chapter_with_three_sides(mods):
     assert v.latest_checkpoint == {"sid": "Test/Sides/Forest", "side": "C", "room": "c-01", "title": "Deep Woods"}
     assert v.open_checkpoints == 1  # A's checkpoint doesn't count: A is completed
     assert v.deaths == 287 + 1300 + 288
+    assert v.by_side == {"A": [1, 1], "B": [1, 1], "C": [0, 1]}  # the page's A/B/C strip
+
+
+def test_sides_by_letter_add_up_to_the_totals(mods):
+    lib = lib1(mods)
+    vanilla = mod(lib, "Celeste").progress["1"]
+    assert {k: t for k, (_, t) in vanilla.by_side.items()} == {"A": 11, "B": 8, "C": 8}
+    for m in lib.mods:
+        for k, v in m.progress.items():
+            assert sum(d for d, _ in v.by_side.values()) == v.sides_done, (m.id, k)
+            assert sum(t for _, t in v.by_side.values()) == v.sides_total, (m.id, k)
 
 
 def test_gamebanana_title_wins(mods):

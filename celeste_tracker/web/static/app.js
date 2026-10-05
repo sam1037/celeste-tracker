@@ -57,7 +57,8 @@ function viewOf(node, notOpened = "not started") {
   if (v) return v;
   const all = node.progress.all || {};
   return { status: notOpened, sides_done: 0, hearts: 0, sides_total: all.sides_total || 0, maps_done: 0,
-           maps_total: all.maps_total || 0, deaths: 0, ticks: 0, berries: 0, slots: [], loaded: true,
+           maps_total: all.maps_total || 0,
+           by_side: Object.fromEntries(Object.entries(all.by_side || {}).map(([k, [, t]]) => [k, [0, t]])), deaths: 0, ticks: 0, berries: 0, slots: [], loaded: true,
            latest_checkpoint: null, open_checkpoints: 0 };
 }
 
@@ -108,13 +109,28 @@ function visibleMods() {
 
 // ------------------------------------------------------------------ rendering
 
-function bar(v) {
-  const t = v.sides_total || 1;
-  return `<div class="bar" aria-hidden="true"><i class="d" style="width:${(100 * v.sides_done) / t}%"></i></div>`;
+function strip(v) {
+  // The A | B | C strip (doc/UI.md): one portion per side letter, sized by its share of the sides.
+  const parts = Object.entries(v.by_side || {});
+  const title = parts.map(([k, [d, t]]) => `${k} sides: ${d} of ${t} cleared`).join("\n");
+  return `<div class="strip" title="${esc(title)}">${parts.map(([k, [d, t]]) =>
+    `<span class="seg side-${cls(k)}" style="flex-grow:${t}"><i style="width:${(100 * d) / (t || 1)}%"></i></span>`)
+    .join("")}</div>`;
 }
 
+// The page's words for the server's statuses (doc/UI.md, principle 2); the CLI and JSON keep their own.
+const LABELS = { "in progress": "playing", completed: "cleared" };
+const label = (s) => LABELS[s] || s;
+
 function status(s) {
-  return `<span class="status s-${cls(s)}">${esc(s)}</span>`;
+  return `<span class="status s-${cls(s)}">${esc(label(s))}</span>`;
+}
+
+function chip(s, heart = false) {
+  const st = sideStatus(s);
+  return `<span class="chip side-${cls(s.side)} c-${cls(st)}" title="${esc(s.side)} side: ${esc(label(st))}` +
+    `${heart ? ", crystal heart collected" : ""}">${esc(s.side)}</span>` +
+    (heart ? `<span class="heart side-${cls(s.side)}" aria-hidden="true">♥</span>` : "");
 }
 
 function tags(m, v) {
@@ -138,7 +154,7 @@ function modCard({ m, v }) {
     <div class="mod-head" role="button" tabindex="0" aria-expanded="${open}">
       <span class="caret">▸</span>
       <span class="name">${esc(m.name)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</span>
-      <span class="progress">${bar(v)}<small class="num">${v.sides_done}/${v.sides_total}${q(m)} sides · ` +
+      <span class="progress">${strip(v)}<small class="num">${v.sides_done}/${v.sides_total}${q(m)} sides · ` +
         `${v.maps_done}/${v.maps_total}${q(m)} chapters</small></span>
       <span>${status(v.status)}</span>
       <span class="num right hide-sm" title="Time played">${fmtTime(v.ticks)}</span>
@@ -164,9 +180,11 @@ function modBody(m, v) {
     ${setNotes.join("")}
     ${body}
     ${mineEditor(m)}
-    <div class="legend"><span class="chip c-completed">A</span> completed
-      <span class="chip c-in-progress">A</span> in progress <span class="chip c-not-opened">A</span> not opened
-      <span>♥ crystal heart collected (not needed for completed)</span></div>
+    <div class="legend"><span><span class="chip side-a c-completed">A</span> cleared</span>
+      <span><span class="chip side-a c-in-progress">A</span> playing</span>
+      <span><span class="chip side-a c-not-opened">A</span> not opened</span>
+      <span>Blue, red and gold are the A, B and C sides, as in the game</span>
+      <span>♥ crystal heart collected (not needed to clear a side)</span></div>
   </div>`;
 }
 
@@ -180,7 +198,7 @@ function setBlock(m, ls) {
   return `<section class="set${open ? " open" : ""}">
     <div class="set-head" data-set="${esc(id)}" role="button" tabindex="0" aria-expanded="${open}">
       <span class="caret">▸</span><span class="set-name">${esc(setLabel(ls))}</span>
-      <span class="progress">${bar(v)}<small class="num">${v.sides_done}/${v.sides_total}${q(m)} sides</small></span>
+      <span class="progress">${strip(v)}<small class="num">${v.sides_done}/${v.sides_total}${q(m)} sides</small></span>
       ${status(v.status)}<span class="num right muted">${v.deaths} deaths</span>
       <span class="num right">${fmtTime(v.ticks)}</span></div>
     ${open ? chaptersBlock(m, ls.chapters) : ""}</section>`;
@@ -201,9 +219,7 @@ function chaptersBlock(m, list) {
 function chapterRows(ch) {
   const v = viewOf(ch, "not opened");
   const sides = countedSides(ch);
-  const heart = (s) => (s.progress[state.key] && s.progress[state.key].heart ? "♥" : "");
-  const chips = sides.map((s) => `<span class="chip c-${cls(sideStatus(s))}" title="${esc(s.side)} side: ` +
-    `${esc(sideStatus(s))}${heart(s) ? ", heart collected" : ""}">${esc(s.side)}${heart(s)}</span>`).join("");
+  const chips = sides.map((s) => chip(s, !!(s.progress[state.key] && s.progress[state.key].heart))).join("");
   const lc = v.latest_checkpoint;
   const open = state.openCh.has(ch.sid);
   const note = ch.user.note ? `<div class="cps">note: ${esc(ch.user.note)}</div>` : "";
@@ -223,8 +239,8 @@ function slotBreakdown(perSlot) {
   // "completed in slots 1, 2 · in progress in slot 8 (288 deaths)"; more than 6 slots are just counted.
   const groups = new Map();
   for (const [k, v] of perSlot) groups.set(v.status, [...(groups.get(v.status) || []), [k, v]]);
-  return [...groups].map(([st, items]) => items.length > 6 ? `${st} in ${items.length} slots`
-    : `${st} in slot${items.length > 1 ? "s" : ""} ${items.map(([k]) => k).join(", ")}` +
+  return [...groups].map(([st, items]) => items.length > 6 ? `${label(st)} in ${items.length} slots`
+    : `${label(st)} in slot${items.length > 1 ? "s" : ""} ${items.map(([k]) => k).join(", ")}` +
       (st === "completed" ? "" : ` (${items.map(([, v]) => v.deaths).join(", ")} deaths)`)).join(" · ");
 }
 
@@ -235,8 +251,8 @@ function sideTable(ch) {
     const perSlot = Object.entries(s.progress).filter(([k]) => k !== "all");
     const breakdown = state.key === "all" && perSlot.length > 1
       ? `<tr class="slots"><td></td><td colspan="6">${esc(slotBreakdown(perSlot))}</td></tr>` : "";
-    return `<tr><td><span class="chip c-${cls(sideStatus(s))}">${esc(s.side)}</span></td>
-      <td>${status(sideStatus(s))}${v && v.heart ? ' <span class="heart" title="Crystal heart collected">♥</span>' : ""}</td>
+    return `<tr><td>${chip(s, !!(v && v.heart))}</td>
+      <td>${status(sideStatus(s))}</td>
       <td class="right num">${v ? v.deaths : "-"}</td><td class="right num">${v ? fmtTime(v.ticks) : "-"}</td>
       <td class="right num">${v && v.best_ticks ? fmtTime(v.best_ticks) : "-"}</td>
       <td class="right num">${v ? v.berries : "-"}</td><td class="cps">${v ? cps(v.checkpoints) : ""}</td></tr>${breakdown}`;

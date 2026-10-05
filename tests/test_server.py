@@ -56,7 +56,10 @@ def test_page_and_static_files(server):
     assert status == 200 and ctype.startswith("text/html") and b"Celeste Tracker" in body
     assert request(srv, "GET", "/app.js")[1].startswith("text/javascript")
     assert request(srv, "GET", "/style.css")[1].startswith("text/css")
-    assert request(srv, "GET", "/../store.py")[0] == 404  # only the three files are served
+    status, ctype, body = request(srv, "GET", "/fonts/atkinson-next-latin.woff2")
+    assert status == 200 and ctype == "font/woff2" and body.startswith(b"wOF2")
+    assert request(srv, "GET", "/../store.py")[0] == 404  # only the listed files are served
+    assert request(srv, "GET", "/fonts/OFL.txt")[0] == 404
 
 
 def test_library_is_the_model_json(server):

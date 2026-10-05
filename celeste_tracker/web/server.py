@@ -1,6 +1,6 @@
 """The local UI server (doc/DESIGN.md, step 6): one static page plus a small JSON API. Standard library only.
 
-GET  /                 the page (static/index.html, app.js, style.css)
+GET  /                 the page (static/index.html, app.js, style.css, and its font in static/fonts)
 GET  /api/library      the whole model as JSON (schema 2, same as --json); ?refresh=1 rescans the Mods folder
 GET  /api/status       {"version": n}: n goes up when a save file changed, so the page knows to reload
 POST /api/user         {"key", "field", "value"}: set one of the player's fields (store.FIELDS)
@@ -24,7 +24,9 @@ from ..store import FIELDS
 
 STATIC = Path(__file__).parent / "static"
 FILES = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascript"),
-         "/style.css": ("style.css", "text/css")}
+         "/style.css": ("style.css", "text/css"),
+         "/fonts/atkinson-next-latin.woff2": ("fonts/atkinson-next-latin.woff2", "font/woff2"),
+         "/fonts/atkinson-next-latin-ext.woff2": ("fonts/atkinson-next-latin-ext.woff2", "font/woff2")}
 HEADER = "X-Celeste-Tracker"
 
 
@@ -102,7 +104,7 @@ class Handler(BaseHTTPRequestHandler):
         elif isinstance(body, str):
             body = body.encode()
         self.send_response(code)
-        self.send_header("Content-Type", f"{ctype}; charset=utf-8")
+        self.send_header("Content-Type", ctype if ctype.startswith("font/") else f"{ctype}; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")

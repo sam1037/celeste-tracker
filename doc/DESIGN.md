@@ -141,7 +141,7 @@ Mod ID → file ID → title. Example: `SonderCrispy` → file 1669303 → "Sond
                                    "sides": {"A": {"has_heart": null, "progress": {"all": {"status": "…", …}, "1": {…}}}}}]}]}]}
 ```
 
-One catalog tree. Every node carries `progress`, keyed by `"all"` (combined) and by slot number, with the status and totals `rules.py` computed, so the UI never applies rules itself. Schema 1 had a separate tree per slot.
+One catalog tree. Every node carries `progress`, keyed by `"all"` (combined) and by slot number, with the status and totals `rules.py` computed, so the UI never applies rules itself. Schema 1 had a separate tree per slot. Mod, level set and chapter views also have `by_side`, the sides done and total per letter (finished vanilla: `{"A": [11, 11], "B": [8, 8], "C": [8, 8]}`), for the page's A/B/C strip ([UI.md](UI.md)); it was added without a schema bump, since nothing that existed changed.
 
 The `schema` number goes up on breaking changes, so the UI can tell what it got.
 

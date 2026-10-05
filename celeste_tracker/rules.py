@@ -56,11 +56,14 @@ def rollup(chapters, key, order):
         v.maps_done += all(sv and sv.status == "completed" for sv in views)
         for s, sv in zip(counted, views):
             v.sides_total += 1
+            letter = v.by_side.setdefault(s.side, [0, 0])
+            letter[1] += 1
             if sv is None:
                 continue
             opened += 1
             slots.update(sv.slots)
             v.sides_done += sv.sides_done
+            letter[0] += sv.sides_done
             v.hearts += sv.hearts
             v.deaths += sv.deaths
             v.ticks += sv.ticks
@@ -68,6 +71,7 @@ def rollup(chapters, key, order):
             v.open_checkpoints += sv.open_checkpoints
             if sv.status != "completed" and sv.checkpoints:
                 unfinished.append((ch, s, sv))
+    v.by_side = {k: v.by_side[k] for k in sorted(v.by_side)}  # A, B, C, whatever order the chapters came in
     if unfinished:
         # From the unfinished side with checkpoints you've played longest: the last one the save lists.
         ch, s, sv = max(unfinished, key=lambda x: x[2].ticks)
