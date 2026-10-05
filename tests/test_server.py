@@ -2,7 +2,9 @@ import http.client
 import json
 import os
 import shutil
+import socket
 import threading
+import time
 
 import pytest
 
@@ -110,3 +112,21 @@ def test_a_changed_save_is_picked_up(server):
     st = os.stat(saves / "2.celeste")
     os.utime(saves / "2.celeste", ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
     assert [s["key"] for s in library(srv)["slots"]] == ["1", "2"]
+
+
+def test_a_page_that_hangs_up_mid_answer_is_not_an_error(server, capfd):
+    # A reload or a closed tab while the library is on its way: the server gets a broken pipe. It must not print
+    # a traceback, and it must keep serving.
+    srv, app, _ = server
+    app.json = b"x" * 20_000_000  # bigger than the socket buffers, so the write is still going when we hang up
+    port = srv.server_address[1]
+    s = socket.create_connection(("127.0.0.1", port))
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+    s.sendall(f"GET /api/library HTTP/1.1\r\nHost: localhost:{port}\r\n\r\n".encode())
+    s.recv(1024)  # the answer has started
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, b"\x01\x00\x00\x00\x00\x00\x00\x00")  # close = reset
+    s.close()
+    time.sleep(0.5)
+    assert request(srv, "GET", "/api/status")[0] == 200
+    err = capfd.readouterr().err
+    assert "Traceback" not in err and "Broken pipe" not in err
