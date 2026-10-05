@@ -13,6 +13,19 @@ For now the user is one Celeste player (the author) with many Everest mods insta
 - The save only stores internal IDs (`Kever2025/Crispybag/Kever2025`), not the names players know. Even the mod's own ID in its zip (`SonderCrispy`) often isn't the name players saw when they downloaded it ("Sonder" on GameBanana).
 - Players think in mods, but the game groups maps into level sets: one collab (Spring Collab 2020) is seven level sets.
 
+## Terms
+
+| Term | Meaning | Example |
+|---|---|---|
+| **Mod** | One download (one zip): a row in Olympus | Sentient Forest; The 2020 Celeste Spring Community Collab |
+| **Level set** | A group of chapters shown together in chapter select (a folder under `Maps/`). Most mods have one; a collab has one per difficulty tier | `SpringCollab2020/1-Beginner` |
+| **Chapter** (= **map**) | One playable level. "Map" is the modders' word (one `.bin` file), "chapter" the game's | Forest; Switchback Station |
+| **Side** | The A, B or C version of a chapter, each its own `.bin` file | Forest B side |
+| **Room** | One screen inside a side | `c-01` |
+| **Checkpoint** | A room flagged as a checkpoint; the save lists the ones reached per side | `c-01` "Deep Woods" |
+
+Mod > Level set > Chapter > Side > Room. The save has no record of rooms other than checkpoints reached and the room you saved in.
+
 ## Use cases
 
 - Pick what to play next: see which mods are unfinished and how far along each one is.
@@ -25,7 +38,9 @@ For now the user is one Celeste player (the author) with many Everest mods insta
 
 The **side** is the main unit of progress, the way players count it: a map's B side is its own piece of work. Everything rolls up from sides: side → map → level set → mod.
 
-A **mod** is one download (one zip). It can hold several **level sets**, the groups of maps the game shows together in chapter select (a collab's difficulty tiers are level sets). The mod is what players recognize, so it is the top level everywhere.
+A **mod** is one download (one zip). It can hold several **level sets**, the groups of chapters the game shows together in chapter select (a collab's difficulty tiers are level sets). The mod is what players recognize, so it is the top level everywhere.
+
+**Rows are mods; the numbers count sides.** Each mod is one row, showing how many of its sides are done (e.g. Spring Collab 2020: 87/105 sides). Opening a row shows the progress underneath it.
 
 - **Side completed:** cleared **and** its heart collected. A side that has no heart (e.g. some lobbies, vanilla Prologue/Epilogue) is completed once cleared.
 - **Map completed:** every side the map has (A, plus B and C if they exist) is completed.
@@ -69,7 +84,19 @@ Status for each requirement is tracked in [NOTES.md](NOTES.md#status).
 - Levels of clearing per side: full clear (all berries), golden / deathless. The save has `FullClear`, and `BestDeaths` may cover deathless
 - Checkpoint totals per side (e.g. "B side: checkpoint 11/14") and berry totals per map
 - Dates (cleared on, last played)
-- UI: a page in the browser first, then a desktop window
+- UI: a page in the browser first, then a desktop window. Like Olympus's mod list: one row per mod (GameBanana title, sides done/total, status). Opening a row drills down: level sets, then chapters, then sides. A level with only one entry is skipped, so a collab opens to its tiers and a one-chapter mod opens straight to its sides:
+  ```
+  ▸ The 2020 Celeste Spring Community Collab    87/105 sides   in progress
+  ▾   ├ Beginner        19/19   complete
+      ├ Expert           8/16   in progress
+      │   ├ Switchback Station   A: in progress
+      │   └ …
+  ▾ Sentient Forest                               2/3 sides     in progress
+      A  completed   287 deaths  1:01:07
+      B  completed  1300 deaths  3:56:04
+      C  in progress  288 deaths   20:35   checkpoint: Deep Woods
+  ▸ Sonder                                        0/1 sides     started
+  ```
 - Ready for other players: a Windows download that runs without Python, WSL or a terminal, and finds the Celeste folder by itself
 
 ## Non-goals

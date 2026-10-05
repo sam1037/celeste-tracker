@@ -94,6 +94,10 @@ The first one available wins:
 
 Map titles can't name a mod in general: a collab has one per map (Spring Collab 2020 has 105), and generic titles repeat across mods ("Prologue" is in 13 mods). Later, the user can rename a mod (PRD, Should have); a rename wins over all of the above.
 
+### Showing the tree
+
+The CLI and the UI show the same tree: mod > level set > chapter > side. **A level with only one entry is skipped**: a mod with one level set shows its chapters directly, and a chapter-level row is skipped when the mod has one chapter, so Sentient Forest opens straight to its A/B/C sides. 237 of the author's 265 map mods have one level set, and 204 have one chapter. In code a chapter is a `Map` (keyed by its SID); user-facing text says "chapter".
+
 ## Mod database (online, optional)
 
 Everest publishes two files that Olympus and Everest's updater use:
