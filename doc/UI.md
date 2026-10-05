@@ -65,6 +65,18 @@ The page uses three statuses for a mod or level set, and the **Show** menu offer
 - Old bookmarks still work: `show=played` and `show=dropped` open All mods, `show=unfinished` opens Playing. The Dropped filter is gone while the page can't set the flag (the edit fields are hidden); dropped mods are still dimmed.
 - Sorting by Status puts playing first, then complete, then not started; within one status, the mods closest to done come first.
 
+## Slots
+
+In the all-slots view, a mod shows **one slot, its furthest** (`rules.py`, since `d0388fc`): every number on its row and under it comes from that slot. The row's tag says which one, "slot 1 (+5)" = slot 1, also played in 5 other slots (hover for their numbers). An opened mod says "Shown: slot 1, your furthest; also played in slot 2 (2/3 sides), …" instead of the old per-side lines ("cleared in slots 1, 2; playing in slot 8"), which described every slot while the numbers next to them came from one.
+
+## Where you left off
+
+The panel above the table lists every slot saved inside a chapter (Save & Quit), as a small table: slot, mod, chapter (when it isn't the mod's own name), side, last checkpoint, room, deaths this session, and that slot's sides on the mod. Clicking a row opens the mod, on whichever page has it.
+
+- **Last checkpoint** is the last one the save lists for that side, by its in-game name (Wellness, Everglow); "start" when none was reached. The session's own start checkpoint is empty in all 15 sessions of the author's saves, so it isn't used.
+- **The room** is the raw room ID (`ABuffZucchini_SmogCity_01`): the most exact place, but not a name players know, so it's a muted detail.
+- The save has no dates, so rows are in slot order.
+
 ## Layout
 
 One table, Journal-style:

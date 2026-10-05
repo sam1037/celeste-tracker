@@ -160,9 +160,11 @@ function chip(s, heart = false) {
 
 function tags(m, v) {
   const t = [];
-  if (state.key === "all" && v.slots.length) {
-    const label = v.slots.length > 4 ? `${v.slots.length} slots` : `slot ${v.slots.join(",")}`;
-    t.push(`<span class="tag" title="Played in slot ${esc(v.slots.join(", "))}">${esc(label)}</span>`);
+  if (state.key === "all" && v.slot) {
+    // All slots: the row shows one slot, the mod's furthest (rules.py); "(+2)" = also played in 2 other slots.
+    const others = v.slots.filter((k) => k !== v.slot);
+    const title = `Shown: slot ${v.slot}, your furthest` + (others.length ? `. Also played in slot${others.length > 1 ? "s" : ""} ${others.join(", ")}` : "");
+    t.push(`<span class="tag" title="${esc(title)}">slot ${esc(v.slot)}${others.length ? ` (+${others.length})` : ""}</span>`);
   }
   if (m.user.rating) t.push(`<span class="tag own">${"★".repeat(m.user.rating)}</span>`);
   if (m.user.difficulty) t.push(`<span class="tag own">${esc(m.user.difficulty)}</span>`);
@@ -195,7 +197,7 @@ function modBody(m, v) {
   if (m.gamebanana_title && m.gamebanana_title !== m.name) facts.push(`<span>GameBanana <b>${esc(m.gamebanana_title)}</b></span>`);
   facts.push(`<span>Deaths <b>${v.deaths}</b></span>`, `<span>Berries <b>${v.berries}</b></span>`,
              `<span>Hearts collected <b>${v.hearts}</b></span>`);
-  if (state.key === "all" && v.slots.length) facts.push(`<span>Slots <b>${esc(v.slots.join(", "))}</b></span>`);
+  if (state.key === "all" && v.slot) facts.push(`<span>${shownSlot(m, v)}</span>`);
   if (!known(m)) facts.push(`<span>Not in the Mods folder: only what you opened is listed</span>`);
   const setNotes = m.sets.filter((s) => s.user.note).map((s) => `<div class="cps">${esc(s.title || s.name)}: ${esc(s.user.note)}</div>`);
   const body = m.sets.length > 1
@@ -260,27 +262,25 @@ function cps(list) {
   return list.length ? `${list.length}: ${list.map((c) => esc(c.title ? `${c.title} (${c.room})` : c.room)).join(", ")}` : "";
 }
 
-function slotBreakdown(perSlot) {
-  // "cleared in slots 1, 2; playing in slot 8 (288 deaths)"; more than 6 slots are just counted.
-  const groups = new Map();
-  for (const [k, v] of perSlot) groups.set(v.status, [...(groups.get(v.status) || []), [k, v]]);
-  return [...groups].map(([st, items]) => items.length > 6 ? `${label(st)} in ${items.length} slots`
-    : `${label(st)} in slot${items.length > 1 ? "s" : ""} ${items.map(([k]) => k).join(", ")}` +
-      (st === "completed" ? "" : ` (${items.map(([, v]) => v.deaths).join(", ")} deaths)`)).join("; ");
+function shownSlot(m, v) {
+  // "Shown: slot 1, your furthest; also played in slot 2 (2/3 sides), slot 31 (0/3 sides)". Every number on an
+  // opened mod comes from the slot shown; more than 6 other slots are just counted.
+  const others = v.slots.filter((k) => k !== v.slot);
+  if (!others.length) return `From slot <b>${esc(v.slot)}</b>, the only one it was played in`;
+  const list = others.length > 6 ? `${others.length} other slots`
+    : others.map((k) => `slot ${esc(k)} (${m.progress[k].sides_done}/${m.progress[k].sides_total} sides)`).join(", ");
+  return `Shown: <b>slot ${esc(v.slot)}</b>, your furthest; also played in ${list}`;
 }
 
 function sideTable(ch) {
   const sides = countedSides(ch);
   const rows = sides.map((s) => {
     const v = s.progress[state.key];
-    const perSlot = Object.entries(s.progress).filter(([k]) => k !== "all");
-    const breakdown = state.key === "all" && perSlot.length > 1
-      ? `<tr class="slots"><td></td><td colspan="6">${esc(slotBreakdown(perSlot))}</td></tr>` : "";
     return `<tr><td>${chip(s, !!(v && v.heart))}</td>
       <td>${status(sideStatus(s))}</td>
       <td class="right num">${v ? v.deaths : "-"}</td><td class="right num">${v ? fmtTime(v.ticks) : "-"}</td>
       <td class="right num">${v && v.best_ticks ? fmtTime(v.best_ticks) : "-"}</td>
-      <td class="right num">${v ? v.berries : "-"}</td><td class="cps">${v ? cps(v.checkpoints) : ""}</td></tr>${breakdown}`;
+      <td class="right num">${v ? v.berries : "-"}</td><td class="cps">${v ? cps(v.checkpoints) : ""}</td></tr>`;
   }).join("");
   return `<table class="sides"><colgroup><col class="w-side"><col class="w-status"><col class="w-n"><col class="w-n">` +
          `<col class="w-n"><col class="w-n"><col></colgroup><thead><tr><th>Side</th><th>Status</th>` +
@@ -310,18 +310,34 @@ function mineEditor(m) {
 }
 
 function renderSessions() {
+  // Where you left off: one row per slot saved inside a chapter (Save & Quit). The save has no dates, so rows
+  // are in slot order. The checkpoint is the last one the save lists for that side (the start checkpoint is
+  // empty in every real save seen); the room ID is a detail.
   const el = $("sessions");
   const slots = state.data.slots.filter((s) => s.session && (state.key === "all" || s.key === state.key));
   if (!slots.length) { el.hidden = true; return; }
   el.hidden = false;
   const open = sessionsOpen ?? (state.key !== "all" || slots.length <= 3);
-  el.innerHTML = `<details${open ? " open" : ""}><summary>Where you left off (Save &amp; Quit): ` +
-    `${slots.length} saved session${slots.length > 1 ? "s" : ""}</summary><ul>${slots.map((s) => {
+  const rows = slots.map((s) => {
     const x = s.session, m = index.modOfSid[x.sid];
-    const chapter = x.title && (!m || x.title !== m.name) ? `${x.title}, ` : (x.title ? "" : `${x.sid}, `);
-    return `<li><span class="muted">Slot ${esc(s.key)}:</span> ${m ? `<a data-goto="${esc(m.id)}">${esc(m.name)}</a>, ` : ""}` +
-           `${esc(`${chapter}${x.side} side, room ${x.room}`)} <span class="muted">(${x.deaths} deaths this session)</span></li>`;
-  }).join("")}</ul></details>`;
+    const chapter = x.title && m && x.title === m.name ? "" : (x.title || x.sid);
+    const cp = x.checkpoints.length ? x.checkpoints[x.checkpoints.length - 1] : null;
+    const v = m && m.progress[s.key];
+    return `<tr${m ? ` data-goto="${esc(m.id)}" title="Open ${esc(m.name)}"` : ""}>
+      <td class="num">${esc(s.key)}</td>
+      <td>${m ? `<a data-goto="${esc(m.id)}">${esc(m.name)}</a>` : esc(x.sid)}</td>
+      <td>${esc(chapter)}</td>
+      <td><span class="chip c-in-progress">${esc(x.side)}</span></td>
+      <td>${cp ? esc(cp.title || cp.room) : '<span class="muted">start</span>'}</td>
+      <td class="muted room">${esc(x.room)}</td>
+      <td class="right num">${fmtNum(x.deaths)}</td>
+      <td class="right num">${v ? `${v.sides_done}/${v.sides_total}` : "-"}</td></tr>`;
+  }).join("");
+  el.innerHTML = `<details${open ? " open" : ""}><summary>Where you left off ` +
+    `<span class="muted">Save &amp; Quit in ${slots.length} slot${slots.length > 1 ? "s" : ""}</span></summary>
+    <table class="resume"><colgroup><col class="w-slot"><col><col><col class="w-side"><col><col><col class="w-deaths"><col class="w-n">
+    </colgroup><thead><tr><th>Slot</th><th>Mod</th><th>Chapter</th><th>Side</th><th>Last checkpoint</th><th>Room</th>
+    <th class="right">Deaths this session</th><th class="right">Sides</th></tr></thead><tbody>${rows}</tbody></table></details>`;
 }
 
 function renderSummary(rows) {
