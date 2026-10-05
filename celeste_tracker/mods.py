@@ -16,14 +16,39 @@ def dkey(ident):
     return re.sub(r"[/ \-]", "_", ident).lower()
 
 
+# Bump when read_mod()'s output changes, so zips cached by an older version (store.ModCache) are read again.
+READ_VERSION = 2
+
+DIALOG_KEY = re.compile(r"(\w+)\s*=(.*)")
+
+
+def decode_text(raw):
+    """A dialog file's text: UTF-8 (with or without a BOM), or UTF-16 when it starts with a UTF-16 BOM, which
+    the game also reads (one mod in my Mods folder, Solaris, ships its English.txt as UTF-16)."""
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return raw.decode("utf-16", "replace")
+    return raw.decode("utf-8-sig", "replace")
+
+
 def parse_dialog(raw):
-    """`key= value` lines of a Dialog/English.txt as {lowercase key: value}."""
-    out = {}
-    for line in raw.decode("utf-8-sig", "replace").splitlines():
+    """A Dialog/English.txt as {lowercase key: value}. As in the game, a `key=` line starts a value and the
+    lines after it that aren't keys continue it: Strawberry Jam puts every title on the line under its key
+    (`StrawberryJam2021_5_Grandmaster_Hydro=`, then `  Shattersong`). Continued lines are joined with newlines.
+    The first definition of a key wins."""
+    out, key = {}, None
+    for line in decode_text(raw).splitlines():
         line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, _, v = line.partition("=")
-            out.setdefault(k.strip().lower(), v.strip())
+        if not line or line.startswith("#"):
+            continue
+        m = DIALOG_KEY.fullmatch(line)
+        if m:
+            key = m[1].lower()
+            if key in out:  # defined again: keep the first value, and skip the lines that continue this one
+                key = None
+            else:
+                out[key] = m[2].strip()
+        elif key is not None:
+            out[key] = f"{out[key]}\n{line}".strip()
     return out
 
 
@@ -86,7 +111,7 @@ def read_mod(names, read, source):
         if n.lower() == "dialog/english.txt":
             for k, v in parse_dialog(read(n)).items():
                 dialog.setdefault(k, v)
-    return {"id": mod_id, "source": source, "bins": bins, "dialog": dialog}
+    return {"version": READ_VERSION, "id": mod_id, "source": source, "bins": bins, "dialog": dialog}
 
 
 def stat_or_none(path):
@@ -127,6 +152,8 @@ def scan_mods(mods_dir, cache=None):
         stats = dict(zip(zips, pool.map(stat_or_none, zips)))
         zips = [z for z in zips if stats[z]]
         cached = {z: cache.get(str(z), stats[z].st_size, stats[z].st_mtime_ns) if cache else (False, None) for z in zips}
+        # An entry from an older READ_VERSION counts as a miss (zips without maps are cached as None either way).
+        cached = {z: (hit and (v is None or v.get("version") == READ_VERSION), v) for z, (hit, v) in cached.items()}
         misses = [z for z in zips if not cached[z][0]]
         read = dict(zip(misses, pool.map(read_zip, misses)))
     by_path = {}

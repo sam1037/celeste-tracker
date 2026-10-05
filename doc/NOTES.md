@@ -7,7 +7,7 @@ Build status, the save and mod file format, and open technical questions. What t
 | # | Requirement (see PRD) | Status |
 |---|---|---|
 | 1 | Progress per mod and level set | done. One row per mod; a mod with several level sets lists them underneath. Sides done/total is the main number, chapters done/total next to it |
-| 2 | In-game titles | done (`--mods`, from each mod's `Dialog/English.txt`; vanilla titles are built in) |
+| 2 | In-game titles | done (`--mods`, from each mod's `Dialog/English.txt`, including values on the lines under their key; vanilla titles are built in) |
 | 3 | Real chapter and side totals | done, per level set and per mod (`--mods`, from the zips' `Maps/` lists). `-B`/`-C` files fold into their map. Vanilla's chapters and sides are built in |
 | 4 | Detail view | done (`--set`): one mod or one level set, one row per side; a one-chapter mod goes straight to its sides; in the combined view, a line per side with each slot's result |
 | 5 | Checkpoints per side and saved room | done |
@@ -45,6 +45,7 @@ Technical notes on the "Later" items:
 - Sets in `<LevelSetRecycleBin>` = mods Everest didn't load at the last save (shown as `[not loaded]`). Their progress is kept.
 - `LastArea_Safe` = last-played map. `CurrentSession_Safe` = the Save & Quit point: `Level` (room), `StartCheckpoint`, `Deaths`, `RespawnPoint`. One per slot.
 - Dialog keys: the ID with `/`, spaces and `-` replaced by `_`. Set `NotPhobos_Omori`, map `NotPhobos_Omori_Snow_Mountain`, checkpoint `NotPhobos_Omori_Snow_Mountain_c_01`.
+- Dialog values can start on the line under the key: `StrawberryJam2021_5_Grandmaster_Hydro=` then `  Shattersong`, and every following line that isn't a `key=` line continues the value (credits run over several lines). The game shows these as the titles, so it reads them the same way; that a key must be one word (`\w+`) before the `=` is inferred from the game's parser, not checked. Strawberry Jam writes all its titles this way, and its map files are named after their authors (`5-Grandmaster/Hydro.bin`), so before 2026-10-05 its chapters showed author names. Next to each title it has `<key>_author` ("by Hydro & more") and `<key>_collabcredits`, which the tracker doesn't use. Spring Collab 2020 writes `key=value` on one line. In my Mods folder (2026-10-05), 10 mods have map or level set titles on the next line (Strawberry Jam: 134 titles; the other 9: 1-4 each, e.g. BreezeContest, intermediatecontest, SecretSantaCollab2024), and one (Solaris) ships its `English.txt` as UTF-16 with a BOM; reading both added 158 titles and changed no title that was already found. The tracker also accepts spaces before the `=` (one mod writes `KaileyTheAlien_CreationThroughSuffering = …`).
 - Map files: `Maps/<set>/<map>.bin` is the A side; `<map>-B.bin` and `<map>-C.bin` are its B and C sides. The save stores all three under the one SID `<set>/<map>`. Only `-B` and `-C` are sides: `-D` files (e.g. `MtEverest/0/MtEverest-D`) are maps of their own in the save. A map can have no A file: `isafriend/blizzard/1-blizzard` has only `-B` and `-C`.
 - AltSidesHelper: a map can list extra sides in `Maps/<set>/<map>.altsideshelper.meta.yaml` (`Sides: - Map: "MtEverest/0/MtEverest-D"`, `Preset: "d-side"`). In game they show as more sides of that chapter, but each is its own `.bin` and its own `AreaStats` in the save, and the name isn't always `-D` (Glyph's is `BeefyUncleTorre/map/z-1-D`). ~17 mods in my Mods folder use it. We count them as maps (see the PRD's definition), so the tracker doesn't need to read these files.
 - Hearts (2026-10-05, all 32 slots): 4 vanilla sides (Forsaken City A) and 57 mod sides are cleared without the heart, all A sides; no B or C side is. Vanilla A-side hearts are hidden collectibles; B/C-side hearts end the level.
@@ -60,7 +61,7 @@ Technical notes on the "Later" items:
 
 ## Known issues
 
-- None open. (Fixed: `--mods` used to count `-B.bin` / `-C.bin` as separate maps, 81 of 1,324 in my Mods folder.)
+- None open. (Fixed: `--mods` used to count `-B.bin` / `-C.bin` as separate maps, 81 of 1,324 in my Mods folder. Fixed 2026-10-05: titles on the line under their dialog key were read as empty, so Strawberry Jam showed its map file names, which are the authors' names; the mod-scan cache is versioned (`mods.READ_VERSION`) so zips cached before are read again.)
 
 ## Open technical questions
 
