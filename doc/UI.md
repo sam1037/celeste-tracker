@@ -98,7 +98,7 @@ Checked against the `frontend-design` skill's list of generic defaults:
 
 ## Build order
 
-1. Font and tokens, side strips (with `by_side` from `rules.py`), side chips in heart colors, "playing".
-2. One table with a header row, sorting by column header, Deaths column, labeled totals in the top bar, the Olympus-style second line.
+1. Font and tokens, side strips (with `by_side` from `rules.py`), side chips in heart colors, "playing". (done)
+2. One table with a header row, sorting by column header, Deaths column, labeled totals in the top bar, the Olympus-style second line. (done; the Sort menu is gone, and "Slots and tags" sorts by the player's rating)
 
 Check each step with `playwright-cli` on the real saves (scratch config), light and dark.

@@ -64,7 +64,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   position: sticky; top: 0; z-index: 2;
 }
 .brand { display: flex; align-items: baseline; gap: 4px 14px; flex-wrap: wrap; min-width: 0; }
-h1 { font-size: 18px; margin: 0; color: var(--summit); }
+h1 { font-size: 20px; margin: 0; color: var(--summit); }
+/* The totals in the top bar: each figure with its own label (doc/UI.md, principle 5). */
+.figures { display: flex; gap: 4px 22px; flex-wrap: wrap; color: var(--muted); }
+.figures b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .actions { display: flex; align-items: center; gap: 12px; }
 #live { font-size: 12px; }
 #live.on { color: var(--ok); }
@@ -88,18 +91,30 @@ button:hover { border-color: var(--summit); }
 .sessions a { color: var(--ink); text-decoration: none; cursor: pointer; }
 .sessions a:hover { color: var(--summit); }
 
-.list { padding: 0 20px 40px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.list {
+  margin: 0 20px 40px; display: grid; grid-template-columns: minmax(0, 1fr);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+}
 .mod, .set, .sets { min-width: 0; }
 .empty { padding: 30px; text-align: center; color: var(--muted); }
 .error { margin: 20px; color: #c0392b; }
 
-.list { --mod-cols: 16px minmax(180px, 2.4fr) minmax(150px, 1.4fr) 112px 84px minmax(110px, 1fr); }
+/* One table (doc/UI.md, Layout): a header row, then one row per mod, every second one shaded. */
+.list { --mod-cols: 16px minmax(180px, 2.4fr) minmax(150px, 1.4fr) 92px 72px 84px minmax(100px, 1fr); }
 .list-head {
-  display: grid; grid-template-columns: var(--mod-cols); gap: 12px;
-  padding: 0 15px 2px; /* the rows' padding plus their 1px border */
+  display: grid; grid-template-columns: var(--mod-cols); gap: 12px; align-items: center;
+  padding: 7px 14px; border-bottom: 1px solid var(--line);
   font-size: 12px; font-weight: 600; color: var(--muted);
 }
-.mod { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.list-head button {
+  border: 0; background: none; padding: 0; font-weight: 600; color: inherit; text-align: inherit; border-radius: 3px;
+}
+.list-head button:hover, .list-head button[aria-sort] { color: var(--ink); }
+.list-head button.right { justify-self: end; }
+.list-head button[aria-sort]::after { content: " ▾"; }
+.list-head button:focus-visible { outline: 2px solid var(--summit); outline-offset: 2px; }
+.mod { border-bottom: 1px solid var(--line); }
+.mod:last-child { border-bottom: 0; }
 .mod:nth-of-type(even) { background: var(--surface-alt); }
 .mod.dropped { opacity: .6; }
 .mod-head {
@@ -125,7 +140,7 @@ button:hover { border-color: var(--summit); }
   background: color-mix(in srgb, var(--h) 16%, var(--track));
 }
 .strip .seg i { display: block; height: 100%; background: var(--h); }
-.progress small { color: var(--muted); font-size: 12px; }
+.progress small { color: var(--muted); font-size: 12px; display: flex; gap: 14px; }
 
 .status { font-size: 12px; white-space: nowrap; }
 .s-complete, .s-completed, .s-all-opened-done { font-weight: 700; }
@@ -198,7 +213,7 @@ tr.slots td { padding-top: 0; color: var(--muted); font-size: 12px; }
   .toolbar { padding: 10px 16px; }
   .toolbar input[type=search] { flex-basis: 100%; min-width: 0; }
   .sessions { margin: 0 16px 10px; }
-  .list { padding: 0 16px 32px; }
+  .list { margin: 0 16px 32px; }
   /* name and status on top, the progress bar across underneath */
   .mod-head, .set-head { grid-template-columns: 16px minmax(0, 1fr) auto; gap: 4px 10px; }
   .mod-head .progress, .set-head .progress { grid-column: 2 / -1; grid-row: 2; }

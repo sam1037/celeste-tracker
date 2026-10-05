@@ -8,6 +8,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
 const cls = (s) => String(s || "").toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-|-$/g, "");
 const pad = (n) => String(n).padStart(2, "0");
 const TICKS = 10_000_000;
+const fmtNum = (n) => (n || 0).toLocaleString("en-US");
 const SEP = "\n"; // between IDs in the hash: mod IDs can contain commas and spaces
 
 function fmtTime(ticks) {
@@ -148,16 +149,18 @@ function tags(m, v) {
 
 function modCard({ m, v }) {
   const open = state.open.has(m.id);
+  // The dim second line, as Olympus shows it: ID ∙ details (doc/UI.md, "What players already know").
   const sub = [m.id !== m.name ? m.id : "", m.sets.length > 1 ? `${m.sets.length} level sets` : ""]
-    .filter(Boolean).join(" · ");
+    .filter(Boolean).join(" ∙ ");
   return `<article class="mod${open ? " open" : ""}${m.user.dropped ? " dropped" : ""}" data-mod="${esc(m.id)}">
     <div class="mod-head" role="button" tabindex="0" aria-expanded="${open}">
       <span class="caret">▸</span>
       <span class="name">${esc(m.name)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</span>
-      <span class="progress">${strip(v)}<small class="num">${v.sides_done}/${v.sides_total}${q(m)} sides · ` +
-        `${v.maps_done}/${v.maps_total}${q(m)} chapters</small></span>
+      <span class="progress">${strip(v)}<small class="num"><span>${v.sides_done}/${v.sides_total}${q(m)} sides</span>` +
+        `<span>${v.maps_done}/${v.maps_total}${q(m)} chapters</span></small></span>
       <span>${status(v.status)}</span>
-      <span class="num right hide-sm" title="Time played">${fmtTime(v.ticks)}</span>
+      <span class="num right hide-sm">${v.status === "not started" ? "-" : fmtNum(v.deaths)}</span>
+      <span class="num right hide-sm">${v.status === "not started" ? "-" : fmtTime(v.ticks)}</span>
       <span class="hide-sm">${tags(m, v)}</span>
     </div>
     ${open ? modBody(m, v) : ""}
@@ -236,12 +239,12 @@ function cps(list) {
 }
 
 function slotBreakdown(perSlot) {
-  // "completed in slots 1, 2 · in progress in slot 8 (288 deaths)"; more than 6 slots are just counted.
+  // "cleared in slots 1, 2; playing in slot 8 (288 deaths)"; more than 6 slots are just counted.
   const groups = new Map();
   for (const [k, v] of perSlot) groups.set(v.status, [...(groups.get(v.status) || []), [k, v]]);
   return [...groups].map(([st, items]) => items.length > 6 ? `${label(st)} in ${items.length} slots`
     : `${label(st)} in slot${items.length > 1 ? "s" : ""} ${items.map(([k]) => k).join(", ")}` +
-      (st === "completed" ? "" : ` (${items.map(([, v]) => v.deaths).join(", ")} deaths)`)).join(" · ");
+      (st === "completed" ? "" : ` (${items.map(([, v]) => v.deaths).join(", ")} deaths)`)).join("; ");
 }
 
 function sideTable(ch) {
@@ -290,7 +293,7 @@ function renderSessions() {
     `${slots.length} saved session${slots.length > 1 ? "s" : ""}</summary><ul>${slots.map((s) => {
     const x = s.session, m = index.modOfSid[x.sid];
     const chapter = x.title && (!m || x.title !== m.name) ? `${x.title}, ` : (x.title ? "" : `${x.sid}, `);
-    return `<li><span class="muted">Slot ${esc(s.key)}</span> · ${m ? `<a data-goto="${esc(m.id)}">${esc(m.name)}</a> · ` : ""}` +
+    return `<li><span class="muted">Slot ${esc(s.key)}:</span> ${m ? `<a data-goto="${esc(m.id)}">${esc(m.name)}</a>, ` : ""}` +
            `${esc(`${chapter}${x.side} side, room ${x.room}`)} <span class="muted">(${x.deaths} deaths this session)</span></li>`;
   }).join("")}</ul></details>`;
 }
@@ -299,21 +302,26 @@ function renderSummary(rows) {
   const played = state.data.mods.map((m) => viewOf(m)).filter((v) => v.status !== "not started");
   const done = played.filter((v) => COMPLETE.has(v.status)).length;
   const sides = played.reduce((a, v) => [a[0] + v.sides_done, a[1] + v.sides_total], [0, 0]);
-  const where = state.key === "all" ? `${state.data.slots.length} slots combined` : `slot ${state.key}`;
-  $("summary").textContent = `${played.length} mods played (${where}) · ${done} complete · ` +
-    `${sides[0]}/${sides[1]} sides done · showing ${rows.length}`;
+  const fig = (label, n, of) => `<span>${label} <b>${fmtNum(n)}</b>${of === undefined ? "" : ` of ${fmtNum(of)}`}</span>`;
+  $("summary").innerHTML = fig("Sides cleared", sides[0], sides[1]) + fig("Mods complete", done, played.length) +
+    (rows.length !== played.length ? fig("Showing", rows.length) : "");
 }
 
-// Column names over the mod rows; same grid as .mod-head.
-const LIST_HEAD = `<div class="list-head" aria-hidden="true"><span></span><span>Mod</span><span>Progress</span>` +
-  `<span>Status</span><span class="right hide-sm">Time</span><span class="right hide-sm">Slots and tags</span></div>`;
+// The header row over the mods (same grid as .mod-head). Click a column name to sort by it.
+function listHead() {
+  const col = (sort, text, extra = "", title = "") => `<button type="button" data-sort="${sort}" class="${extra}"` +
+    `${title ? ` title="${title}"` : ""}${state.sort === sort ? ` aria-sort="${sort === "name" ? "ascending" : "descending"}"` : ""}>${text}</button>`;
+  return `<div class="list-head"><span></span>${col("name", "Mod")}${col("progress", "Sides")}<span>Status</span>` +
+    `${col("deaths", "Deaths", "right hide-sm")}${col("time", "Time", "right hide-sm")}` +
+    `${col("rating", "Slots and tags", "right hide-sm", "Sort by your rating")}</div>`;
+}
 
 function render() {
   if (!state.data) return;
   const rows = visibleMods();
   renderSummary(rows);
   renderSessions();
-  $("list").innerHTML = rows.length ? LIST_HEAD + rows.map(modCard).join("") : `<div class="empty">No mods match.</div>`;
+  $("list").innerHTML = rows.length ? listHead() + rows.map(modCard).join("") : `<div class="empty">No mods match.</div>`;
   writeHash();
 }
 
@@ -338,7 +346,7 @@ function fillSlots() {
   const slots = state.data.slots;
   if (state.key !== "all" && !slots.some((s) => s.key === state.key)) state.key = "all";
   const opts = [`<option value="all">${slots.length > 1 ? `All slots (${slots.length})` : "This slot"}</option>`]
-    .concat(slots.length > 1 ? slots.map((s) => `<option value="${esc(s.key)}">Slot ${esc(s.key)}${s.name ? ` · ${esc(s.name)}` : ""}</option>`) : []);
+    .concat(slots.length > 1 ? slots.map((s) => `<option value="${esc(s.key)}">Slot ${esc(s.key)}${s.name ? `: ${esc(s.name)}` : ""}</option>`) : []);
   $("slot").innerHTML = opts.join("");
   $("slot").value = state.key;
 }
@@ -383,6 +391,8 @@ $("list").addEventListener("click", (e) => {
     const m = state.data.mods.find((x) => x.id === key);
     return save(key, "rating", m.user.rating === n ? 0 : n); // clicking the current rating clears it
   }
+  const sort = e.target.closest("[data-sort]");
+  if (sort) { state.sort = sort.dataset.sort; return render(); }
   const head = e.target.closest(".mod-head");
   if (head) return toggle(state.open, head.closest(".mod").dataset.mod);
   const set = e.target.closest(".set-head");
@@ -420,12 +430,10 @@ $("q").addEventListener("input", (e) => {
 });
 $("slot").addEventListener("change", (e) => { state.key = e.target.value; render(); });
 $("show").addEventListener("change", (e) => { state.show = e.target.value; render(); });
-$("sort").addEventListener("change", (e) => { state.sort = e.target.value; render(); });
 $("refresh").addEventListener("click", () => load(true));
 
 readHash();
 $("q").value = state.q;
 $("show").value = state.show;
-$("sort").value = state.sort;
 load();
 setInterval(poll, 5000);
