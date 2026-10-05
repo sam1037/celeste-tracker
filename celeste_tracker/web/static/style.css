@@ -1,4 +1,4 @@
-/* Tokens: doc/UI.md. Status has no color of its own; the heart colors say which side (A blue, B red, C gold). */
+/* Tokens: doc/UI.md. Status has no color of its own: one progress color for every side, and form says how far. */
 @font-face {
   font-family: "Atkinson Hyperlegible Next"; font-style: normal; font-weight: 200 800; font-display: swap;
   src: url("/fonts/atkinson-next-latin.woff2") format("woff2");
@@ -21,9 +21,7 @@
   --line: #dde2ec;
   --track: #e6e9f0;
   --summit: #6a4bb0;
-  --heart-a: #3c7fd4;
-  --heart-b: #d23a52;
-  --heart-c: #c9961a;
+  --progress: #3c7fd4;    /* the bar, the side chips and hearts */
   --ok: #2f8f5b;          /* "live" and "saved" only */
   --chip-ink: #ffffff;
   color-scheme: light;
@@ -39,9 +37,7 @@
     --line: #2d3346;
     --track: #2a3044;
     --summit: #a98be6;
-    --heart-a: #6ea5ec;
-    --heart-b: #ec6a7e;
-    --heart-c: #e3b548;
+    --progress: #6ea5ec;
     --ok: #49b37a;
     --chip-ink: #141822;
     color-scheme: dark;
@@ -131,15 +127,8 @@ button:hover { border-color: var(--summit); }
 .right { text-align: right; }
 
 .progress { display: grid; gap: 3px; }
-/* The side strip (doc/UI.md): one portion per side letter, as wide as its share of the sides, filled in its
-   heart color as those sides are cleared. */
-.side-a { --h: var(--heart-a); } .side-b { --h: var(--heart-b); } .side-c { --h: var(--heart-c); }
-.strip { display: flex; gap: 2px; height: 8px; }
-.strip .seg {
-  flex: 1 1 0; min-width: 6px; border-radius: 2px; overflow: hidden;
-  background: color-mix(in srgb, var(--h) 16%, var(--track));
-}
-.strip .seg i { display: block; height: 100%; background: var(--h); }
+.bar { height: 8px; border-radius: 2px; overflow: hidden; background: var(--track); }
+.bar i { display: block; height: 100%; background: var(--progress); }
 .progress small { color: var(--muted); font-size: 12px; display: flex; gap: 14px; }
 
 .status { font-size: 12px; white-space: nowrap; }
@@ -147,7 +136,7 @@ button:hover { border-color: var(--summit); }
 .s-complete::before, .s-completed::before, .s-all-opened-done::before { content: "✓ "; }
 .s-started { color: var(--muted); }
 .s-not-started, .s-not-opened { color: var(--faint); }
-.heart { color: var(--h, var(--heart-b)); }
+.heart { color: var(--progress); }
 
 .tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
 .tag {
@@ -185,13 +174,13 @@ tr.slots td { padding-top: 0; color: var(--muted); font-size: 12px; }
 .cps { color: var(--muted); font-size: 12px; }
 
 .chips { display: flex; gap: 3px; }
-/* Side chips: color = which side; form = how far (filled cleared, outlined playing, dashed not opened). */
+/* Side chips: the letter says which side; form says how far (filled cleared, outlined playing, dashed not opened). */
 .chip {
   display: inline-block; min-width: 22px; text-align: center; font-size: 11px; font-weight: 700; border-radius: 4px;
-  padding: 1px 4px; border: 1.5px solid var(--h);
+  padding: 1px 4px; border: 1.5px solid var(--progress);
 }
-.chip.c-completed { background: var(--h); color: var(--chip-ink); }
-.chip.c-in-progress { background: transparent; color: var(--h); }
+.chip.c-completed { background: var(--progress); color: var(--chip-ink); }
+.chip.c-in-progress { background: transparent; color: var(--progress); }
 .chip.c-not-opened { background: transparent; color: var(--faint); border: 1px dashed var(--faint); }
 .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
 
@@ -205,7 +194,7 @@ tr.slots td { padding-top: 0; color: var(--muted); font-size: 12px; }
 }
 .mine textarea { min-height: 52px; resize: vertical; }
 .stars button { border: 0; background: none; padding: 0 2px; font-size: 18px; color: var(--faint); cursor: pointer; }
-.stars button.on { color: var(--heart-c); }
+.stars button.on { color: var(--summit); }
 .saved { font-size: 12px; color: var(--ok); }
 
 @media (max-width: 760px) {

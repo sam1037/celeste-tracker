@@ -12,8 +12,8 @@ How the `--serve` page looks and why. What the tracker does is in [PRD.md](PRD.m
 
 ## What players already know
 
-- **The Journal** (in-game, in chapter select) is Celeste's own progress screen: one row per chapter, with columns for the A, B and C crystal hearts, strawberries, deaths and time. The tracker is the Journal for mods, so it borrows the Journal's columns and side colors, not its paper look.
-- **Crystal heart colors:** in the game, A-side hearts are blue, B-side hearts red and C-side hearts gold. The page uses these to tell sides apart (adapted for contrast in both themes).
+- **The Journal** (in-game, in chapter select) is Celeste's own progress screen: one row per chapter, with columns for the A, B and C crystal hearts, strawberries, deaths and time. The tracker is the Journal for mods, so it borrows the Journal's columns, not its paper look.
+- **Crystal heart colors:** in the game, A-side hearts are blue, B-side hearts red and C-side hearts gold. The page tried these as side colors in the bar and the chips, and the user found the three colors odd next to each other (2026-10-05), so every side now uses one progress color and the letter says which side.
 - **Olympus**, the mod manager, lists one row per mod: the mod's title, then a dim second line (`ID version ∙ Filename.zip`), and on the right a favorite heart and an "Enabled" checkbox. Disabled (blacklisted) mods are shown at 50% opacity. (Read from `src/scenes/modlist.lua` in EverestAPI/Olympus, 2026-10-05.) The tracker's mod rows follow the same shape: title, dim ID line, the player's own marks on the right. Dropped mods are dimmed like disabled mods are in Olympus. The `∙` between the ID and the rest of the second line is Olympus's own convention, so that one line keeps it; everywhere else, figures get their own labels instead of dot-joined strings.
 
 ## Tokens
@@ -29,28 +29,21 @@ Defined once in `style.css` (`:root`, plus the dark values under `prefers-color-
 | `--muted` | `#5d6780` | `#9aa3b8` | secondary text |
 | `--line` | `#dde2ec` | `#2d3346` | rules and borders |
 | `--summit` | `#6a4bb0` | `#a98be6` | accent: links, focus, the wordmark (the purple the page already had) |
-| `--heart-a` | `#3c7fd4` | `#6ea5ec` | A sides |
-| `--heart-b` | `#d23a52` | `#ec6a7e` | B sides |
-| `--heart-c` | `#c9961a` | `#e3b548` | C sides |
+| `--progress` | `#3c7fd4` | `#6ea5ec` | the progress bar, side chips and hearts: one color for every side |
 
-Status isn't a color of its own: green "complete" and blue "in progress" are gone. Sides show their state by form (below), and the three heart colors only say which side it is.
+Status isn't a color of its own: green "complete" and blue "in progress" are gone. Sides show their state by form (below). The user found the palette "not the best" (2026-10-05); alternatives are being compared, and this table changes with the choice.
 
 **Type:** one family, **Atkinson Hyperlegible Next** (Braille Institute, SIL OFL; built for legibility, distinct without being showy). It ships with the page in `static/fonts/` (Latin and Latin Extended, ~53 KB, licence in `OFL.txt`), because the page must work offline and contact nothing (PRD #12); system fonts are the fallback for other scripts. Sizes: 20 px wordmark, 15 px mod names, 13 px table text, 12 px secondary text and column headers. Numbers use tabular figures and align right.
 
-## The side strip
+## Progress bar and side chips
 
-The one bold element. Each mod and level set row shows its progress as a strip in **A | B | C portions**, each as wide as that side's share of the mod's sides, filled in its heart color as sides are cleared:
+Each mod and level set row has one bar, filled in the progress color by its share of sides cleared. Hovering over it lists the sides per letter ("B sides: 5 of 10 cleared"), from `by_side` in every view (DESIGN.md "JSON export"), so the page applies no rules.
 
-```
-Spring Collab 2020    ████████████████░░░░░                  75/100   (A sides only)
-Sentient Forest       ███████|███████|░░░░░░░                  2/3
-                         A       B      C
-Glyph                 ██████████████████|███                   7/7
-```
+The first version split the bar into A | B | C portions in the three heart colors. It read as a jumble when a later side was done before an earlier one (Dream to Awakening: B cleared, A not), so it went back to one bar in one color (2026-10-05).
 
-It answers the PRD use case "see which B and C sides are left" from the list, without opening anything. The counts come from the server (`by_side` in every view, see DESIGN.md "JSON export"): the page applies no rules.
+Inside a mod, each side is a chip with its letter: **filled** = cleared, **outlined** = playing, **faint dashed** = not opened, with ♥ after it when the crystal heart was collected.
 
-Inside a mod, each side is a chip in its heart color: **filled** = cleared, **outlined** = playing, **faint dashed** = not opened, with ♥ after it when the crystal heart was collected.
+The player's own fields (rating, difficulty, dropped, rename, note) are hidden on the page for now, at the user's request (2026-10-05; `SHOW_EDITOR` in `app.js`). The CLI still edits them, and the tags column still shows what's set.
 
 ## Layout
 
@@ -76,14 +69,14 @@ One table, Journal-style:
 - **Click a column header to sort** (it replaces the Sort menu).
 - **A Deaths column**, as in the Journal.
 - **Opened rows expand in place**, under a thin indent line.
-- Text is left-aligned, numbers right-aligned, and the strips share one column edge.
+- Text is left-aligned, numbers right-aligned, and the bars share one column edge.
 - Rejected: a grid of postcard tiles like chapter select. It looks good at first, but 253 tiles are slow to scan and can't be sorted like columns.
 
 ## Principles
 
-1. **Scan first, read second:** a row answers "how done is this?" at a glance, through the strip.
+1. **Scan first, read second:** a row answers "how done is this?" at a glance, through the bar.
 2. **Celeste's own words and colors:** sides, hearts, checkpoints. The page says *cleared*, *playing* and *not opened* for sides, and *playing* for a mod or level set in progress. (The CLI and the JSON keep "in progress": only the page's wording changes.)
-3. **Form carries state:** fill, outline and dash say how far a side is; color only says which side.
+3. **Form carries state:** fill, outline and dash say how far a side is, in one color; the letter says which side.
 4. **Motion only answers the player:** a row may expand smoothly when opened. No entrance animations.
 5. **Each figure gets its own label**, not a dot-joined string (the Olympus ID line is the one exception, above).
 
@@ -93,12 +86,13 @@ Checked against the `frontend-design` skill's list of generic defaults:
 
 - The Journal's paper and handwriting look: cream paper is the most common AI-made look. Kept the Journal's columns and heart colors instead.
 - A big stat banner as the opener: the totals are labeled figures in the top bar, and the table comes first.
-- A pixel-art font for the wordmark: a second flourish next to the strips.
-- Green for "complete": it clashed with the heart colors, and form now carries status.
+- A pixel-art font for the wordmark: a second flourish next to the bars.
+- Green for "complete" next to blue for "in progress": form carries status instead.
 
 ## Build order
 
 1. Font and tokens, side strips (with `by_side` from `rules.py`), side chips in heart colors, "playing". (done)
 2. One table with a header row, sorting by column header, Deaths column, labeled totals in the top bar, the Olympus-style second line. (done; the Sort menu is gone, and "Slots and tags" sorts by the player's rating)
+3. After the user's review (2026-10-05): one color for every side, the edit fields hidden. (done) A new palette: being compared.
 
 Check each step with `playwright-cli` on the real saves (scratch config), light and dark.

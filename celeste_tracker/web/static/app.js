@@ -110,13 +110,10 @@ function visibleMods() {
 
 // ------------------------------------------------------------------ rendering
 
-function strip(v) {
-  // The A | B | C strip (doc/UI.md): one portion per side letter, sized by its share of the sides.
-  const parts = Object.entries(v.by_side || {});
-  const title = parts.map(([k, [d, t]]) => `${k} sides: ${d} of ${t} cleared`).join("\n");
-  return `<div class="strip" title="${esc(title)}">${parts.map(([k, [d, t]]) =>
-    `<span class="seg side-${cls(k)}" style="flex-grow:${t}"><i style="width:${(100 * d) / (t || 1)}%"></i></span>`)
-    .join("")}</div>`;
+function bar(v) {
+  // Sides cleared, in one color (doc/UI.md); hovering shows the count per side letter.
+  const title = Object.entries(v.by_side || {}).map(([k, [d, t]]) => `${k} sides: ${d} of ${t} cleared`).join("\n");
+  return `<div class="bar" title="${esc(title)}"><i style="width:${(100 * v.sides_done) / (v.sides_total || 1)}%"></i></div>`;
 }
 
 // The page's words for the server's statuses (doc/UI.md, principle 2); the CLI and JSON keep their own.
@@ -129,9 +126,9 @@ function status(s) {
 
 function chip(s, heart = false) {
   const st = sideStatus(s);
-  return `<span class="chip side-${cls(s.side)} c-${cls(st)}" title="${esc(s.side)} side: ${esc(label(st))}` +
+  return `<span class="chip c-${cls(st)}" title="${esc(s.side)} side: ${esc(label(st))}` +
     `${heart ? ", crystal heart collected" : ""}">${esc(s.side)}</span>` +
-    (heart ? `<span class="heart side-${cls(s.side)}" aria-hidden="true">♥</span>` : "");
+    (heart ? `<span class="heart" aria-hidden="true">♥</span>` : "");
 }
 
 function tags(m, v) {
@@ -156,7 +153,7 @@ function modCard({ m, v }) {
     <div class="mod-head" role="button" tabindex="0" aria-expanded="${open}">
       <span class="caret">▸</span>
       <span class="name">${esc(m.name)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</span>
-      <span class="progress">${strip(v)}<small class="num"><span>${v.sides_done}/${v.sides_total}${q(m)} sides</span>` +
+      <span class="progress">${bar(v)}<small class="num"><span>${v.sides_done}/${v.sides_total}${q(m)} sides</span>` +
         `<span>${v.maps_done}/${v.maps_total}${q(m)} chapters</span></small></span>
       <span>${status(v.status)}</span>
       <span class="num right hide-sm">${v.status === "not started" ? "-" : fmtNum(v.deaths)}</span>
@@ -182,11 +179,10 @@ function modBody(m, v) {
     <div class="facts">${facts.join("")}</div>
     ${setNotes.join("")}
     ${body}
-    ${mineEditor(m)}
-    <div class="legend"><span><span class="chip side-a c-completed">A</span> cleared</span>
-      <span><span class="chip side-a c-in-progress">A</span> playing</span>
-      <span><span class="chip side-a c-not-opened">A</span> not opened</span>
-      <span>Blue, red and gold are the A, B and C sides, as in the game</span>
+    ${SHOW_EDITOR ? mineEditor(m) : ""}
+    <div class="legend"><span><span class="chip c-completed">A</span> cleared</span>
+      <span><span class="chip c-in-progress">A</span> playing</span>
+      <span><span class="chip c-not-opened">A</span> not opened</span>
       <span>♥ crystal heart collected (not needed to clear a side)</span></div>
   </div>`;
 }
@@ -201,7 +197,7 @@ function setBlock(m, ls) {
   return `<section class="set${open ? " open" : ""}">
     <div class="set-head" data-set="${esc(id)}" role="button" tabindex="0" aria-expanded="${open}">
       <span class="caret">▸</span><span class="set-name">${esc(setLabel(ls))}</span>
-      <span class="progress">${strip(v)}<small class="num">${v.sides_done}/${v.sides_total}${q(m)} sides</small></span>
+      <span class="progress">${bar(v)}<small class="num">${v.sides_done}/${v.sides_total}${q(m)} sides</small></span>
       ${status(v.status)}<span class="num right muted">${v.deaths} deaths</span>
       <span class="num right">${fmtTime(v.ticks)}</span></div>
     ${open ? chaptersBlock(m, ls.chapters) : ""}</section>`;
@@ -266,6 +262,10 @@ function sideTable(ch) {
          `<th class="right">Berries</th><th>Checkpoints reached</th></tr></thead>` +
          `<tbody>${rows || `<tr><td colspan="7" class="muted">Not opened in this slot</td></tr>`}</tbody></table>`;
 }
+
+// The player's own fields (rating, difficulty, dropped, rename, note) are hidden on the page for now, at the
+// user's request (2026-10-05); the CLI still edits them, and the tags column still shows what's set.
+const SHOW_EDITOR = false;
 
 function mineEditor(m) {
   const u = m.user;
