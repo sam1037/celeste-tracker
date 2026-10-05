@@ -73,4 +73,4 @@ Technical notes on the "Later" items:
 ## TODO
 
 - See how players track progress manually in Excel sheets, to find which columns matter. First pass (2026-10-04): no public personal sheets found. The community challenge lists (Hardest Maps Clear List, goldberries.net) give each side its own entry and mark the level of clearing (clear, full clear, golden). This is why the side became the unit. Real personal sheets would still help: ask in r/celestegame or the Celeste Discord.
-- Next build step: DESIGN.md step 7: snapshots (dates) and `binmap.py` (checkpoint and berry totals, heart presence). Or step 8 (desktop window) if the UI should come first.
+- Next build step: DESIGN.md step 7, for other players: the desktop window, the Windows download, auto-detecting the Celeste folder. Snapshots and `.bin` parsing moved to DESIGN's "Maybe later".

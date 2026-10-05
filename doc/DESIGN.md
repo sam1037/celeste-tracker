@@ -153,7 +153,7 @@ The `schema` number goes up on breaking changes, so the UI can tell what it got.
 | `meta` | schema version, whether the old notes were imported | A store from a newer version is refused |
 | `user_fields` | key (mod ID, level set or chapter SID), note, difficulty (free text), rating (1-5), dropped, rename (mods only) | A rename wins over every other mod name. The first run with the real store imports `celeste_notes.json` once; `--import-notes FILE` does it by hand |
 | `mod_cache` | zip path, size, mtime, what was read from it (JSON) | Unchanged zips aren't reopened. With the stat calls on a thread pool, the scan of ~450 zips on `/mnt/c` takes 0.1 s warm (was 3-7 s) |
-| `snapshots` (step 7) | taken_at, slot, sid, side, cleared, heart, deaths, ticks, berries | One row only when a side's values changed since the last row. "Cleared on" = first row with `cleared` true; "last played" = last row where deaths or ticks went up |
+| `snapshots` (maybe later) | taken_at, slot, sid, side, cleared, heart, deaths, ticks, berries | One row only when a side's values changed since the last row. "Cleared on" = first row with `cleared` true; "last played" = last row where deaths or ticks went up |
 
 Snapshots are only taken when the tool runs. Dates are "seen by" dates, as precise as how often it runs. The desktop app can take one on launch.
 
@@ -182,8 +182,14 @@ How the page looks (tokens, the side strip, layout) is in [UI.md](UI.md). This s
 4. Mods as the top level (PRD #1, #3, #8, #9, #12): catalog / progress split, chapters grouped by zip, the all-slots view as the default (`--slot N` filters; since 2026-10-05 each mod shows its furthest slot instead of a per-side merge), `moddb.py` and GameBanana names, JSON schema 2. The overview gets one row per mod, with the level sets indented under a mod that has several; `--set` also accepts a mod name. (done; the combined CLI view leaves out the long unfinished-chapters list and points to `--set` / `--slot N`)
 5. Store: move notes over, add user fields and mod renames, cache the mod scan. (done)
 6. `--serve` UI. (done)
-7. Snapshots (dates), `binmap.py` (checkpoint and berry totals, heart presence).
-8. For other players: `pywebview` window, PyInstaller build, auto-detect the Celeste folder.
+7. For other players: `pywebview` window, PyInstaller build, auto-detect the Celeste folder.
+
+## Maybe later
+
+Not planned; worth doing if the need shows up.
+
+- **Snapshots, for dates.** The save has no dates (`LastSave` is always `0001-01-01`), so "cleared on" and "last played" need the `snapshots` table (see Store): a row per side whenever its values change between runs. Dates would only be as precise as how often the tool runs.
+- **`binmap.py`, reading the map `.bin` files.** Checkpoint totals per side ("checkpoint 3/6"), berry totals per chapter, and whether a side has a heart at all ("hearts 12/20"). The save only lists what was reached. Results would go in the mod-scan cache.
 
 ## Open design questions
 
