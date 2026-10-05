@@ -12,3 +12,6 @@ Saves/
 celeste_notes.json
 tracker.db*
 moddb.json
+
+# Claude Code worktrees
+.claude/worktrees/
