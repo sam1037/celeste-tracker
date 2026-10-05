@@ -42,14 +42,15 @@ The **side** is the main unit of progress, the way players count it: a map's B s
 
 A **mod** is one download (one zip). It can hold several **level sets**, the groups of chapters the game shows together in chapter select (a collab's difficulty tiers are level sets). The mod is what players recognize, so it is the top level everywhere.
 
-**Rows are mods; the numbers count sides.** Each mod is one row, showing how many of its sides are done (e.g. Spring Collab 2020: 87/105 sides). Opening a row shows the progress underneath it.
+**Rows are mods; the numbers count sides.** Each mod is one row, showing how many of its sides are done (e.g. Spring Collab 2020: 87/100 sides). Opening a row shows the progress underneath it.
 
 - **Side completed:** cleared. The crystal heart doesn't count: many sides have none (lobbies, prologues, vanilla Prologue/Epilogue/Farewell), and for mods the save can't tell. Hearts collected are shown separately, as information. (A side *can* be cleared while skipping its heart: vanilla A-side hearts are hidden collectibles, e.g. Forsaken City A in 4 of the author's slots. B/C-side hearts end the level, so there a clear always means the heart.)
 - **Map completed:** every side the map has (A, plus B and C if they exist) is completed.
 - **Level set completed:** every map in the set is completed.
 - **Mod completed:** every level set in the mod is completed.
 - **Sides are A, B and C.** Extra sides added by AltSidesHelper (e.g. `MtEverest-D`, a "D side") count as maps of their own, the way the save stores them.
-- No special handling for now: lobbies and gyms count as normal maps, and level sets whose mod has been removed are treated the same as the rest.
+- **Collab gyms are hidden.** Gyms are a collab's tutorial level sets (`SpringCollab2020/0-Gyms`, `StrawberryJam2021/0-Gyms`): they can't be completed, so they're left out of the tree and out of every total and status. A collab whose real maps are all done is complete. The rule is in [NOTES.md](NOTES.md#save-and-mod-file-facts-verified-on-real-saves).
+- No other special handling for now: lobbies count as normal maps, and level sets whose mod has been removed are treated the same as the rest.
 - Clearing is yes/no for now. Levels of clearing (full clear, golden) are in Later.
 
 ## Requirements
@@ -87,7 +88,7 @@ Status for each requirement is tracked in [NOTES.md](NOTES.md#status).
 - Dates (cleared on, last played)
 - UI: a page in the browser first, then a desktop window. Like Olympus's mod list: one row per mod (GameBanana title, sides done/total, status). Opening a row drills down: level sets, then chapters, then sides. A level with only one entry is skipped, so a collab opens to its tiers and a one-chapter mod opens straight to its sides:
   ```
-  ▸ The 2020 Celeste Spring Community Collab    87/105 sides   in progress
+  ▸ The 2020 Celeste Spring Community Collab    87/100 sides   in progress
   ▾   ├ Beginner        19/19   complete
       ├ Expert           8/16   in progress
       │   ├ Switchback Station   A: in progress

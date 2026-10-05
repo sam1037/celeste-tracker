@@ -58,7 +58,8 @@ tests/
 The side is the unit of progress (PRD, Definition of "completed"); rows are mods. The model keeps **what exists** (the catalog, the same for every slot) apart from **what the player did** (progress, one per slot).
 
 ```
-Catalog: one, built from the Mods folder, the vanilla list, and any chapter a slot mentions that neither knows
+Catalog: one, built from the Mods folder, the vanilla list, and any chapter a slot mentions that neither knows;
+         collab gyms (level sets named `Gyms`, `0-Gyms`, ...) are left out (model.is_gym, PRD)
   Mod       id            everest.yaml Name; "Celeste" for vanilla; the level set name if no mod was found
             name          what players see (rule below); name_source: gamebanana | map title | level set title | mod id
             gamebanana_title, found (is in the Mods folder), sets[]

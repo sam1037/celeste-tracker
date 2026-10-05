@@ -1,14 +1,26 @@
 """The data model (doc/DESIGN.md, "Data model"): one catalog of what exists, with each slot's progress on it.
 
 Catalog: Mod > LevelSet > Chapter > Side, built once from the Mods folder, the vanilla list and the chapters
-the slots mention. Progress: each Side has one View per slot that has a record of it (keyed by slot key).
-rules.apply() then fills in statuses and totals, and the "all" (all slots combined) views.
+the slots mention, leaving out collab gyms (is_gym). Progress: each Side has one View per slot that has a
+record of it (keyed by slot key). rules.apply() then fills in statuses and totals, and the "all" (all slots
+combined) views.
 """
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 VANILLA_MOD = "Celeste"
 VANILLA_SET = "Celeste (vanilla)"
+
+# Collab gyms: tutorial level sets that can't be completed, so they're left out of the catalog (not shown, not
+# counted). A level set is a gym when the last part of its name is "Gyms", after an optional number prefix.
+# In my Mods folder and saves (2026-10-05) that is exactly SpringCollab2020/0-Gyms, StrawberryJam2021/0-Gyms,
+# CatCollab/0-Gyms and SecretSanta2024/3-Hard/WatchtowerContest/0-Gyms.
+GYM_SET = re.compile(r"(\d+-)?gyms", re.I)
+
+
+def is_gym(set_name):
+    return bool(GYM_SET.fullmatch(set_name.rpartition("/")[2]))
 
 # Vanilla chapters: SID -> (title, sides, has a heart). Verified on 32 real save slots: these three
 # chapters are stored with HeartGem=false even when cleared, and only chapters 1-7 and Core have B/C sides.
@@ -161,6 +173,8 @@ def build_library(loaded, mods_info, titles=None, user=None):
     for sid, (title, sides, heart) in VANILLA.items():
         b.add(VANILLA_MOD, VANILLA_SET, sid, set(sides), heart, found=True, vanilla=True, title=title)
     for set_name, chapters in mods_info.maps.items():
+        if is_gym(set_name):
+            continue
         for sid, sides in sorted(chapters.items()):
             b.add(mods_info.owner[sid], set_name, sid, sides, None, found=True)
 
@@ -168,6 +182,8 @@ def build_library(loaded, mods_info, titles=None, user=None):
     for number, path, raw in loaded:
         key = slot_key(number, path)
         for rs in raw["sets"]:
+            if is_gym(rs["name"]):
+                continue
             for area in rs["areas"]:
                 opened = [s for s in area["sides"] if s["opened"]]
                 if not opened:

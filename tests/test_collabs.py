@@ -1,8 +1,12 @@
-"""Collab conventions: titles written on the line under their dialog key.
+"""Collab conventions: titles written on the line under their dialog key, and gyms left out of the catalog.
 Everything here is made up; the layout copies what real collabs do (doc/NOTES.md)."""
 import pytest
 
-from celeste_tracker.mods import parse_dialog, scan_mods
+from celeste_tracker.cli import main
+from celeste_tracker.core import load_library
+from celeste_tracker.mods import ModInfo, parse_dialog, scan_mods
+from celeste_tracker.model import is_gym
+from celeste_tracker.rules import ALL
 
 from conftest import write_zip
 
@@ -95,3 +99,35 @@ def test_cache_from_an_older_version_is_read_again(jam):
     mods = scan_mods(jam[0], cache)
     assert mods.title("Jam/1-Beginner/alice") == "Sunken Garden"
     assert cache.put_args[3]["version"] == 2
+
+
+def test_is_gym():
+    for name in ("SpringCollab2020/0-Gyms", "StrawberryJam2021/0-Gyms", "CatCollab/0-gyms", "X/Gyms",
+                 "SecretSanta2024/3-Hard/WatchtowerContest/0-Gyms"):
+        assert is_gym(name), name
+    for name in ("Etaleanic/TechPractice", "Jam/0-Lobbies", "Gyms/1-Beginner", "Jam/0-GymsExtra", "Celeste (vanilla)"):
+        assert not is_gym(name), name
+
+
+def test_gyms_are_hidden_and_dont_count(jam):
+    lib = load_library([(1, jam[1])], scan_mods(jam[0]))
+    (mod,) = [m for m in lib.mods if m.id == "Jam"]
+    assert [ls.name for ls in mod.sets] == ["Jam/0-Lobbies", "Jam/1-Beginner"]
+    v = mod.progress[ALL]
+    assert (v.sides_done, v.sides_total, v.maps_done, v.maps_total, v.deaths) == (3, 3, 3, 3, 3)
+    assert v.status == "complete"  # the unfinished gym doesn't hold it back
+
+
+def test_gyms_are_hidden_without_mod_files(jam):
+    lib = load_library([(1, jam[1])], ModInfo())
+    assert not any(is_gym(ls.name) for m in lib.mods for ls in m.sets)
+    assert "Jam/0-Gyms" not in [m.id for m in lib.mods]
+
+
+def test_cli_set_view_shows_titles_and_no_gym(jam, tmp_path, capsys):
+    main(["--config", str(tmp_path / "c.toml"), "--offline", "--file", str(jam[1]), "--mods", str(jam[0]),
+          "--set", "Jam"])
+    out = capsys.readouterr().out
+    assert "Sides 3/3 done" in out
+    assert "Sunken Garden" in out and "Quiet Cliffs" in out and "Beginner Lobby" in out
+    assert "alice" not in out and "Gym" not in out
