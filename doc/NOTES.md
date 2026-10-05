@@ -6,17 +6,18 @@ Build status, the save and mod file format, and open technical questions. What t
 
 | # | Requirement (see PRD) | Status |
 |---|---|---|
-| 1 | Progress per level set | done. Sides done/total is the main number, maps done/total next to it |
+| 1 | Progress per mod and level set | per level set: done (sides done/total is the main number, maps done/total next to it). Per mod: todo (DESIGN step 4) |
 | 2 | In-game titles | done (`--mods`, from each mod's `Dialog/English.txt`; vanilla titles are built in) |
-| 3 | Real map and side totals | done (`--mods`, from the zips' `Maps/` lists). `-B`/`-C` files fold into their map. Vanilla's chapters and sides are built in |
+| 3 | Real map and side totals | per level set: done (`--mods`, from the zips' `Maps/` lists). Per mod: todo. `-B`/`-C` files fold into their map. Vanilla's chapters and sides are built in |
 | 4 | Detail view of one set | done (`--set`): one row per side |
 | 5 | Checkpoints per side and saved room | done |
 | 6 | Status per side | done (`rules.side_status`) |
 | 7 | Completion rules | done (`rules.py`). Vanilla knows which sides have no heart; for mods that's unknown until `.bin` parsing, so a cleared side without its heart shows "cleared, no heart" and doesn't count as done |
-| 8 | All slots in one run | done (`--all`). An unreadable slot is skipped with a warning |
-| 9 | Mod name | done. From `everest.yaml` (first top-level `Name:`), else the zip or folder name. When several mods add maps to one set, the one adding the most names it |
+| 8 | All slots in one run | done (`--all`), slot shown per level set; per mod with step 4. An unreadable slot is skipped with a warning |
+| 9 | Mod name | partly. Today the Mod column shows the mod ID from `everest.yaml` (first top-level `Name:`), else the zip or folder name; when several mods add maps to one set, the one adding the most names it. GameBanana titles and the fallback rule: todo (DESIGN step 4) |
 | 10 | JSON export | done (`--json FILE`, `-` for stdout), schema 1. All 32 of my slots: 11 MB, mostly the 2,119 "not started" sets the save lists |
 | 11 | Read-only | holds today, keep it |
+| 12 | Offline, nothing sent | holds today (no network use yet) |
 
 Should have: the config file is done (`--save-config`, `config.toml` in the user data folder). Extra stats and user fields are todo.
 
@@ -47,6 +48,8 @@ Technical notes on the "Later" items:
 - Vanilla: only chapters 1-7 and Core have B/C sides. Prologue, Epilogue and Farewell are stored with `HeartGem=false` even when cleared (checked on all 32 slots), so they count as having no heart.
 - Slot files are `N.celeste`. The Saves folder also holds `N-modsave-*`, `N-modsession-*`, `modsettings-*`, `settings.celeste` and `debug.celeste`.
 - A save lists every level set Everest has registered, played or not, and its own empty `LevelSetStats Name="Celeste"` (vanilla's chapters are in the top-level `<Areas>`).
+- Mods folder (2026-10-05): 265 mods with maps. 204 have one map, 237 have one level set. Spring Collab 2020 has 105 maps in 7 level sets. Map titles repeat across mods ("Prologue" in 13).
+- Everest's mod database (fetched 2026-10-05): `everest_update.yaml` (1.2 MB) has the mod ID as top-level key and `GameBananaFileId`. `mod_search_database.yaml` (13.5 MB) has entries with `Name` (the GameBanana title), `Author` and `Files: - ID: GameBanana/<file id>`. Joined: a GameBanana title for 260 of my 265 map mods (not OmoriPack). For one-map mods, the map title equals the GameBanana title in 161 of 199 cases, the mod ID only in 121. Some titles carry update notes ("MINDCRACK C-Sides Update! MINDCRACK Map Pack"); Spring Collab 2020's is "The 2020 Celeste Spring Community Collab".
 - `everest.yaml`: the mod's `Name:` isn't always the first line (`- DLL:` can come first); dependency entries have their own, deeper-indented `Name:`.
 - Windows saves: `C:\Program Files (x86)\Steam\steamapps\common\Celeste\Saves` (from WSL: `/mnt/c/...`). Mac: `~/Library/Application Support/Celeste/Saves`.
 
@@ -62,5 +65,4 @@ Technical notes on the "Later" items:
 ## TODO
 
 - See how players track progress manually in Excel sheets, to find which columns matter. First pass (2026-10-04): no public personal sheets found. The community challenge lists (Hardest Maps Clear List, goldberries.net) give each side its own entry and mark the level of clearing (clear, full clear, golden). This is why the side became the unit. Real personal sheets would still help: ask in r/celestegame or the Celeste Discord.
-- Next build step: DESIGN.md step 4, the SQLite store (move notes over, user fields, cache the mod scan).
-- Mod name?
+- Next build step: DESIGN.md step 4, mods as the top level with GameBanana names. (Answers the old "Mod name?" note.)

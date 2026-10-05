@@ -11,6 +11,7 @@ How the tracker is built. What it does is in [PRD.md](PRD.md). Status and file-f
 | Dev dependencies | `pytest` | |
 | Code layout | A `celeste_tracker/` package, replacing the single script | The script is ~670 lines, and the later items add a store, a server and a `.bin` parser |
 | Storage | SQLite file in the user data folder (never in the repo) | Needed for snapshots (dates), editable fields and caches. `sqlite3` is in the standard library |
+| Mod names | GameBanana titles from Everest's public mod database (maddie480.ovh), downloaded with `urllib`, cached in the user data folder | The zip only holds the mod ID; the title players know is only on GameBanana. Optional: everything works offline |
 | UI | One HTML/JS page that reads the JSON API. First served by `celeste-tracker serve` in the browser, then shown in a `pywebview` desktop window | The same page works in both. No build step while the UI is small |
 | Distribution (later) | PyInstaller `.exe` for Windows players | Players don't need Python, uv or WSL |
 
@@ -19,15 +20,16 @@ Users today: only the author, running from WSL. Later: other players, mostly on 
 ## Layers
 
 ```
-read-only sources              core                                       front ends
-Saves/N.celeste   ─┐
-Mods/*.zip        ─┼─► parse ─► model ─► rules ─► JSON (versioned) ─┬─► CLI text / markdown
-Maps/*.bin (later)─┘    ▲                                            ├─► serve: local page (browser)
-                        │                                            └─► desktop: same page in pywebview
-                        └── store (SQLite): mod-scan cache, user fields, snapshots
+read-only sources                  core                                       front ends
+Saves/N.celeste       ─┐
+Mods/*.zip            ─┤
+Maps/*.bin (later)    ─┼─► parse ─► model ─► rules ─► JSON (versioned) ─┬─► CLI text / markdown
+Everest mod database  ─┘    ▲                                            ├─► serve: local page (browser)
+(online, cached, optional)  │                                            └─► desktop: same page in pywebview
+                            └── store (SQLite): mod-scan cache, user fields, snapshots
 ```
 
-- **Sources are read-only** (PRD #11). Only the store is written.
+- **Sources are read-only** (PRD #11). Only the store and the caches in the user data folder are written.
 - **Front ends never parse files.** They get the JSON (PRD #10). The CLI renders the same data as the UI.
 - **Rules are one module.** The completion definition from the PRD lives in one place.
 
@@ -37,10 +39,11 @@ Maps/*.bin (later)─┘    ▲                                            ├�
 celeste_tracker/
   paths.py      find Saves and Mods (per OS, config file, CLI flags)
   save.py       .celeste XML -> raw records (slot, sets, areas, sides, session)
-  mods.py       zip / folder scan: map list, sides per map, dialog titles, mod names
+  mods.py       zip / folder scan: map list, sides per map, dialog titles, mod IDs
+  moddb.py      Everest's public mod database: mod ID -> GameBanana title, downloaded and cached
   binmap.py     (later) map .bin: checkpoints, berries, whether a side has a heart
-  model.py      dataclasses: Slot > LevelSet > Map > Side
-  rules.py      side / map / set status, from the PRD's definition
+  model.py      dataclasses: Slot > Mod > LevelSet > Map > Side
+  rules.py      side / map / set / mod status, from the PRD's definition
   core.py       load_slot / load_slots: the one call front ends make (parse -> model -> rules)
   store.py      SQLite: user fields, mod-scan cache, snapshots
   export.py     model -> JSON
@@ -55,8 +58,11 @@ tests/
 The side is the unit (PRD, Definition of "completed"). Everything else rolls up.
 
 ```
-Slot      number, path, last_played_sid, session (sid, side, room, deaths)
-LevelSet  name, title, mod_name, loaded, maps[]
+Slot      number, path, last_played_sid, session (sid, side, room, deaths), mods[]
+Mod       id            everest.yaml Name; "Celeste" for vanilla; the level set name if no mod was found
+          name          what players see (rule below); name_source: gamebanana | map title | level set title | mod id
+          gamebanana_title, found (is in the Mods folder), sets[]
+LevelSet  name, title, loaded, maps[]
 Map       sid, title, sides{A, B, C}
 Side      exists        known from the mod files (A/B/C .bin); vanilla from a hardcoded list
           cleared, heart, deaths, ticks, best_ticks, best_deaths, berries
@@ -65,17 +71,53 @@ Side      exists        known from the mod files (A/B/C .bin); vanilla from a ha
           status        not opened | in progress | cleared, no heart | completed
 ```
 
-Map status: completed / in progress / not opened. Level set status: complete, hearts missing (every side cleared, some hearts not collected), in progress, started, not started, or all opened done (no mod files, so the totals only cover what was opened).
+Map status: completed / in progress / not opened. Level set status: complete, hearts missing (every side cleared, some hearts not collected), in progress, started, not started, or all opened done (no mod files, so the totals only cover what was opened). A mod's status uses the same values, computed over all its sides; its totals are the sums of its sets.
 
 - A side with `has_heart = false` is completed once cleared. While `has_heart` is unknown (mods, until `.bin` parsing), a cleared side without its heart shows **cleared, no heart**, not completed. That way the tool never claims more than the save shows.
 - Placeholder B/C records in the save (the save always lists three) are dropped when the mod files show the side doesn't exist.
 - Totals: sides done / sides total is the main number, maps done / maps total next to it.
 
+### Grouping level sets into mods
+
+- A level set belongs to the mod that adds the most of its maps (Glyph's set gets 6 maps from `Glyph.zip` and 1 from `Glyph D side.zip`: it belongs to Glyph).
+- A level set whose mod isn't in the Mods folder (removed, or `--mods` not used) becomes a mod of its own, `found = false`, named by the set's title or ID.
+- Vanilla is the mod "Celeste" with one level set.
+
+### Mod names (PRD #9)
+
+The first one available wins:
+
+1. **GameBanana title**, from the mod database (below).
+2. **Map title**, if the mod has one map. True for 204 of the 265 map mods in the author's Mods folder, and for 161 of the 199 that GameBanana lists, the map title is exactly the GameBanana title.
+3. **Level set title**, if the mod has one level set.
+4. **Mod ID** from `everest.yaml` (what the Mod column shows today).
+
+Map titles can't name a mod in general: a collab has one per map (Spring Collab 2020 has 105), and generic titles repeat across mods ("Prologue" is in 13 mods). Later, the user can rename a mod (PRD, Should have); a rename wins over all of the above.
+
+## Mod database (online, optional)
+
+Everest publishes two files that Olympus and Everest's updater use:
+
+| File | Size | What we read |
+|---|---|---|
+| `https://maddie480.ovh/celeste/everest_update.yaml` | ~1.2 MB | top-level key = mod ID (everest.yaml `Name`) → `GameBananaFileId` |
+| `https://maddie480.ovh/celeste/mod_search_database.yaml` | ~13.5 MB | each entry: `Name` (GameBanana title), `Author`, `Files: - ID: GameBanana/<file id>` |
+
+Mod ID → file ID → title. Example: `SonderCrispy` → file 1669303 → "Sonder" by Crispybag.
+
+- `moddb.py` downloads both with `urllib`, keeps only the mod ID → {title, author} map, and saves it as `moddb.json` in the user data folder. It refreshes when the cache is older than 7 days. `--refresh-moddb` forces a refresh, `--offline` never connects.
+- No YAML library: a small line parser reads only the keys above. Tests cover it with trimmed copies of both files.
+- When the download fails (no internet, site down), it uses the old cache, or falls back to rules 2-4 with a one-line note. Nothing ever fails because of the network.
+- Privacy (PRD #12): plain GET requests for public files, with a User-Agent naming the tool. Nothing about the player's saves or mods is sent.
+- The cache is a file, not a store table: it's downloaded data that can be rebuilt any time.
+
 ## JSON export
 
 ```json
-{"schema": 1, "generated_at": "…", "slots": [{"number": 1, "sets": [{"name": "…", "maps": [{"sid": "…", "sides": {"A": {…}}}]}]}]}
+{"schema": 2, "generated_at": "…", "slots": [{"number": 1, "mods": [{"id": "…", "name": "…", "sets": [{"name": "…", "maps": [{"sid": "…", "sides": {"A": {…}}}]}]}]}]}
 ```
+
+Schema 2 adds the mod level (schema 1 had sets directly under the slot).
 
 The `schema` number goes up on breaking changes, so the UI can tell what it got.
 
@@ -101,10 +143,11 @@ Snapshots are only taken when the tool runs. Dates are "seen by" dates, as preci
 1. Split the script into the package, keeping today's output, and add tests. (done)
 2. Side-based model and rules (PRD #6, #7) and `--json` (#10). (done)
 3. All slots (#8), mod name (#9), config file. (done)
-4. Store: move notes over, add user fields, cache the mod scan.
-5. `serve` UI.
-6. Snapshots (dates), `binmap.py` (checkpoint and berry totals, heart presence).
-7. For other players: `pywebview` window, PyInstaller build, auto-detect the Celeste folder.
+4. Mods as the top level (PRD #1, #3, #8, #9, #12): the Mod layer, grouping, `moddb.py` and GameBanana names, JSON schema 2. The overview gets one row per mod, with the level sets indented under a mod that has several; `--set` also accepts a mod name.
+5. Store: move notes over, add user fields and mod renames, cache the mod scan.
+6. `serve` UI.
+7. Snapshots (dates), `binmap.py` (checkpoint and berry totals, heart presence).
+8. For other players: `pywebview` window, PyInstaller build, auto-detect the Celeste folder.
 
 ## Open design questions
 
