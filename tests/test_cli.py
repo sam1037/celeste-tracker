@@ -38,7 +38,7 @@ def test_all_slots_combined_is_the_default(run, mods_dir):
     out = run("--saves", str(SLOTS), "--mods", str(mods_dir))
     assert "(2 slots combined)" in out
     collab = line_of(out, "Collab ")
-    assert "2/4" in collab and "1,2" in collab  # M1 done in slot 1, M2 in slot 2
+    assert "3/4" in collab and "1,2" in collab  # Lobby and M1 done in slot 1, M2 in slot 2
     assert "Slot 1: Resume:" in out
     one = run("--saves", str(SLOTS), "--mods", str(mods_dir), "--slot", "2")
     assert "1/4" in line_of(one, "Collab ")
@@ -75,7 +75,7 @@ def test_set_view_of_a_one_chapter_mod_lists_sides(run, mods_dir):
 
 def test_set_view_combined_shows_each_slot(run, mods_dir):
     out = run("--saves", str(SLOTS), "--mods", str(mods_dir), "--set", "Celeste")
-    assert "slot 1: completed · slot 2: completed" in out  # the Prologue, cleared in both slots
+    assert "completed in slots 1, 2" in out  # the Prologue, cleared in both slots
 
 
 def test_json(run, mods_dir):

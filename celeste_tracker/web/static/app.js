@@ -56,7 +56,7 @@ function viewOf(node, notOpened = "not started") {
   const v = node.progress[state.key];
   if (v) return v;
   const all = node.progress.all || {};
-  return { status: notOpened, sides_done: 0, sides_no_heart: 0, sides_total: all.sides_total || 0, maps_done: 0,
+  return { status: notOpened, sides_done: 0, hearts: 0, sides_total: all.sides_total || 0, maps_done: 0,
            maps_total: all.maps_total || 0, deaths: 0, ticks: 0, berries: 0, slots: [], loaded: true,
            latest_checkpoint: null, open_checkpoints: 0 };
 }
@@ -80,7 +80,7 @@ function buildIndex(data) {
   }
 }
 
-const UNFINISHED = new Set(["in progress", "started", "hearts missing"]);
+const UNFINISHED = new Set(["in progress", "started"]);
 const COMPLETE = new Set(["complete", "all opened done"]);
 const FILTERS = {
   played: (m, v) => v.status !== "not started",
@@ -110,8 +110,7 @@ function visibleMods() {
 
 function bar(v) {
   const t = v.sides_total || 1;
-  return `<div class="bar" aria-hidden="true"><i class="d" style="width:${(100 * v.sides_done) / t}%"></i>` +
-         `<i class="h" style="width:${(100 * v.sides_no_heart) / t}%"></i></div>`;
+  return `<div class="bar" aria-hidden="true"><i class="d" style="width:${(100 * v.sides_done) / t}%"></i></div>`;
 }
 
 function status(s) {
@@ -152,7 +151,8 @@ function modCard({ m, v }) {
 function modBody(m, v) {
   const facts = [`<span>Mod ID <b>${esc(m.id)}</b></span>`];
   if (m.gamebanana_title && m.gamebanana_title !== m.name) facts.push(`<span>GameBanana <b>${esc(m.gamebanana_title)}</b></span>`);
-  facts.push(`<span>Deaths <b>${v.deaths}</b></span>`, `<span>Berries <b>${v.berries}</b></span>`);
+  facts.push(`<span>Deaths <b>${v.deaths}</b></span>`, `<span>Berries <b>${v.berries}</b></span>`,
+             `<span>Hearts collected <b>${v.hearts}</b></span>`);
   if (state.key === "all" && v.slots.length) facts.push(`<span>Slots <b>${esc(v.slots.join(", "))}</b></span>`);
   if (!known(m)) facts.push(`<span>Not in the Mods folder: only what you opened is listed</span>`);
   const setNotes = m.sets.filter((s) => s.user.note).map((s) => `<div class="cps">${esc(s.title || s.name)}: ${esc(s.user.note)}</div>`);
@@ -165,8 +165,8 @@ function modBody(m, v) {
     ${body}
     ${mineEditor(m)}
     <div class="legend"><span class="chip c-completed">A</span> completed
-      <span class="chip c-cleared-no-heart">A</span> cleared, no heart
-      <span class="chip c-in-progress">A</span> in progress <span class="chip c-not-opened">A</span> not opened</div>
+      <span class="chip c-in-progress">A</span> in progress <span class="chip c-not-opened">A</span> not opened
+      <span>♥ crystal heart collected (not needed for completed)</span></div>
   </div>`;
 }
 
@@ -201,7 +201,9 @@ function chaptersBlock(m, list) {
 function chapterRows(ch) {
   const v = viewOf(ch, "not opened");
   const sides = countedSides(ch);
-  const chips = sides.map((s) => `<span class="chip c-${cls(sideStatus(s))}" title="${esc(s.side)} side: ${esc(sideStatus(s))}">${esc(s.side)}</span>`).join("");
+  const heart = (s) => (s.progress[state.key] && s.progress[state.key].heart ? "♥" : "");
+  const chips = sides.map((s) => `<span class="chip c-${cls(sideStatus(s))}" title="${esc(s.side)} side: ` +
+    `${esc(sideStatus(s))}${heart(s) ? ", heart collected" : ""}">${esc(s.side)}${heart(s)}</span>`).join("");
   const lc = v.latest_checkpoint;
   const open = state.openCh.has(ch.sid);
   const note = ch.user.note ? `<div class="cps">note: ${esc(ch.user.note)}</div>` : "";
@@ -217,16 +219,24 @@ function cps(list) {
   return list.length ? `${list.length}: ${list.map((c) => esc(c.title ? `${c.title} (${c.room})` : c.room)).join(", ")}` : "";
 }
 
+function slotBreakdown(perSlot) {
+  // "completed in slots 1, 2 · in progress in slot 8 (288 deaths)"; more than 6 slots are just counted.
+  const groups = new Map();
+  for (const [k, v] of perSlot) groups.set(v.status, [...(groups.get(v.status) || []), [k, v]]);
+  return [...groups].map(([st, items]) => items.length > 6 ? `${st} in ${items.length} slots`
+    : `${st} in slot${items.length > 1 ? "s" : ""} ${items.map(([k]) => k).join(", ")}` +
+      (st === "completed" ? "" : ` (${items.map(([, v]) => v.deaths).join(", ")} deaths)`)).join(" · ");
+}
+
 function sideTable(ch) {
   const sides = countedSides(ch);
   const rows = sides.map((s) => {
     const v = s.progress[state.key];
     const perSlot = Object.entries(s.progress).filter(([k]) => k !== "all");
     const breakdown = state.key === "all" && perSlot.length > 1
-      ? `<tr class="slots"><td></td><td colspan="6">${perSlot.map(([k, sv]) =>
-          `slot ${esc(k)}: ${esc(sv.status)}${sv.status === "completed" ? "" : ` (${sv.deaths} deaths)`}`).join(" · ")}</td></tr>`
-      : "";
-    return `<tr><td><span class="chip c-${cls(sideStatus(s))}">${esc(s.side)}</span></td><td>${status(sideStatus(s))}</td>
+      ? `<tr class="slots"><td></td><td colspan="6">${esc(slotBreakdown(perSlot))}</td></tr>` : "";
+    return `<tr><td><span class="chip c-${cls(sideStatus(s))}">${esc(s.side)}</span></td>
+      <td>${status(sideStatus(s))}${v && v.heart ? ' <span class="heart" title="Crystal heart collected">♥</span>' : ""}</td>
       <td class="right num">${v ? v.deaths : "-"}</td><td class="right num">${v ? fmtTime(v.ticks) : "-"}</td>
       <td class="right num">${v && v.best_ticks ? fmtTime(v.best_ticks) : "-"}</td>
       <td class="right num">${v ? v.berries : "-"}</td><td class="cps">${v ? cps(v.checkpoints) : ""}</td></tr>${breakdown}`;

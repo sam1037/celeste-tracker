@@ -41,7 +41,7 @@ celeste_tracker/
   save.py       .celeste XML -> raw records (slot, sets, areas, sides, session)
   mods.py       zip / folder scan: map list, sides per map, dialog titles, mod IDs
   moddb.py      Everest's public mod database: mod ID -> GameBanana title, downloaded and cached
-  binmap.py     (later) map .bin: checkpoints, berries, whether a side has a heart
+  binmap.py     (later) map .bin: checkpoint and berry totals, whether a side has a heart (information only)
   model.py      dataclasses: Slot > Mod > LevelSet > Map > Side
   rules.py      side / map / set / mod status, from the PRD's definition
   core.py       load_slot / load_slots: the one call front ends make (parse -> model -> rules)
@@ -65,7 +65,7 @@ Catalog: one, built from the Mods folder, the vanilla list, and any chapter a sl
   LevelSet  name, title, chapters[]      the part of the level set this mod provides
   Chapter   sid, title, sides{A, B, C}   (a `Map` in code)
   Side      side, exists                 known from the mod files (A/B/C .bin); vanilla from a hardcoded list
-            has_heart                    true / false / unknown (needs binmap.py; vanilla hardcoded)
+            has_heart                    true / false / unknown (vanilla hardcoded); information only
 
 Progress: one per slot
   Slot          number, path, last_played_sid, session (sid, side, room, deaths), not_loaded{level set names}
@@ -75,15 +75,15 @@ Progress: one per slot
 
 `rules.py` combines the two into a **view**: every catalog node (mod, level set, chapter, side) gets a status and totals, either for one slot or for all slots combined (below). Front ends only read views. Mods, level sets and chapters get a view for every slot their mod was played in (so an unplayed tier shows as not started); sides only have views for slots where they were opened, so a missing view means "not opened".
 
-Side status: completed / cleared, no heart / in progress / not opened. Map status: completed / in progress / not opened. Level set status: complete, hearts missing (every side cleared, some hearts not collected), in progress, started, not started, or all opened done (no mod files, so the totals only cover what was opened). A mod's status uses the same values, computed over all its sides; its totals are the sums of its sets.
+Side status: completed (= cleared) / in progress / not opened. Map status: completed / in progress / not opened. Level set status: complete, in progress, started, not started, or all opened done (no mod files, so the totals only cover what was opened). A mod's status uses the same values, computed over all its sides; its totals are the sums of its sets.
 
-- A side with `has_heart = false` is completed once cleared. While `has_heart` is unknown (mods, until `.bin` parsing), a cleared side without its heart shows **cleared, no heart**, not completed. That way the tool never claims more than the save shows.
+- A side is completed when it's cleared; crystal hearts don't count (PRD). Each view also counts `hearts` collected, as information.
 - Placeholder B/C records in the save (the save always lists three) are dropped when the mod files show the side doesn't exist.
 - Totals: sides done / sides total is the main number, maps done / maps total next to it.
 
 ### All slots combined (the default view)
 
-- **Side status: the best across slots**, in the order completed > cleared, no heart > in progress > not opened. Status is decided inside one slot first: a side cleared in slot 1 whose heart was only collected in slot 2 is not completed, because no single save shows both.
+- **Side status: the best across slots**, in the order completed > in progress > not opened. A heart collected in any slot shows as collected.
 - **Deaths, time and berries: added up across slots** (total effort). Best time and best deaths: the best across slots.
 - Each side keeps its per-slot results, so expanding it shows "slot 1: completed · slot 8: in progress, 288 deaths".
 - A mod row lists the slots it was played in. `[not loaded]` only shows when Everest hadn't loaded the mod in every slot that has it.

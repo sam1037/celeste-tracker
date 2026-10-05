@@ -1,8 +1,7 @@
 """Completion rules from doc/PRD.md ("Definition of completed"). The only place statuses are decided.
 
-- Side completed: cleared and its heart collected, or cleared if the side has no heart.
-  While it's unknown whether a side has a heart (mods, until map .bin parsing), a cleared side
-  without its heart is "cleared, no heart", never "completed": the tool doesn't claim more than the save shows.
+- Side completed: cleared. The crystal heart doesn't count: many sides have none (lobbies, prologues), and for
+  mods the save can't tell. Hearts collected are counted separately (View.hearts), as information.
 - Chapter completed: every side it has is completed. Level set / mod completed: every chapter in it is.
 - All slots combined (doc/DESIGN.md): a side's status is the best of its per-slot statuses (each decided
   inside one slot); deaths, time and berries add up; best time and best deaths are the best of any slot.
@@ -10,24 +9,20 @@
 from .model import View
 
 ALL = "all"
-SIDE_STATUSES = ("completed", "cleared, no heart", "in progress", "not opened")  # best first
+SIDE_STATUSES = ("completed", "in progress", "not opened")  # best first
 MAP_STATUSES = ("completed", "in progress", "not opened")
-SET_STATUSES = ("complete", "all opened done", "hearts missing", "in progress", "started", "not started")
+SET_STATUSES = ("complete", "all opened done", "in progress", "started", "not started")
 
 
-def side_status(v, has_heart):
+def side_status(v):
     """Status of a side in a view that exists, i.e. the side was opened in that slot."""
-    if v.cleared and (v.heart or has_heart is False):
-        return "completed"
-    if v.cleared:
-        return "cleared, no heart"
-    return "in progress"
+    return "completed" if v.cleared else "in progress"
 
 
 def count_side(v):
     v.sides_total = 1
     v.sides_done = int(v.status == "completed")
-    v.sides_no_heart = int(v.status == "cleared, no heart")
+    v.hearts = int(v.heart)
     v.open_checkpoints = 0 if v.status == "completed" else len(v.checkpoints)
     return v
 
@@ -38,7 +33,7 @@ def combine_side(views):
     longest = max(views.values(), key=lambda v: v.ticks)
     cleared_runs = [v for v in views.values() if v.best_ticks]
     return count_side(View(
-        status=best.status, cleared=best.cleared, heart=best.heart,
+        status=best.status, cleared=best.cleared, heart=any(v.heart for v in views.values()),
         deaths=sum(v.deaths for v in views.values()), ticks=sum(v.ticks for v in views.values()),
         berries=sum(v.berries for v in views.values()),
         best_ticks=min((v.best_ticks for v in cleared_runs), default=0),
@@ -66,7 +61,7 @@ def rollup(chapters, key, order):
             opened += 1
             slots.update(sv.slots)
             v.sides_done += sv.sides_done
-            v.sides_no_heart += sv.sides_no_heart
+            v.hearts += sv.hearts
             v.deaths += sv.deaths
             v.ticks += sv.ticks
             v.berries += sv.berries
@@ -93,8 +88,6 @@ def set_status(v, opened, known):
         return "not started"
     if v.sides_done == v.sides_total:
         return "complete" if known else "all opened done"  # without mod files, totals only cover what was opened
-    if v.sides_done + v.sides_no_heart == v.sides_total:
-        return "hearts missing"
     return "in progress" if v.sides_done else "started"
 
 
@@ -117,7 +110,7 @@ def apply(lib):
             for s in ch.sides.values():
                 per_slot = {k: v for k, v in s.progress.items() if k != ALL}
                 for v in per_slot.values():
-                    v.status = side_status(v, s.has_heart)
+                    v.status = side_status(v)
                     count_side(v)
                 s.progress = {k: per_slot[k] for k in sorted(per_slot, key=order)}
                 if per_slot:

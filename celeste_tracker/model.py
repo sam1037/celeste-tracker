@@ -39,7 +39,7 @@ class View:
     A side's view counts the side itself (sides_total 1), so every node's totals are sums over its sides."""
     status: str = ""
     sides_done: int = 0
-    sides_no_heart: int = 0
+    hearts: int = 0                     # sides whose crystal heart was collected (not part of "completed")
     sides_total: int = 0
     maps_done: int = 0
     maps_total: int = 0
@@ -62,7 +62,7 @@ class View:
 class Side:
     side: str                    # 'A', 'B' or 'C'
     exists: bool | None          # from the mod's .bin files or the vanilla list; None = unknown
-    has_heart: bool | None       # None = unknown (mods, until map .bin parsing)
+    has_heart: bool | None       # None = unknown (mods). Information only: completion doesn't depend on hearts
     progress: dict[str, View] = field(default_factory=dict)  # slot key or "all" -> view
 
 

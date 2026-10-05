@@ -193,15 +193,12 @@ def render_text(lib, key, user, mods_info):
             out.append(f"* = contains your last-played map ({s.last_played_sid})")
         if s.session:
             out.append((f"Slot {s.key}: " if multi else "") + fmt_session(s))
-    out.append("Sides = sides completed (cleared + heart, or cleared when the side has no heart) out of all sides; "
-               "Maps = chapters with every side completed. A chapter's B and C sides count once each.")
+    out.append("Sides = sides cleared out of all sides (crystal hearts don't count; --set shows them); "
+               "Maps = chapters with every side cleared. A chapter's B and C sides count once each.")
     if multi:
         out.append(f"All {len(lib.slots)} slots combined: a side counts as done if it's completed in any slot; deaths "
                    "and time add up. Slots = where you played it.")
     views = [v for _, v, _ in rows]
-    if any(v.sides_no_heart for v in views):
-        out.append("hearts missing = every side is cleared but some hearts aren't collected. For mods the tool can't "
-                   "yet tell whether a side has a heart at all (lobbies often don't), so those sides aren't counted as done.")
     if any(not known(m) for _, _, m in rows):
         out.append("? = total unknown: that mod isn't in the Mods folder" + ("" if mods_info.maps else " (use --mods)")
                    + ", so only what you've opened is counted.")
@@ -287,12 +284,22 @@ def side_cells(sv):
 
 
 def slot_breakdown(s, key):
-    """'slot 1: completed · slot 8: in progress (288 deaths)' for a side played in several slots."""
+    """'completed in slots 1, 2 · in progress in slot 8 (288 deaths)' for a side played in several slots;
+    more than 6 slots with one status are just counted ('completed in 31 slots')."""
     per = [(k, v) for k, v in s.progress.items() if k != ALL]
     if key != ALL or len(per) < 2:
         return ""
-    return " · ".join(f"slot {k}: {v.status}" + ("" if v.status == "completed" else f" ({v.deaths} deaths)")
-                      for k, v in per)
+    groups = {}
+    for k, v in per:
+        groups.setdefault(v.status, []).append((k, v))
+    parts = []
+    for st, items in groups.items():
+        if len(items) > 6:
+            parts.append(f"{st} in {len(items)} slots")
+        else:
+            deaths = "" if st == "completed" else f" ({', '.join(str(v.deaths) for _, v in items)} deaths)"
+            parts.append(f"{st} in slot{'s' if len(items) > 1 else ''} {', '.join(k for k, _ in items)}{deaths}")
+    return " · ".join(parts)
 
 
 def render_mod(mod, key, lib, user, only_set=None):
@@ -305,7 +312,7 @@ def render_mod(mod, key, lib, user, only_set=None):
     v = view_of(only_set, key) if only_set else v  # one level set of a collab: its own totals
     out = [head, f"Sides {sides_cell(v, mod)} done, chapters {maps_cell(v, mod)} done "
                  f"({n_prog} in progress, {n_new} not opened)"
-           + (f", {v.sides_no_heart} side(s) cleared without the heart" if v.sides_no_heart else "")
+           + (f", {v.hearts} heart(s) collected" if v.hearts else "")
            + (f"; played in slots {', '.join(v.slots)}" if key == ALL and len(lib.slots) > 1 and v.slots else "")]
     if mine_cell(mod.user):
         out.append(f"Mine: {mine_cell(mod.user)}")
@@ -335,7 +342,9 @@ def render_mod(mod, key, lib, user, only_set=None):
             for i, s in enumerate(sides):
                 first = i == 0
                 name = f"{lab if first else '':<{w}}  " if lead else ""
-                out.append(f"{name}{s.side:<4}  {side_status(s, key):<17}  {side_cells(s.progress.get(key))}"
+                sv = s.progress.get(key)
+                st = side_status(s, key) + (" ♥" if sv and sv.heart else "")
+                out.append(f"{name}{s.side:<4}  {st:<17}  {side_cells(sv)}"
                            f"{star if first else ''}{note if first else ''}".rstrip())
                 breakdown = slot_breakdown(s, key)
                 if breakdown:
@@ -343,9 +352,8 @@ def render_mod(mod, key, lib, user, only_set=None):
     out.append("")
     if any(ch.sid == s.last_played_sid for s in lib.slots for ch in chapters):
         out.append("* = your last-played map" + ("" if len(lib.slots) == 1 else " in a slot"))
-    if v.sides_no_heart:
-        out.append("cleared, no heart = cleared without collecting the heart. For mods the tool can't yet tell "
-                   "whether that side has a heart at all.")
+    if v.hearts:
+        out.append("♥ = crystal heart collected (not needed for a side to count as completed).")
     if not known(mod):
         out.append("Only chapters and sides you've opened are listed: this mod isn't in the Mods folder.")
     return "\n".join(out)

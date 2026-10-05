@@ -12,7 +12,7 @@ Build status, the save and mod file format, and open technical questions. What t
 | 4 | Detail view | done (`--set`): one mod or one level set, one row per side; a one-chapter mod goes straight to its sides; in the combined view, a line per side with each slot's result |
 | 5 | Checkpoints per side and saved room | done |
 | 6 | Status per side | done (`rules.side_status`) |
-| 7 | Completion rules | done (`rules.py`). Vanilla knows which sides have no heart; for mods that's unknown until `.bin` parsing, so a cleared side without its heart shows "cleared, no heart" and doesn't count as done |
+| 7 | Completion rules | done (`rules.py`): a side is completed when cleared; hearts are counted separately |
 | 8 | All slots in one view | done: the default. One row per mod with a Slots column; `--slot N` for one slot. An unreadable slot is skipped with a warning |
 | 9 | Mod name | done. GameBanana title from the mod list (260 of my 272 mods), else chapter title, level set title, mod ID (OmoriPack shows "Cold") |
 | 10 | JSON export | done (`--json FILE`, `-` for stdout), schema 2: one catalog tree, progress per slot and `all`. All 32 of my slots: 5.7 MB |
@@ -47,6 +47,7 @@ Technical notes on the "Later" items:
 - Dialog keys: the ID with `/`, spaces and `-` replaced by `_`. Set `NotPhobos_Omori`, map `NotPhobos_Omori_Snow_Mountain`, checkpoint `NotPhobos_Omori_Snow_Mountain_c_01`.
 - Map files: `Maps/<set>/<map>.bin` is the A side; `<map>-B.bin` and `<map>-C.bin` are its B and C sides. The save stores all three under the one SID `<set>/<map>`. Only `-B` and `-C` are sides: `-D` files (e.g. `MtEverest/0/MtEverest-D`) are maps of their own in the save. A map can have no A file: `isafriend/blizzard/1-blizzard` has only `-B` and `-C`.
 - AltSidesHelper: a map can list extra sides in `Maps/<set>/<map>.altsideshelper.meta.yaml` (`Sides: - Map: "MtEverest/0/MtEverest-D"`, `Preset: "d-side"`). In game they show as more sides of that chapter, but each is its own `.bin` and its own `AreaStats` in the save, and the name isn't always `-D` (Glyph's is `BeefyUncleTorre/map/z-1-D`). ~17 mods in my Mods folder use it. We count them as maps (see the PRD's definition), so the tracker doesn't need to read these files.
+- Hearts (2026-10-05, all 32 slots): 4 vanilla sides (Forsaken City A) and 57 mod sides are cleared without the heart, all A sides; no B or C side is. Vanilla A-side hearts are hidden collectibles; B/C-side hearts end the level.
 - Vanilla: only chapters 1-7 and Core have B/C sides. Prologue, Epilogue and Farewell are stored with `HeartGem=false` even when cleared (checked on all 32 slots), so they count as having no heart.
 - Slot files are `N.celeste`. The Saves folder also holds `N-modsave-*`, `N-modsession-*`, `modsettings-*`, `settings.celeste` and `debug.celeste`.
 - A save lists every level set Everest has registered, played or not, and its own empty `LevelSetStats Name="Celeste"` (vanilla's chapters are in the top-level `<Areas>`).
@@ -63,7 +64,7 @@ Technical notes on the "Later" items:
 
 ## Open technical questions
 
-- Which mod sides have no heart (the PRD treats those as completed once cleared): probably needs the `.bin`. Until then, a cleared side with `HeartGem=false` can't be told apart from one whose heart was skipped.
+- Which mod sides have a heart at all (for a "hearts x/y" count): probably needs the `.bin`. Not needed for completion any more.
 - Is the JSON (5.7 MB for 32 slots) too big for the UI? Decide in the UI step.
 - Speed on WSL (2026-10-05): the default run takes 1.2 s (was 7 s), 3 s the first time the store is filled. Every file check on `/mnt/c` costs ~4 ms, so the Mods scan uses scandir, a thread pool for stat calls and zip reads, and the `mod_cache` table. The first run of the week adds ~4 s for the mod list.
 

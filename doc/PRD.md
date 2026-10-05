@@ -44,7 +44,7 @@ A **mod** is one download (one zip). It can hold several **level sets**, the gro
 
 **Rows are mods; the numbers count sides.** Each mod is one row, showing how many of its sides are done (e.g. Spring Collab 2020: 87/105 sides). Opening a row shows the progress underneath it.
 
-- **Side completed:** cleared **and** its heart collected. A side that has no heart (e.g. some lobbies, vanilla Prologue/Epilogue) is completed once cleared.
+- **Side completed:** cleared. The crystal heart doesn't count: many sides have none (lobbies, prologues, vanilla Prologue/Epilogue/Farewell), and for mods the save can't tell. Hearts collected are shown separately, as information. (A side *can* be cleared while skipping its heart: vanilla A-side hearts are hidden collectibles, e.g. Forsaken City A in 4 of the author's slots. B/C-side hearts end the level, so there a clear always means the heart.)
 - **Map completed:** every side the map has (A, plus B and C if they exist) is completed.
 - **Level set completed:** every map in the set is completed.
 - **Mod completed:** every level set in the mod is completed.
@@ -115,4 +115,4 @@ Status for each requirement is tracked in [NOTES.md](NOTES.md#status).
 
 ## Open questions
 
-- None open. (Decided: a side with no heart is completed once cleared; see the definition above.)
+- None open. (Decided 2026-10-05: a side is completed when cleared, hearts or not; see the definition above.)

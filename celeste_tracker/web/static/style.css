@@ -95,12 +95,11 @@ button:hover { border-color: var(--accent); }
 .bar { height: 6px; background: var(--bar-bg); border-radius: 3px; overflow: hidden; display: flex; }
 .bar i { display: block; height: 100%; }
 .bar .d { background: var(--done); }
-.bar .h { background: var(--warn); }
 .progress small { color: var(--muted); font-size: 12px; }
 
 .status { font-size: 12px; font-weight: 600; white-space: nowrap; }
 .s-complete, .s-completed, .s-all-opened-done { color: var(--done); }
-.s-hearts-missing, .s-cleared-no-heart { color: var(--warn); }
+.heart { color: #d0457a; }
 .s-in-progress, .s-started { color: var(--prog); }
 .s-not-started, .s-not-opened { color: var(--none); }
 
@@ -145,7 +144,6 @@ tr.slots td { padding-top: 0; color: var(--muted); font-size: 12px; }
   padding: 1px 4px; color: var(--chip-ink);
 }
 .chip.c-completed { background: var(--done); }
-.chip.c-cleared-no-heart { background: var(--warn); }
 .chip.c-in-progress { background: var(--prog); }
 .chip.c-not-opened { background: transparent; color: var(--none); box-shadow: inset 0 0 0 1px var(--none); }
 .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
