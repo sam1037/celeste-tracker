@@ -15,3 +15,5 @@ moddb.json
 
 # Claude Code worktrees
 .claude/worktrees/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/

@@ -171,7 +171,7 @@ Snapshots are only taken when the tool runs. Dates are "seen by" dates, as preci
 - `pytest` with fixtures in `tests/fixtures/`: small hand-written saves and mod zips covering B/C folding, B/C-only maps, AltSidesHelper `-D` maps, placeholder sides, the recycle bin and the session. Real saves never go in git.
 - Before committing, also run against the author's real slots 1 and 31 locally. Later: keep their JSON output in `local/` and diff it after changes.
 - The server: `tests/test_server.py` runs it on a free port (pages, API, host check, header check, edits, picking up a changed save).
-- The page: render it with the Windows Chrome from WSL, headless, against a server on real saves with a scratch `--config`, and look at the screenshots (`--screenshot`) or the rendered DOM (`--dump-dom`). Views are opened through the URL hash. Chrome won't make a window narrower than ~500 px, so phone layouts are checked at 500.
+- The page: drive it with `playwright-cli` (Playwright's Chromium; its Claude Code skill is committed in `.claude/skills/`, and it works on Windows/WSL and macOS) against a server with a scratch `--config`: read the element tree, click, read the console, take screenshots. Views are opened through the URL hash. On WSL, the Windows Chrome in headless mode also gives one-shot screenshots (`--screenshot`) or the rendered DOM (`--dump-dom`), but won't make a window narrower than ~500 px.
 
 ## Build order
 

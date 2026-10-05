@@ -10,8 +10,10 @@ Read the docs in `doc/` first:
 
 ## Run and test
 
+The user works on this project from two machines: WSL on the Windows PC that has the game, and a Mac. The real saves, the Mods folder and `local/` (gitignored) are only on the Windows PC. On the Mac, run `uv run pytest` and the page on the test fixtures, and say that the change still needs checking on the real saves on the Windows PC. Check which machine you're on (`uname`) before using the paths below.
+
 ```bash
-S="/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Saves"   # the user's real Windows saves (WSL)
+S="/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Saves"   # the user's real Windows saves (WSL only)
 uv run celeste_progress.py --saves "$S" --slot 1 --mods     # slot 1: ~110 level sets, the big real test
 uv run celeste_progress.py --saves "$S" --slot 31 --mods    # slot 31: small test slot the user plays to make test cases
 uv run celeste_progress.py --file local/31.celeste          # an older copy of slot 31, works offline
@@ -19,11 +21,26 @@ uv run celeste_progress.py --saves "$S" --mods             # the default: all 32
 uv run pytest                                               # tests, on made-up saves in tests/fixtures
 ```
 
-Testing the page (`--serve`): run the server on real saves with a scratch config, then render it with headless Windows Chrome and look at the PNG (Read shows images). Open views through the URL hash (`#q=…&open=<mod id>&sets=<mod id>/<level set>&ch=<chapter sid>`, several IDs joined by `%0A`).
+Testing the page (`--serve`): run the server with a scratch config (on real saves on the Windows PC, on `tests/fixtures/slots` on the Mac), then drive it with `playwright-cli` (the skill in `.claude/skills/playwright-cli`, works on both machines). It reads the page as an element tree with refs, clicks and types, reads the console, and takes screenshots (Read shows images). Open views through the URL hash (`#q=…&open=<mod id>&sets=<mod id>/<level set>&ch=<chapter sid>`, several IDs joined by `%0A`).
+
+- Run `playwright-cli` from the repo root: `.playwright/cli.config.json` there makes it use Playwright's Chromium. From anywhere else it looks for Google Chrome, which WSL doesn't have.
+- Its snapshots and logs go to `.playwright-cli/` (gitignored, since they show the user's mods and times). Delete it when done, and `playwright-cli close` the browser.
+- Setup on a new machine (needs Node): `npm install -g @playwright/cli@latest`, then `playwright-cli install-browser chromium`.
 
 ```bash
-SP=<scratchpad>; mkdir -p $SP/ui && cp ~/.local/share/celeste-tracker/moddb.json $SP/ui/
-uv run celeste_progress.py --config $SP/ui/c.toml --saves "$S" --mods --offline --serve 8765   # in the background
+SP=<scratchpad>; mkdir -p $SP/ui && cp ~/.local/share/celeste-tracker/moddb.json $SP/ui/   # Mac: ~/Library/Application Support/celeste-tracker/
+uv run celeste_progress.py --config $SP/ui/c.toml --saves "$S" --mods --offline --serve 8765   # in the background; Mac: --saves tests/fixtures/slots, no --mods
+playwright-cli open "http://localhost:8765/#q=sentient"
+playwright-cli find "Sentient Forest"                      # the matching part of the element tree, with refs like f1e22
+playwright-cli click f1e22                                 # open the row
+playwright-cli screenshot --filename=$SP/ui/shot.png       # then Read the PNG
+playwright-cli console                                     # JS errors
+playwright-cli close
+```
+
+On WSL, headless Windows Chrome also works for a quick one-shot screenshot, with no setup:
+
+```bash
 W=$(wslpath -w $SP/ui)
 "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --disable-gpu --no-first-run \
   --user-data-dir="$W\\chrome-profile" --window-size=1400,1000 --virtual-time-budget=8000 \
@@ -32,9 +49,9 @@ W=$(wslpath -w $SP/ui)
 
 `--dump-dom` instead of `--screenshot` prints the rendered HTML. `--force-dark-mode` checks the dark theme. Chrome won't go narrower than ~500 px. Ignore its `LockFileEx` errors.
 
-- Mods folder: `/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Mods` (~450 zips). `--mods` scans it in ~3 s the first time, then ~0.1 s: unchanged zips come from the cache in `tracker.db`.
+- Mods folder (WSL): `/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Mods` (~450 zips). `--mods` scans it in ~3 s the first time, then ~0.1 s: unchanged zips come from the cache in `tracker.db`.
 - Verify changes by running against slot 1 and slot 31, not only mock files.
-- The user has a config (`~/.local/share/celeste-tracker/config.toml`), so a bare `uv run celeste_progress.py` shows their real view. The first run of a week downloads the public mod list into `moddb.json` next to it; pass `--offline` to avoid that.
+- On the Windows PC the user has a config (`~/.local/share/celeste-tracker/config.toml` in WSL), so a bare `uv run celeste_progress.py` shows their real view. The first run of a week downloads the public mod list into `moddb.json` next to it; pass `--offline` to avoid that.
 - In tests, pass `--offline` and a scratch `--config`: the mod list cache lives next to the config, and tests must never use the network.
 - When testing `--note`, `--rate`, `--difficulty`, `--drop`, `--rename` or `--save-config` on real saves, pass `--config <scratch dir>/c.toml` plus `--saves "$S" --mods`: the store (`tracker.db`) sits next to the config, and the user's real store must not get test data.
 - Test fixtures must be made up. Real saves never go in `tests/`; only `tests/fixtures/slots/*.celeste` is allowed past the `*.celeste` gitignore rule.
