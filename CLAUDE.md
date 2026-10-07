@@ -62,7 +62,7 @@ W=$(wslpath -w $SP/ui)
 
 - **Read-only:** never write to save files or the Mods folder.
 - **No personal data in git:** `local/`, `*.celeste`, `Saves/`, `celeste_notes.json`, `tracker.db*` and `moddb.json` are gitignored, and must stay out of git.
-- **Commit as you go:** make a commit after each finished change. Don't push without asking (no remote is set up yet).
+- **Commit as you go:** make a commit after each finished change, push when needed.
 - **Dependencies:** runtime code uses only the standard library until the desktop phase (then `pywebview`, see `doc/DESIGN.md`). `pytest` is the only dev dependency. Ask before adding anything else.
 - **Follow the layers in `doc/DESIGN.md`:** front ends (CLI, web, desktop) never parse files themselves, and the completion rules live in one module.
 - **Don't assume WSL:** other players will run this on Windows, so no hardcoded `/mnt/c` paths in the code.
