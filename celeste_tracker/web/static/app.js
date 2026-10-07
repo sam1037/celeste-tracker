@@ -153,9 +153,9 @@ function status(s, unsure = false) {
 
 function chip(s, heart = false) {
   const st = sideStatus(s);
-  return `<span class="chip c-${cls(st)}" title="${esc(s.side)} side: ${esc(label(st))}` +
+  return `<span class="side-mark"><span class="chip c-${cls(st)}" title="${esc(s.side)} side: ${esc(label(st))}` +
     `${heart ? ", crystal heart collected" : ""}">${esc(s.side)}</span>` +
-    (heart ? `<span class="heart" aria-hidden="true">♥</span>` : "");
+    (heart ? `<span class="heart" aria-hidden="true">♥</span>` : "") + `</span>`;
 }
 
 function tags(m, v) {

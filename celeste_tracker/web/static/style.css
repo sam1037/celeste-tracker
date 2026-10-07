@@ -45,6 +45,9 @@
 }
 
 * { box-sizing: border-box; }
+/* Always keep room for the scrollbar: otherwise opening a mod in a short list adds one (17px on Windows) and the
+   whole table narrows and shifts. */
+html { scrollbar-gutter: stable; }
 /* The content is at most 1200px wide and centered; the side gutter grows on wide screens. */
 body { --gutter: max(20px, calc((100% - 1200px) / 2)); }
 body {
@@ -200,7 +203,9 @@ tr.chapter { cursor: pointer; }
 tr.chapter:hover td { background: var(--snow); }
 .cps { color: var(--muted); font-size: 12px; }
 
-.chips { display: flex; gap: 3px; }
+.chips { display: flex; gap: 8px; }
+/* A side's chip and its heart stay together, apart from the next side. */
+.side-mark { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
 /* Side chips: the letter says which side; form says how far (filled cleared, outlined playing, dashed not opened). */
 .chip {
   display: inline-block; min-width: 22px; text-align: center; font-size: 11px; font-weight: 700; border-radius: 4px;
