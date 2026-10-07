@@ -20,6 +20,7 @@
   --faint: #9ca3b1;
   --line: #e0e4ea;
   --track: #e7eaf0;
+  --guide: #c9cfd9;       /* indent guides in an opened mod */
   --summit: #2f6fd0;
   --progress: #2f6fd0;    /* the progress bars */
   --ok: #2f8f5b;          /* "live" and "saved" only */
@@ -36,6 +37,7 @@
     --faint: #5b6475;
     --line: #2a313d;
     --track: #29303c;
+    --guide: #3a4250;
     --summit: #5b95e6;
     --progress: #5b95e6;
     --ok: #49b37a;
@@ -154,14 +156,27 @@ button:hover { border-color: var(--summit); }
 .mod:last-child { border-bottom: 0; }
 .mod:nth-of-type(even) { --row-bg: var(--surface-alt); }
 .mod.open > .mod-head {
-  position: sticky; top: calc(var(--top-h, 0px) + var(--head-h, 0px)); z-index: 2;
-  background: var(--row-bg); box-shadow: 0 1px 0 var(--line);
+  position: sticky; top: calc(var(--top-h, 0px) + var(--head-h, 0px)); z-index: 2; background: var(--row-bg);
+  box-shadow: 0 1px 0 var(--line); /* the one line inside an opened mod: under its name, also while stuck */
 }
 .tgroup > .trow.open {
   position: sticky; top: calc(var(--top-h, 0px) + var(--head-h, 0px) + var(--mh, 0px)); z-index: 1;
-  background: var(--row-bg); box-shadow: 0 1px 0 var(--line);
+  background: var(--row-bg);
 }
+.trow { scroll-margin-top: calc(var(--top-h, 0px) + var(--head-h, 0px) + var(--mh, 0px)); }
 .tgroup > .trow.open[role=button]:hover { background: var(--snow); }
+/* Thread lines, as in Reddit's comments: a thin line drops from each opened row's arrow down its rows, one per
+   level, so you can see where a mod or a level set ends. Clicking a line closes the row it comes from; hovering
+   one lights up the whole line (app.js). There are no row lines inside an opened mod: the thread lines group the rows. */
+.guide { position: relative; cursor: pointer; }
+.guide::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; transform: translateX(-50%);
+  background: var(--guide);
+}
+.guide.hot::before { width: 2px; background: var(--summit); }
+.trow > .guide { align-self: stretch; margin: -5px 0; }                     /* the mod's line, in the arrow column */
+.tname > .guide { position: absolute; top: 0; bottom: 0; width: 16px; }    /* the lines of a level set or chapter */
+.mod-body > .guide { position: absolute; top: 0; bottom: 0; left: 14px; width: 16px; }
 .mod.dropped { opacity: .6; }
 .mod-head {
   display: grid; grid-template-columns: var(--mod-cols);
@@ -195,20 +210,21 @@ button:hover { border-color: var(--summit); }
 .tag.own { border-color: var(--summit); color: var(--summit); }
 .tags { align-items: center; }
 
-.mod-body { border-top: 1px solid var(--line); padding: 10px 14px 10px 42px; display: grid; gap: 14px; }
+.mod-body { position: relative; padding: 6px 14px 6px 42px; display: grid; gap: 14px; }
 .facts { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .facts b { color: var(--ink); font-weight: 600; }
 
 /* The rows under an opened mod: level sets, chapters and sides, on the mod row's columns, indented by level. */
 .trow {
   display: grid; grid-template-columns: var(--mod-cols); gap: 12px; align-items: center;
-  padding: 5px 14px; border-top: 1px solid var(--line); font-size: 13px;
+  padding: 5px 14px; font-size: 13px;
 }
 .trow[role=button] { cursor: pointer; user-select: none; }
 .trow[role=button]:hover { background: var(--snow); }
 .trow[role=button]:focus-visible, .mod-head:focus-visible { outline: 2px solid var(--summit); outline-offset: -2px; }
 .trow.open > .tname .caret { transform: rotate(90deg); }
-.tname { display: flex; gap: 6px; min-width: 0; padding-left: calc((var(--lvl) - 1) * 20px); }
+.tname { position: relative; align-self: stretch; margin: -5px 0; align-items: center;
+  display: flex; gap: 6px; min-width: 0; padding-left: calc((var(--lvl) - 1) * 20px); }
 .tname .caret { width: 12px; flex: none; }
 .tname .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tname.strong .t { font-weight: 600; }

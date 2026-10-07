@@ -221,7 +221,7 @@ function modBody(m, v) {
   if (!known(m)) facts.push(`<span>Not in the Mods folder: only what you opened is listed</span>`);
   // Not on the row: on most rows, and it doesn't help pick what to play (user, 2026-10-08).
   if (!v.loaded) facts.push(`<span>Everest didn't load this mod the last time the game saved</span>`);
-  return `<div class="mod-body"><div class="facts">${facts.join("")}</div>${SHOW_EDITOR ? mineEditor(m) : ""}</div>` +
+  return `<div class="mod-body">${guide({ kind: "mod", id: m.id, name: m.name })}<div class="facts">${facts.join("")}</div>${SHOW_EDITOR ? mineEditor(m) : ""}</div>` +
     modRows(m);
 }
 
@@ -229,51 +229,59 @@ function setLabel(ls) {
   return ls.title || ls.name.split("/").pop(); // under its mod, the last part of the ID is enough ("0-Gyms")
 }
 
-function treeRow(level, { attr = "", open = null, name, sub = "", strong = false, v, mark = "", bestTime = "" }) {
-  // open: null = nothing under this row; true/false = it opens, and is open or not.
+function guide({ kind, id, name }, style = "") {
+  // A thread line (style.css): clicking it closes the mod, level set or chapter it comes from.
+  return `<span class="guide" data-close="${kind}" data-id="${esc(id)}" title="Close ${esc(name)}"${style}></span>`;
+}
+
+function treeRow(level, { attr = "", open = null, name, sub = "", strong = false, v, mark = "", bestTime = "", anc }) {
+  // open: null = nothing under this row; true/false = it opens, and is open or not. anc: the rows above this one,
+  // the mod first, each drawn as a thread line.
   const toggle = open !== null;
   return `<div class="trow${open ? " open" : ""}"${attr}${toggle ? ` role="button" tabindex="0" aria-expanded="${open}"` : ""}>
-    <span></span>
-    <span class="tname${strong ? " strong" : ""}" style="--lvl:${level}"><span class="caret">${toggle ? "▸" : ""}</span>` +
+    ${guide(anc[0])}
+    <span class="tname${strong ? " strong" : ""}" style="--lvl:${level}">` +
+    anc.slice(1).map((a, k) => guide(a, ` style="left:${k * 20 - 2}px"`)).join("") +
+    `<span class="caret">${toggle ? "▸" : ""}</span>` +
     `<span class="t">${name}${sub ? `<small>${sub}</small>` : ""}</span></span>
     ${progress(v, mark)}${numbers(v, bestTime)}<span class="hide-sm"></span></div>`;
 }
 
 function modRows(m) {
-  const chs = chapters(m);
+  const chs = chapters(m), anc = [{ kind: "mod", id: m.id, name: m.name }];
   if (chs.length === 1) { // a one-chapter mod: straight to its sides, or nothing more when it has one
     const sides = countedSides(chs[0]);
-    return sides.length > 1 ? sides.map((s) => sideRow(s, 1)).join("") : "";
+    return sides.length > 1 ? sides.map((s) => sideRow(s, 1, anc)).join("") : "";
   }
-  if (m.sets.length === 1) return chapterRows(m, m.sets[0].chapters, 1);
+  if (m.sets.length === 1) return chapterRows(m, m.sets[0].chapters, 1, anc);
   return m.sets.map((ls) => {
     // A collab opens to its level sets (difficulty tiers); each tier opens to its chapters.
     const id = setId(m, ls), open = state.openSet.has(id);
     // Each in a group of its own, so an opened level set's row sticks only while its chapters are on screen.
     return `<div class="tgroup">` + treeRow(1, { attr: ` data-set="${esc(id)}"`, open, name: esc(setLabel(ls)), strong: true,
-                        sub: ls.user.note ? `note: ${esc(ls.user.note)}` : "", v: viewOf(ls), mark: q(m) }) +
-      (open ? chapterRows(m, ls.chapters, 2) : "") + `</div>`;
+                        sub: ls.user.note ? `note: ${esc(ls.user.note)}` : "", v: viewOf(ls), mark: q(m), anc }) +
+      (open ? chapterRows(m, ls.chapters, 2, [...anc, { kind: "set", id, name: setLabel(ls) }]) : "") + `</div>`;
   }).join("");
 }
 
 const RANK = { "in progress": 0, completed: 1, "not opened": 2 };
 
-function chapterRows(m, list, level) {
+function chapterRows(m, list, level, anc) {
   return [...list]
     .sort((a, b) => (RANK[viewOf(a, "not opened").status] ?? 3) - (RANK[viewOf(b, "not opened").status] ?? 3))
     .map((ch) => {
       const sides = countedSides(ch), many = sides.length > 1, open = many && state.openCh.has(ch.sid);
+      const title = ch.title || ch.sid.split("/").pop();
       return treeRow(level, { attr: many ? ` data-ch="${esc(ch.sid)}"` : "", open: many ? open : null,
-                              name: esc(ch.title || ch.sid.split("/").pop()),
-                              sub: ch.user.note ? `note: ${esc(ch.user.note)}` : "",
-                              v: viewOf(ch, "not opened"), mark: q(m), bestTime: best(ch) }) +
-        (open ? sides.map((s) => sideRow(s, level + 1)).join("") : "");
+                              name: esc(title), sub: ch.user.note ? `note: ${esc(ch.user.note)}` : "",
+                              v: viewOf(ch, "not opened"), mark: q(m), bestTime: best(ch), anc }) +
+        (open ? sides.map((s) => sideRow(s, level + 1, [...anc, { kind: "ch", id: ch.sid, name: title }])).join("") : "");
     }).join("");
 }
 
-function sideRow(s, level) {
+function sideRow(s, level, anc) {
   const v = sideView(s);
-  return treeRow(level, { name: `${esc(s.side)} side`, v, bestTime: v.best_ticks ? fmtTime(v.best_ticks) : "-" });
+  return treeRow(level, { name: `${esc(s.side)} side`, v, bestTime: v.best_ticks ? fmtTime(v.best_ticks) : "-", anc });
 }
 
 function shownSlot(m, v) {
@@ -496,7 +504,32 @@ $("list").addEventListener("click", (e) => {
     render();
     return $("list").scrollIntoView({ block: "start" });
   }
+  const line = e.target.closest(".guide");
+  if (line) return closeFromLine(line);
   if (!e.target.closest("button, input, select, textarea, a")) openRow(e.target);
+});
+
+const SETS = { mod: () => state.open, set: () => state.openSet, ch: () => state.openCh };
+const ROW = { mod: (id) => `.mod[data-mod="${id}"]`, set: (id) => `.trow[data-set="${id}"]`, ch: (id) => `.trow[data-ch="${id}"]` };
+
+function closeFromLine(line) {
+  // Clicking a thread line closes the row it comes from and, as on Reddit, brings that row back into view when
+  // it was scrolled away.
+  const { close: kind, id } = line.dataset;
+  SETS[kind]().delete(id);
+  render();
+  const row = document.querySelector(ROW[kind](CSS.escape(id)));
+  const top = document.querySelector(".top").offsetHeight + (document.querySelector(".list-head")?.offsetHeight || 0);
+  if (row && row.getBoundingClientRect().top < top) row.scrollIntoView({ block: "start" });
+}
+
+// Hovering a thread line lights up all of it, across the rows it runs through.
+$("list").addEventListener("mouseover", (e) => {
+  const line = e.target.closest(".guide");
+  for (const g of document.querySelectorAll(".guide.hot")) g.classList.remove("hot");
+  if (!line) return;
+  const same = `.guide[data-close="${line.dataset.close}"][data-id="${CSS.escape(line.dataset.id)}"]`;
+  for (const g of document.querySelectorAll(same)) g.classList.add("hot");
 });
 
 function openRow(target) {
