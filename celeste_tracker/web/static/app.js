@@ -164,7 +164,7 @@ function tags(m, v) {
 // The tree table (doc/UI.md, "Layout"): mods, level sets, chapters and sides are all rows of one grid with the
 // same columns, indented by level. Only rows with something under them open.
 const notPlayed = (v) => v.status === "not started" || v.status === "not opened";
-const dash = (v, text) => (notPlayed(v) ? "-" : text);
+const dash = (v, text) => (notPlayed(v) ? "" : text); // never opened: empty cells, so the row recedes
 
 function progress(v, mark = "", unsure = false) {
   // The bar, "x/y sides" under it, and the status at the right under it: there's no Status column. A single side
