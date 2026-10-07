@@ -62,6 +62,7 @@ The page uses the same three statuses at every level (mod, level set, chapter, s
 | not started | not started, not opened | never opened |
 
 - **"started" (opened, no side cleared) is shown as in progress.** The bar still shows 0 cleared.
+- **"in progress" is written only when the bar can't say it** (2026-10-08): on a row with some sides cleared, the part-filled bar already says in progress, and the word was on almost every row. It stays on rows opened with nothing cleared yet, whose empty bar looks like not started. "completed" and "not started" are always written.
 - **"all opened done" is shown as completed.** It means the mod isn't in the Mods folder, so its real total is unknown and every side that was opened is cleared (2 mods in the author's saves). Its totals already carry a "?", and the status's tooltip says why.
 - The top bar says "Sides completed" and "Mods completed" to match.
 - Old bookmarks still work: the Show values stay `playing` and `complete` (labelled In progress and Completed); `show=played` and `show=dropped` open All mods, `show=unfinished` opens In progress. The Dropped filter is gone while the page can't set the flag (the edit fields are hidden); dropped mods are still dimmed.
