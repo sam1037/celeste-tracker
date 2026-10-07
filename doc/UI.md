@@ -47,6 +47,8 @@ The first version split the bar into A | B | C portions in the three heart color
 
 Inside a mod, each side is a chip with its letter: **filled** = cleared, **outlined** = playing, **faint dashed** = not opened, with ♥ after it when the crystal heart was collected.
 
+A chapter opens to a table of its sides. A chapter with **one side** (most mod chapters) opens to one line instead: best time, berries and the checkpoints reached. Its row already shows the side's chip, deaths and time, and the full table repeated them (user, 2026-10-07). A one-chapter mod with one side shows the same line, without berries, which its facts line already gives.
+
 The player's own fields (rating, difficulty, dropped, rename, note) are hidden on the page for now, at the user's request (2026-10-05; `SHOW_EDITOR` in `app.js`). The CLI still edits them, and the tags column still shows what's set.
 
 ## Statuses

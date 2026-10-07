@@ -22,6 +22,21 @@ GYM_SET = re.compile(r"(\d+-)?gyms", re.I)
 def is_gym(set_name):
     return bool(GYM_SET.fullmatch(set_name.rpartition("/")[2]))
 
+# Collab lobbies (CollabUtils2): the hub maps that lead to a collab's chapters. Real maps with their own deaths,
+# time and clears, so they stay and count, but their level set's title gets " (lobby)": the mods title it after
+# the collab itself, so it read like a copy of the mod. In my Mods folder and saves (2026-10-07) every lobby level
+# set is named exactly <collab>/0-Lobbies (25 mods, e.g. SpringCollab2020, StrawberryJam2021, ABuffZucchiniCollab).
+LOBBY_SET = re.compile(r"(\d+-)?lobbies", re.I)
+
+
+def is_lobby(set_name):
+    return bool(LOBBY_SET.fullmatch(set_name.rpartition("/")[2]))
+
+
+def set_title(set_name, title):
+    """The level set's title as shown: its in-game title, marked when it's a collab lobby."""
+    return f"{title} (lobby)" if title and is_lobby(set_name) else title
+
 # Vanilla chapters: SID -> (title, sides, has a heart). Verified on 32 real save slots: these three
 # chapters are stored with HeartGem=false even when cleared, and only chapters 1-7 and Core have B/C sides.
 VANILLA = {
@@ -218,7 +233,7 @@ def build_library(loaded, mods_info, titles=None, user=None):
 
     mods = []
     for mod_id, m in sorted(b.mods.items()):
-        sets = [LevelSet(name, "" if m["vanilla"] else mods_info.title(name), list(chs.values()),
+        sets = [LevelSet(name, "" if m["vanilla"] else set_title(name, mods_info.title(name)), list(chs.values()),
                          user=user.get(name, {}))
                 for name, chs in sorted(m["sets"].items())]
         if not any(ls.chapters for ls in sets):

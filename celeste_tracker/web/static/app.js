@@ -234,7 +234,7 @@ function setBlock(m, ls) {
 const RANK = { "in progress": 0, completed: 1, "not opened": 2 };
 
 function chaptersBlock(m, list) {
-  if (chapters(m).length === 1) return sideTable(list[0]); // a one-chapter mod: straight to its sides
+  if (chapters(m).length === 1) return sideTable(list[0], false); // a one-chapter mod: straight to its sides
   const rows = [...list]
     .sort((a, b) => (RANK[viewOf(a, "not opened").status] ?? 3) - (RANK[viewOf(b, "not opened").status] ?? 3))
     .map((ch) => chapterRows(ch)).join("");
@@ -272,8 +272,10 @@ function shownSlot(m, v) {
   return `Shown: <b>slot ${esc(v.slot)}</b>, your furthest; also played in ${list}`;
 }
 
-function sideTable(ch) {
+function sideTable(ch, berries = true) {
+  // berries: false where the mod's facts line above already gives them (a one-chapter mod)
   const sides = countedSides(ch);
+  if (sides.length === 1) return sideFacts(sides[0], berries);
   const rows = sides.map((s) => {
     const v = s.progress[state.key];
     return `<tr><td>${chip(s, !!(v && v.heart))}</td>
@@ -287,6 +289,17 @@ function sideTable(ch) {
          `<th class="right">Deaths</th><th class="right">Time</th><th class="right">Best</th>` +
          `<th class="right">Berries</th><th>Checkpoints reached</th></tr></thead>` +
          `<tbody>${rows || `<tr><td colspan="7" class="muted">Not opened in this slot</td></tr>`}</tbody></table>`;
+}
+
+function sideFacts(s, berries) {
+  // A chapter with one side: its row already shows the side's chip, deaths and time, so only the rest is listed.
+  const v = s.progress[state.key];
+  if (!v) return `<div class="facts side-facts">Not opened in this slot</div>`;
+  const facts = [`<span>Best <b>${v.best_ticks ? fmtTime(v.best_ticks) : "-"}</b></span>`];
+  if (berries) facts.push(`<span>Berries <b>${v.berries}</b></span>`);
+  const list = v.checkpoints.map((c) => esc(c.title ? `${c.title} (${c.room})` : c.room)).join(", ");
+  facts.push(`<span>Checkpoints reached <b>${v.checkpoints.length}</b>${list ? `: ${list}` : ""}</span>`);
+  return `<div class="facts side-facts">${facts.join("")}</div>`;
 }
 
 // The player's own fields (rating, difficulty, dropped, rename, note) are hidden on the page for now, at the

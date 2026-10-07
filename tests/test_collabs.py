@@ -1,11 +1,12 @@
-"""Collab conventions: titles written on the line under their dialog key, and gyms left out of the catalog.
+"""Collab conventions: titles written on the line under their dialog key, gyms left out of the catalog, lobbies
+marked.
 Everything here is made up; the layout copies what real collabs do (doc/NOTES.md)."""
 import pytest
 
 from celeste_tracker.cli import main
 from celeste_tracker.core import load_library
 from celeste_tracker.mods import ModInfo, parse_dialog, scan_mods
-from celeste_tracker.model import is_gym
+from celeste_tracker.model import is_gym, is_lobby
 from celeste_tracker.rules import ALL
 
 from conftest import write_zip
@@ -18,6 +19,8 @@ Jam_0_Gyms=
   Jam - Gyms
 Jam_1_Beginner=
   Jam - Beginner
+Jam_0_Lobbies=
+  Jam Collab
 
 Jam_0_Gyms_1_Beginner=
   Beginner Gym
@@ -116,6 +119,20 @@ def test_gyms_are_hidden_and_dont_count(jam):
     v = mod.progress[ALL]
     assert (v.sides_done, v.sides_total, v.maps_done, v.maps_total, v.deaths) == (3, 3, 3, 3, 3)
     assert v.status == "complete"  # the unfinished gym doesn't hold it back
+
+
+def test_is_lobby():
+    for name in ("SpringCollab2020/0-Lobbies", "ABuffZucchiniCollab/0-Lobbies", "X/lobbies"):
+        assert is_lobby(name), name
+    for name in ("ABuffZucchiniCollab/1-Lobby", "BeginnerCollab/1-MainLobby", "Lobbies/1-Beginner", "Jam/0-Gyms"):
+        assert not is_lobby(name), name
+
+
+def test_lobby_set_is_marked_and_counts(jam):
+    lib = load_library([(1, jam[1])], scan_mods(jam[0]))
+    (mod,) = [m for m in lib.mods if m.id == "Jam"]
+    assert [ls.title for ls in mod.sets] == ["Jam Collab (lobby)", "Jam - Beginner"]
+    assert mod.sets[0].progress[ALL].sides_done == 1  # the lobby is a real map: it still counts
 
 
 def test_gyms_are_hidden_without_mod_files(jam):
