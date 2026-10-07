@@ -21,6 +21,7 @@
   --line: #e0e4ea;
   --track: #e7eaf0;
   --guide: #c9cfd9;       /* indent guides in an opened mod */
+  --hover: #e8f0fb;       /* the row under the mouse: a faint accent, not the grey of every second row */
   --summit: #2f6fd0;
   --progress: #2f6fd0;    /* the progress bars */
   --ok: #2f8f5b;          /* "live" and "saved" only */
@@ -38,6 +39,7 @@
     --line: #2a313d;
     --track: #29303c;
     --guide: #3a4250;
+    --hover: #1f2b3e;
     --summit: #5b95e6;
     --progress: #5b95e6;
     --ok: #49b37a;
@@ -95,7 +97,7 @@ button:hover { border-color: var(--summit); }
 .resume col.w-slot { width: 52px; }
 .resume col.w-deaths { width: 150px; }
 .resume tbody tr { cursor: pointer; }
-.resume tbody tr:hover td { background: var(--snow); }
+.resume tbody tr:hover td { background: var(--hover); }
 .resume .room { font-size: 12px; overflow-wrap: anywhere; }
 .sessions a { color: var(--ink); text-decoration: none; cursor: pointer; }
 .sessions a:hover { color: var(--summit); }
@@ -181,9 +183,9 @@ button:hover { border-color: var(--summit); }
   gap: 12px;
   align-items: center; padding: 9px 14px; cursor: pointer; user-select: none;
 }
-/* Every row that opens (a mod, a level set, a chapter with B or C sides) gets the same background on hover; rows
-   that don't open get none. The selectors are long enough to beat the stuck rows' own background. */
-.mod > .mod-head:hover, .list .trow[role=button]:hover { background: var(--snow); }
+/* Every row gets the same background on hover, to follow it across to its numbers; only rows that open have the
+   pointer cursor. The selectors are long enough to beat the stuck rows' own background. */
+.mod > .mod-head:hover, .list .trow:hover { background: var(--hover); }
 .caret { color: var(--muted); transition: transform .15s; }
 .mod.open > .mod-head .caret { transform: rotate(90deg); }
 .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

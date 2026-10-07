@@ -30,6 +30,8 @@ Defined once in `style.css` (`:root`, plus the dark values under `prefers-color-
 | `--faint` | `#9ca3b1` | `#5b6475` | not started, not opened |
 | `--line` | `#e0e4ea` | `#2a313d` | rules and borders |
 | `--track` | `#e7eaf0` | `#29303c` | the empty part of a bar |
+| `--guide` | `#c9cfd9` | `#3a4250` | the thread lines in an opened mod |
+| `--hover` | `#e8f0fb` | `#1f2b3e` | the row under the mouse |
 | `--summit` | `#2f6fd0` | `#5b95e6` | accent: links, focus, the wordmark |
 | `--progress` | `#2f6fd0` | `#5b95e6` | the progress bars: one color for every side |
 
@@ -100,7 +102,7 @@ One table, Journal-style:
 
 - **One surface** with a header row and alternating row backgrounds, not a separate card per mod.
 - **At most 1200 px wide**, centered: the side margins grow on wide screens, so the name, the bar and the numbers stay close together.
-- **Click a column header to sort** (it replaces the Sort menu), **click it again to flip the order.** A column starts in its natural order: names A to Z, numbers highest first, Following the WAI-ARIA sortable table example, each sortable header is a button with `aria-sort`, a ↕ marks the columns you can sort by, and ▲ / ▼ shows the sorted one; the header gets a background on hover.
+- **Click a column header to sort** (it replaces the Sort menu), **click it again to flip the order.** A column starts in its natural order: names A to Z, numbers highest first. Following the WAI-ARIA sortable table example, each sortable header is a button with `aria-sort`, a ↕ marks the columns you can sort by, and ▲ / ▼ shows the sorted one; the header gets a background on hover.
 - **Pages of 50 mods**, with the pager at the bottom of the table, as in Carbon's data table: rows per page (25, 50, 100 or all), "101–150 of 253 mods", and previous / page numbers / next. A new search, slot or filter goes back to page 1; the page is in the URL. The pager only appears when there are more than 25 mods.
 - **A Deaths column**, as in the Journal.
 - **Sides only under the bar** ("75/100 sides"): the chapter count was the same as the side count for 239 of 272 mods, so it was dropped (user, 2026-10-05).
@@ -109,7 +111,7 @@ One table, Journal-style:
 - **Sticky rows** (user, 2026-10-08): while scrolling, the header row stays under the top bar, an opened mod's row under the header, and an opened level set's row under its mod, each only while the rows under it are on screen (as AG Grid's group rows and VS Code's sticky scroll do). A collab like Spring Collab opens to 100+ rows, and the column names and the mod you're in used to scroll away.
 - **"Not loaded"** is a line in an opened mod's facts, not on the row: as a tag it was on most rows, and a faint ⊘ in its place confused the user (2026-10-08). It doesn't help pick what to play.
 - **Thread lines inside an opened mod** (user, 2026-10-08), as in Reddit's comments: a thin line drops from each opened row's arrow (the mod's, a level set's, a chapter's) down its rows, one per level. Hovering a line lights all of it up; clicking it closes the row it comes from, and scrolls back to that row if it was off screen. Inside an opened mod there are no horizontal lines, not even under the mod's own row (tried and reverted, 2026-10-08): the thread lines group the rows. Tried first and rejected the same day: a tint behind the rows inside, and a thick blue line down the mod's left edge (it read as "selected" and sat away from the tree).
-- **Hover means "this row opens":** a mod, a level set and a chapter with B or C sides all get the same background on hover; rows that don't open get none (2026-10-08; before, a mod's name turned blue and only the other two got a background).
+- **Hover:** every row, side rows included, gets the same background on hover, so the eye can follow it across to its numbers; only rows that open get the pointer cursor (2026-10-08). The hover color is `--hover`, a faint tint of the accent, since grey is already the color of every second mod.
 - **`/` focuses the search**, as on GitHub and YouTube, unless you're typing in a field already.
 - An opened mod first shows one line of facts: mod ID, GameBanana title, hearts collected and the slot shown.
 - Text is left-aligned, numbers right-aligned, and the bars share one column edge.
