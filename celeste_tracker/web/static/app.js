@@ -218,13 +218,16 @@ function modCard({ m, v }) {
 }
 
 function modBody(m, v) {
-  const facts = [`<span>Mod ID <b>${esc(m.id)}</b></span>`];
+  // Only facts the row doesn't show already (2026-10-08): the mod ID is the row's second line, and a mod played in
+  // one slot has it in its slot tag.
+  const facts = [];
   if (m.gamebanana_title && m.gamebanana_title !== m.name) facts.push(`<span>GameBanana <b>${esc(m.gamebanana_title)}</b></span>`);
-  facts.push(`<span>Hearts collected <b>${v.hearts}</b></span>`);
-  if (state.key === "all" && v.slot) facts.push(`<span>${shownSlot(m, v)}</span>`);
+  if (v.hearts) facts.push(`<span>Hearts collected <b>${v.hearts}</b></span>`);
+  if (state.key === "all" && v.slot && v.slots.length > 1) facts.push(`<span>${shownSlot(m, v)}</span>`);
   if (!known(m)) facts.push(`<span>Not in the Mods folder: only what you opened is listed</span>`);
   // Not on the row: on most rows, and it doesn't help pick what to play (user, 2026-10-08).
   if (!v.loaded) facts.push(`<span>Everest didn't load this mod the last time the game saved</span>`);
+  if (!facts.length && !SHOW_EDITOR) return modRows(m);
   return `<div class="mod-body">${guide({ kind: "mod", id: m.id, name: m.name })}<div class="facts">${facts.join("")}</div>${SHOW_EDITOR ? mineEditor(m) : ""}</div>` +
     modRows(m);
 }
