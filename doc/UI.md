@@ -107,7 +107,7 @@ One table, Journal-style:
 - **A tree table** (the WAI-ARIA treegrid pattern; user's choice, 2026-10-07, over a list-and-detail view after comparing mockups of both on real data): an opened mod's level sets, chapters and sides are rows of the same table, on the mod row's columns, indented one step per level. Only rows with something under them open: a collab opens to its level sets, a level set to its chapters, and only a chapter with B or C sides opens, to "A side", "B side", "C side" rows. A chapter with one side (most mod chapters) has its numbers on its own row. A one-chapter mod opens straight to its sides. Before, each level was a box or table of its own with different columns, three levels of toggles deep.
 - **Best and Berries columns:** Best is the best time of a single side, so it's filled on side rows and one-side chapters, and empty on rows that sum several sides. Both are hidden for now, at the user's request (2026-10-08; `SHOW_BEST_BERRIES` in `app.js`): Best was empty on every mod row, the main view.
 - **Sticky rows** (user, 2026-10-08): while scrolling, the header row stays under the top bar, an opened mod's row under the header, and an opened level set's row under its mod, each only while the rows under it are on screen (as AG Grid's group rows and VS Code's sticky scroll do). A collab like Spring Collab opens to 100+ rows, and the column names and the mod you're in used to scroll away.
-- **"Not loaded"** is a faint ⊘ with a tooltip, not a tag: it was on most rows (2026-10-08).
+- **"Not loaded"** is a line in an opened mod's facts, not on the row: as a tag it was on most rows, and a faint ⊘ in its place confused the user (2026-10-08). It doesn't help pick what to play.
 - **`/` focuses the search**, as on GitHub and YouTube, unless you're typing in a field already.
 - An opened mod first shows one line of facts: mod ID, GameBanana title, hearts collected and the slot shown.
 - Text is left-aligned, numbers right-aligned, and the bars share one column edge.
@@ -136,6 +136,6 @@ Checked against the `frontend-design` skill's list of generic defaults:
 2. One table with a header row, sorting by column header, Deaths column, labeled totals in the top bar, the Olympus-style second line. (done; the Sort menu is gone, and "Slots and tags" sorts by the player's rating)
 3. After the user's review (2026-10-05): one color for every side, the edit fields hidden, the Ice blue palette. (done)
 4. After the user's review (2026-10-07): the tree table, a bar and "x/y sides" on every row instead of chips and hearts, Best and Berries columns, the statuses not started / in progress / completed at every level. (done)
-5. After the user's review (2026-10-08): sticky header, mod and level set rows; the status under the bar instead of a Status column; Best and Berries hidden; "not loaded" as a quiet mark; `/` for the search. (done)
+5. After the user's review (2026-10-08): sticky header, mod and level set rows; the status under the bar instead of a Status column; Best and Berries hidden; "not loaded" moved to the opened mod's facts; `/` for the search. (done)
 
 Check each step with `playwright-cli` on the real saves (scratch config), light and dark.

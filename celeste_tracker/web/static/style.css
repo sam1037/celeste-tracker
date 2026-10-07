@@ -193,8 +193,6 @@ button:hover { border-color: var(--summit); }
   white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
 }
 .tag.own { border-color: var(--summit); color: var(--summit); }
-/* "not loaded" is on most rows, so it's a quiet mark with a tooltip, not a tag (doc/UI.md, "Slots"). */
-.unloaded { font-size: 13px; color: var(--faint); cursor: help; }
 .tags { align-items: center; }
 
 .mod-body { border-top: 1px solid var(--line); padding: 10px 14px 10px 42px; display: grid; gap: 14px; }

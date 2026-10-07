@@ -158,7 +158,6 @@ function tags(m, v) {
   if (m.user.rating) t.push(`<span class="tag own">${"★".repeat(m.user.rating)}</span>`);
   if (m.user.difficulty) t.push(`<span class="tag own">${esc(m.user.difficulty)}</span>`);
   if (m.user.dropped) t.push(`<span class="tag own">dropped</span>`);
-  if (!v.loaded) t.push(`<span class="unloaded" role="img" aria-label="not loaded" title="Not loaded: Everest didn't load this mod the last time the game saved">⊘</span>`);
   return `<div class="tags">${t.join("")}</div>`;
 }
 
@@ -220,6 +219,8 @@ function modBody(m, v) {
   facts.push(`<span>Hearts collected <b>${v.hearts}</b></span>`);
   if (state.key === "all" && v.slot) facts.push(`<span>${shownSlot(m, v)}</span>`);
   if (!known(m)) facts.push(`<span>Not in the Mods folder: only what you opened is listed</span>`);
+  // Not on the row: on most rows, and it doesn't help pick what to play (user, 2026-10-08).
+  if (!v.loaded) facts.push(`<span>Not loaded the last time the game saved (disabled in Olympus, or removed)</span>`);
   return `<div class="mod-body"><div class="facts">${facts.join("")}</div>${SHOW_EDITOR ? mineEditor(m) : ""}</div>` +
     modRows(m);
 }
