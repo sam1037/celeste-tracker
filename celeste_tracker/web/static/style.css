@@ -163,7 +163,6 @@ button:hover { border-color: var(--summit); }
   background: var(--row-bg);
 }
 .trow { scroll-margin-top: calc(var(--top-h, 0px) + var(--head-h, 0px) + var(--mh, 0px)); }
-.tgroup > .trow.open[role=button]:hover { background: var(--snow); }
 /* Thread lines, as in Reddit's comments: a thin line drops from each opened row's arrow down its rows, one per
    level, so you can see where a mod or a level set ends. Clicking a line closes the row it comes from; hovering
    one lights up the whole line (app.js). There are no row lines inside an opened mod: the thread lines group the rows. */
@@ -182,7 +181,9 @@ button:hover { border-color: var(--summit); }
   gap: 12px;
   align-items: center; padding: 9px 14px; cursor: pointer; user-select: none;
 }
-.mod-head:hover .name { color: var(--summit); }
+/* Every row that opens (a mod, a level set, a chapter with B or C sides) gets the same background on hover; rows
+   that don't open get none. The selectors are long enough to beat the stuck rows' own background. */
+.mod > .mod-head:hover, .list .trow[role=button]:hover { background: var(--snow); }
 .caret { color: var(--muted); transition: transform .15s; }
 .mod.open > .mod-head .caret { transform: rotate(90deg); }
 .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -219,7 +220,6 @@ button:hover { border-color: var(--summit); }
   padding: 5px 14px; font-size: 13px;
 }
 .trow[role=button] { cursor: pointer; user-select: none; }
-.trow[role=button]:hover { background: var(--snow); }
 .trow[role=button]:focus-visible, .mod-head:focus-visible { outline: 2px solid var(--summit); outline-offset: -2px; }
 .trow.open > .tname .caret { transform: rotate(90deg); }
 .tname { position: relative; align-self: stretch; margin: -5px 0; align-items: center;
