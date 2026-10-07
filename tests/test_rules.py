@@ -63,6 +63,12 @@ def test_gamebanana_title_wins(mods):
     assert (m.name, m.name_source, m.gamebanana_title) == ("Forest Journey", "gamebanana", "Forest Journey")
 
 
+def test_gamebanana_author_is_kept(mods):
+    lib = lib1(mods, {"Sides Mod": {"title": "Forest Journey", "author": "Madeline"}})
+    assert mod(lib, "Sides Mod").author == "Madeline"
+    assert mod(lib, "Collab").author == ""  # not in the mod list: no author, rather than a guess
+
+
 def test_collab_and_its_add_on_are_two_mods(mods):
     lib = lib1(mods)
     collab = mod(lib, "Collab")

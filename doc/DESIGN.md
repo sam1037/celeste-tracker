@@ -64,7 +64,7 @@ Catalog: one, built from the Mods folder, the vanilla list, and any chapter a sl
          collab gyms (level sets named `Gyms`, `0-Gyms`, ...) are left out (model.is_gym, PRD)
   Mod       id            everest.yaml Name; "Celeste" for vanilla; the level set name if no mod was found
             name          what players see (rule below); name_source: gamebanana | map title | level set title | mod id
-            gamebanana_title, found (is in the Mods folder), sets[]
+            gamebanana_title, author (GameBanana, "" when not listed), found (is in the Mods folder), sets[]
   LevelSet  name, title, chapters[]      the part of the level set this mod provides
   Chapter   sid, title, sides{A, B, C}   (a `Map` in code)
   Side      side, exists                 known from the mod files (A/B/C .bin); vanilla from a hardcoded list

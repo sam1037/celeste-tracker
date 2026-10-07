@@ -76,7 +76,7 @@ const countedSides = (ch) => Object.values(ch.sides).filter((s) => s.exists || s
 function buildIndex(data) {
   index = { modOfSid: {}, search: {} };
   for (const m of data.mods) {
-    const words = [m.name, m.id, m.gamebanana_title];
+    const words = [m.name, m.id, m.gamebanana_title, m.author];
     for (const ls of m.sets) {
       words.push(ls.name, ls.title);
       for (const ch of ls.chapters) {
@@ -115,13 +115,15 @@ const SORTS = {
   time: (a, b) => a.v.ticks - b.v.ticks,
   progress: (a, b) => a.v.sides_done / (a.v.sides_total || 1) - b.v.sides_done / (b.v.sides_total || 1),
   name: (a, b) => a.m.name.localeCompare(b.m.name),
+  // A to Z; mods without an author (not on GameBanana) last, whichever way the column is sorted
+  author: (a, b) => (!a.m.author - !b.m.author) * (sortDir() === "asc" ? 1 : -1) || a.m.author.localeCompare(b.m.author),
   deaths: (a, b) => a.v.deaths - b.v.deaths,
   rating: (a, b) => (a.m.user.rating || 0) - (b.m.user.rating || 0),
   // in progress, then completed, then not started; within one status, the most sides cleared first
   status: (a, b) => STATUS_RANK[pageStatus(a.v.status)] - STATUS_RANK[pageStatus(b.v.status)] ||
     (sortDir() === "asc" ? -1 : 1) * SORTS.progress(a, b),
 };
-const FIRST_DIR = { time: "desc", progress: "desc", name: "asc", deaths: "desc", rating: "desc", status: "asc" };
+const FIRST_DIR = { time: "desc", progress: "desc", name: "asc", author: "asc", deaths: "desc", rating: "desc", status: "asc" };
 const sortDir = () => state.dir || FIRST_DIR[state.sort];
 
 function visibleMods() {
@@ -205,6 +207,7 @@ function modCard({ m, v }) {
     <div class="mod-head" role="button" tabindex="0" aria-expanded="${open}">
       <span class="caret">▸</span>
       <span class="name">${esc(m.name)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</span>
+      <span class="author hide-sm" title="${esc(m.author ? `GameBanana author: ${m.author}` : "Not on GameBanana's mod list")}">${esc(m.author)}</span>
       ${progress(v, q(m), !known(m))}
       ${numbers(v, chs.length === 1 ? best(chs[0]) : "")}
       <span class="hide-sm">${tags(m, v)}</span>
@@ -371,6 +374,7 @@ function listHead() {
       `<span class="icon" aria-hidden="true">${icon}</span></button></span>`;
   };
   return `<div class="list-head" role="row"><span></span>${col("name", "Mod", "", "name")}` +
+    `${col("author", "Author", "hide-sm", "author")}` +
     `${col("progress", "Sides", "", "sides cleared")}` +
     `${col("deaths", "Deaths", "right hide-sm")}${col("time", "Time", "right hide-sm", "time played")}` +
     (SHOW_BEST_BERRIES ? `<span class="th right hide-sm" title="Best time, for a single side">Best</span>` +

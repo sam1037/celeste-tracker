@@ -115,8 +115,11 @@ button:hover { border-color: var(--summit); }
 /* One table (doc/UI.md, Layout): a header row, then one row per mod, every second one shaded. */
 /* The status is under the bar, next to "x/y sides" (doc/UI.md, "Progress bar"). Best and Berries are hidden for now
    (SHOW_BEST_BERRIES in app.js); .more-cols brings their columns back. */
-.list { --mod-cols: 16px minmax(160px, 2fr) minmax(180px, 1.4fr) 64px 76px minmax(90px, .9fr); }
-.list.more-cols { --mod-cols: 16px minmax(160px, 2fr) minmax(180px, 1.4fr) 64px 76px 58px 50px minmax(90px, .9fr); }
+.list { --mod-cols: 16px minmax(160px, 2fr) minmax(90px, .8fr) minmax(180px, 1.4fr) 64px 76px minmax(90px, .9fr); }
+.list.more-cols { --mod-cols: 16px minmax(160px, 2fr) minmax(90px, .8fr) minmax(180px, 1.4fr) 64px 76px 58px 50px minmax(90px, .9fr); }
+/* The GameBanana author, after the mod's name. Rows inside an opened mod have none, so their name takes both columns. */
+.author { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tname { grid-column: span 2; }
 .list-head {
   display: grid; grid-template-columns: var(--mod-cols); gap: 12px; align-items: center;
   padding: 7px 14px; border-bottom: 1px solid var(--line);
