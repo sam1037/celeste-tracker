@@ -24,14 +24,15 @@ uv run pytest                                               # tests, on made-up 
 
 Testing the page (`--serve`): run the server with a scratch config (on real saves on the Windows PC, on `tests/fixtures/slots` on the Mac), then drive it with `playwright-cli` (the skill in `.claude/skills/playwright-cli`, works on both machines). It reads the page as an element tree with refs, clicks and types, reads the console, and takes screenshots (Read shows images). Open views through the URL hash (`#q=…&open=<mod id>&sets=<mod id>/<level set>&ch=<chapter sid>`, several IDs joined by `%0A`).
 
+- Use port 8766 (or another free one), not 8765: the user often has their own `--serve` running on 8765.
 - Run `playwright-cli` from the repo root: `.playwright/cli.config.json` there makes it use Playwright's Chromium. From anywhere else it looks for Google Chrome, which WSL doesn't have.
 - Its snapshots and logs go to `.playwright-cli/` (gitignored, since they show the user's mods and times). Delete it when done, and `playwright-cli close` the browser.
 - Setup on a new machine (needs Node): `npm install -g @playwright/cli@latest`, then `playwright-cli install-browser chromium`.
 
 ```bash
 SP=<scratchpad>; mkdir -p $SP/ui && cp ~/.local/share/celeste-tracker/moddb.json $SP/ui/   # Mac: ~/Library/Application Support/celeste-tracker/
-uv run celeste_progress.py --config $SP/ui/c.toml --saves "$S" --mods --offline --serve 8765   # in the background; Mac: --saves tests/fixtures/slots, no --mods
-playwright-cli open "http://localhost:8765/#q=sentient"
+uv run celeste_progress.py --config $SP/ui/c.toml --saves "$S" --mods --offline --serve 8766   # in the background; Mac: --saves tests/fixtures/slots, no --mods
+playwright-cli open "http://localhost:8766/#q=sentient"
 playwright-cli find "Sentient Forest"                      # the matching part of the element tree, with refs like f1e22
 playwright-cli click f1e22                                 # open the row
 playwright-cli screenshot --filename=$SP/ui/shot.png       # then Read the PNG
@@ -45,7 +46,7 @@ On WSL, headless Windows Chrome also works for a quick one-shot screenshot, with
 W=$(wslpath -w $SP/ui)
 "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --disable-gpu --no-first-run \
   --user-data-dir="$W\\chrome-profile" --window-size=1400,1000 --virtual-time-budget=8000 \
-  --screenshot="$W\\shot.png" "http://localhost:8765/#q=sentient&open=Sentient%20Forest"
+  --screenshot="$W\\shot.png" "http://localhost:8766/#q=sentient&open=Sentient%20Forest"
 ```
 
 `--dump-dom` instead of `--screenshot` prints the rendered HTML. `--force-dark-mode` checks the dark theme. Chrome won't go narrower than ~500 px. Ignore its `LockFileEx` errors.
