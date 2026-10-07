@@ -157,7 +157,6 @@ button:hover { border-color: var(--summit); }
 .mod:nth-of-type(even) { --row-bg: var(--surface-alt); }
 .mod.open > .mod-head {
   position: sticky; top: calc(var(--top-h, 0px) + var(--head-h, 0px)); z-index: 2; background: var(--row-bg);
-  box-shadow: 0 1px 0 var(--line); /* the one line inside an opened mod: under its name, also while stuck */
 }
 .tgroup > .trow.open {
   position: sticky; top: calc(var(--top-h, 0px) + var(--head-h, 0px) + var(--mh, 0px)); z-index: 1;
