@@ -220,7 +220,7 @@ function modBody(m, v) {
   if (state.key === "all" && v.slot) facts.push(`<span>${shownSlot(m, v)}</span>`);
   if (!known(m)) facts.push(`<span>Not in the Mods folder: only what you opened is listed</span>`);
   // Not on the row: on most rows, and it doesn't help pick what to play (user, 2026-10-08).
-  if (!v.loaded) facts.push(`<span>Not loaded the last time the game saved (disabled in Olympus, or removed)</span>`);
+  if (!v.loaded) facts.push(`<span>Everest didn't load this mod the last time the game saved</span>`);
   return `<div class="mod-body"><div class="facts">${facts.join("")}</div>${SHOW_EDITOR ? mineEditor(m) : ""}</div>` +
     modRows(m);
 }
