@@ -21,7 +21,7 @@
   --line: #e0e4ea;
   --track: #e7eaf0;
   --summit: #2f6fd0;
-  --progress: #2f6fd0;    /* the bar, the side chips and hearts */
+  --progress: #2f6fd0;    /* the progress bars */
   --ok: #2f8f5b;          /* "live" and "saved" only */
   --chip-ink: #ffffff;
   color-scheme: light;
@@ -102,12 +102,12 @@ button:hover { border-color: var(--summit); }
   margin: 0 var(--gutter) 40px; display: grid; grid-template-columns: minmax(0, 1fr);
   background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
 }
-.mod, .set, .sets { min-width: 0; }
+.mod { min-width: 0; }
 .empty { padding: 30px; text-align: center; color: var(--muted); }
 .error { margin: 20px var(--gutter); color: #c0392b; }
 
 /* One table (doc/UI.md, Layout): a header row, then one row per mod, every second one shaded. */
-.list { --mod-cols: 16px minmax(180px, 2fr) minmax(150px, 1.4fr) 92px 72px 84px minmax(100px, 1fr); }
+.list { --mod-cols: 16px minmax(160px, 2fr) minmax(130px, 1.3fr) 88px 64px 76px 58px 50px minmax(90px, .9fr); }
 .list-head {
   display: grid; grid-template-columns: var(--mod-cols); gap: 12px; align-items: center;
   padding: 7px 14px; border-bottom: 1px solid var(--line);
@@ -163,10 +163,9 @@ button:hover { border-color: var(--summit); }
 .progress small { color: var(--muted); font-size: 12px; display: flex; gap: 14px; }
 
 .status { font-size: 12px; white-space: nowrap; }
-.s-complete, .s-cleared { font-weight: 700; }
-.s-complete::before, .s-cleared::before { content: "✓ "; }
-.s-not-started, .s-not-opened { color: var(--faint); }
-.heart { color: var(--progress); }
+.s-completed { font-weight: 700; }
+.s-completed::before { content: "✓ "; }
+.s-not-started { color: var(--faint); }
 
 .tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
 .tag {
@@ -176,45 +175,40 @@ button:hover { border-color: var(--summit); }
 .tag.own { border-color: var(--summit); color: var(--summit); }
 .tags { align-items: center; }
 
-.mod-body { border-top: 1px solid var(--line); padding: 12px 14px 14px 42px; display: grid; gap: 14px; }
+.mod-body { border-top: 1px solid var(--line); padding: 10px 14px 10px 42px; display: grid; gap: 14px; }
 .facts { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .facts b { color: var(--ink); font-weight: 600; }
-.side-facts { padding: 2px 0 4px; }
 
-.sets { display: grid; gap: 4px; }
-.set { border: 1px solid var(--line); border-radius: 6px; }
-.set-head {
-  display: grid; grid-template-columns: 14px minmax(140px, 1.6fr) minmax(140px, 1.4fr) 110px 100px 80px; gap: 12px;
-  align-items: center; padding: 6px 10px; cursor: pointer; user-select: none;
+/* The rows under an opened mod: level sets, chapters and sides, on the mod row's columns, indented by level. */
+.trow {
+  display: grid; grid-template-columns: var(--mod-cols); gap: 12px; align-items: center;
+  padding: 5px 14px; border-top: 1px solid var(--line); font-size: 13px;
 }
-.set-head:hover .set-name { color: var(--summit); }
-.set.open > .set-head .caret { transform: rotate(90deg); }
-.set-name { font-weight: 600; font-size: 13px; }
-.set > table { margin: 0 0 6px; }
+.trow[role=button] { cursor: pointer; user-select: none; }
+.trow[role=button]:hover { background: var(--snow); }
+.trow[role=button]:focus-visible, .mod-head:focus-visible { outline: 2px solid var(--summit); outline-offset: -2px; }
+.trow.open > .tname .caret { transform: rotate(90deg); }
+.tname { display: flex; gap: 6px; min-width: 0; padding-left: calc((var(--lvl) - 1) * 20px); }
+.tname .caret { width: 12px; flex: none; }
+.tname .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tname.strong .t { font-weight: 600; }
+.tname small { display: block; font-size: 12px; color: var(--muted); }
+.trow .progress small { font-size: 11px; }
+.trow .bar { height: 6px; }
 
 table { border-collapse: collapse; width: 100%; font-size: 13px; table-layout: fixed; }
-col.w-ch { width: 34%; } col.w-sides { width: 14%; } col.w-n { width: 80px; }
-col.w-side { width: 52px; } col.w-status { width: 130px; }
+col.w-n { width: 80px; } col.w-side { width: 52px; }
 td { overflow-wrap: anywhere; }
 th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
 td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 tr:last-child td { border-bottom: 0; }
-tr.chapter { cursor: pointer; }
-tr.chapter:hover td { background: var(--snow); }
-.cps { color: var(--muted); font-size: 12px; }
 
-.chips { display: flex; gap: 8px; }
-/* A side's chip and its heart stay together, apart from the next side. */
-.side-mark { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
-/* Side chips: the letter says which side; form says how far (filled cleared, outlined playing, dashed not opened). */
+/* Side chips, only in "Where you left off": the letter says which side. */
 .chip {
   display: inline-block; min-width: 22px; text-align: center; font-size: 11px; font-weight: 700; border-radius: 4px;
   padding: 1px 4px; border: 1.5px solid var(--progress);
 }
-.chip.c-completed { background: var(--progress); color: var(--chip-ink); }
 .chip.c-in-progress { background: transparent; color: var(--progress); }
-.chip.c-not-opened { background: transparent; color: var(--faint); border: 1px dashed var(--faint); }
-.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
 
 .mine {
   display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; max-width: 640px;
@@ -236,15 +230,12 @@ tr.chapter:hover td { background: var(--snow); }
   .sessions { margin: 0 16px 10px; }
   .list { margin: 0 16px 32px; }
   /* name and status on top, the progress bar across underneath */
-  .mod-head, .set-head { grid-template-columns: 16px minmax(0, 1fr) auto; gap: 4px 10px; }
-  .mod-head .progress, .set-head .progress { grid-column: 2 / -1; grid-row: 2; }
-  .mod-head .hide-sm, .set-head .num { display: none; }
+  .mod-head, .trow { grid-template-columns: 16px minmax(0, 1fr) auto; gap: 4px 10px; }
+  .mod-head .progress, .trow .progress { grid-column: 2 / -1; grid-row: 2; }
+  .mod-head .hide-sm, .trow .hide-sm { display: none; }
   .list-head { display: none; } /* rows stack on phones, so the columns no longer line up */
-  .mod-body { padding: 10px 12px 12px; overflow-x: auto; }
+  .mod-body { padding: 10px 12px 12px; }
   table { table-layout: auto; }
-  col.w-ch, col.w-sides, col.w-n, col.w-side, col.w-status { width: auto; }
-  table.sides th:nth-child(5), table.sides td:nth-child(5),
-  table.sides th:nth-child(6), table.sides td:nth-child(6),
-  table.chapters th:nth-child(5), table.chapters td:nth-child(5) { display: none; }
+  col.w-n, col.w-side { width: auto; }
   .mine { grid-template-columns: 1fr; }
 }

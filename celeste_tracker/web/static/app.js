@@ -72,7 +72,6 @@ function viewOf(node, notOpened = "not started") {
 
 const chapters = (m) => m.sets.flatMap((s) => s.chapters);
 const countedSides = (ch) => Object.values(ch.sides).filter((s) => s.exists || s.progress[state.key]);
-const sideStatus = (s) => (s.progress[state.key] ? s.progress[state.key].status : "not opened");
 
 function buildIndex(data) {
   index = { modOfSid: {}, search: {} };
@@ -89,28 +88,27 @@ function buildIndex(data) {
   }
 }
 
-// The page shows three statuses for a mod or level set (doc/UI.md, "Statuses"): the server's "in progress" and
-// "started" are both playing, and "all opened done" (a mod not in the Mods folder, every opened side cleared) is
-// complete, with its totals marked "?". Sides: cleared, playing, not opened. The CLI and the JSON keep the
-// server's words.
-const PAGE_STATUS = { "in progress": "playing", started: "playing", "all opened done": "complete", completed: "cleared" };
+// The page uses three statuses at every level, mod, level set, chapter and side (doc/UI.md, "Statuses"): the
+// server's "in progress" and "started" are both in progress; "complete", a side's or chapter's "completed" and
+// "all opened done" (a mod not in the Mods folder, every opened side cleared, its totals marked "?") are all
+// completed; "not opened" is not started. The CLI and the JSON keep the server's words.
+const PAGE_STATUS = { started: "in progress", complete: "completed", "all opened done": "completed", "not opened": "not started" };
 const pageStatus = (s) => PAGE_STATUS[s] || s;
 const STATUS_HELP = {
-  playing: "Opened, not finished: some sides still to clear",
-  complete: "Every side cleared",
+  "in progress": "Opened, not finished: some sides still to clear",
+  completed: "Every side cleared",
   "not started": "Never opened",
-  cleared: "This side is cleared",
-  "not opened": "Never opened",
 };
-// Show filters by those statuses, so the menu and the Status column use the same words.
+// Show filters by those statuses, so the menu and the Status column use the same words. The values (playing,
+// complete) are older names, kept so bookmarks still work.
 const FILTERS = {
   all: () => true,
-  playing: (m, v) => pageStatus(v.status) === "playing",
-  complete: (m, v) => pageStatus(v.status) === "complete",
+  playing: (m, v) => pageStatus(v.status) === "in progress",
+  complete: (m, v) => pageStatus(v.status) === "completed",
   notstarted: (m, v) => v.status === "not started",
 };
 const OLD_SHOW = { played: "all", unfinished: "playing", dropped: "all" };  // bookmarks from before
-const STATUS_RANK = { playing: 0, complete: 1, "not started": 2 };
+const STATUS_RANK = { "in progress": 0, completed: 1, "not started": 2 };
 // Sort keys, each comparing in ascending order; FIRST_DIR is the direction a column starts in when clicked
 // (names A to Z, numbers high to low). Clicking the sorted column again flips it.
 const SORTS = {
@@ -119,7 +117,7 @@ const SORTS = {
   name: (a, b) => a.m.name.localeCompare(b.m.name),
   deaths: (a, b) => a.v.deaths - b.v.deaths,
   rating: (a, b) => (a.m.user.rating || 0) - (b.m.user.rating || 0),
-  // playing, then complete, then not started; within one status, the most sides cleared first
+  // in progress, then completed, then not started; within one status, the most sides cleared first
   status: (a, b) => STATUS_RANK[pageStatus(a.v.status)] - STATUS_RANK[pageStatus(b.v.status)] ||
     (sortDir() === "asc" ? -1 : 1) * SORTS.progress(a, b),
 };
@@ -142,20 +140,11 @@ function bar(v) {
   return `<div class="bar" title="${esc(title)}"><i style="width:${(100 * v.sides_done) / (v.sides_total || 1)}%"></i></div>`;
 }
 
-const label = pageStatus;
-
 function status(s, unsure = false) {
   const st = pageStatus(s);
-  const help = STATUS_HELP[st] + (unsure && st === "complete"
+  const help = STATUS_HELP[st] + (unsure && st === "completed"
     ? ". This mod isn't in your Mods folder, so its real total is unknown: every side you opened is cleared" : "");
   return `<span class="status s-${cls(st)}" title="${esc(help)}">${esc(st)}</span>`;
-}
-
-function chip(s, heart = false) {
-  const st = sideStatus(s);
-  return `<span class="side-mark"><span class="chip c-${cls(st)}" title="${esc(s.side)} side: ${esc(label(st))}` +
-    `${heart ? ", crystal heart collected" : ""}">${esc(s.side)}</span>` +
-    (heart ? `<span class="heart" aria-hidden="true">♥</span>` : "") + `</span>`;
 }
 
 function tags(m, v) {
@@ -173,19 +162,48 @@ function tags(m, v) {
   return `<div class="tags">${t.join("")}</div>`;
 }
 
+// The tree table (doc/UI.md, "Layout"): mods, level sets, chapters and sides are all rows of one grid with the
+// same columns, indented by level. Only rows with something under them open.
+const notPlayed = (v) => v.status === "not started" || v.status === "not opened";
+const dash = (v, text) => (notPlayed(v) ? "-" : text);
+
+function progress(v, mark = "") {
+  return `<span class="progress">${bar(v)}<small class="num">${v.sides_done}/${v.sides_total}${mark} sides</small></span>`;
+}
+
+function sideView(s) {
+  // A side not opened in this slot still counts as one side to clear.
+  return s.progress[state.key] || { status: "not opened", sides_done: 0, sides_total: 1, deaths: 0, ticks: 0, berries: 0 };
+}
+
+function best(ch) {
+  // The best time of a chapter's only side; chapters with several sides show theirs on the side rows.
+  const sides = countedSides(ch);
+  if (sides.length !== 1) return "";
+  const v = sideView(sides[0]);
+  return v.best_ticks ? fmtTime(v.best_ticks) : "-";
+}
+
+function numbers(v, bestTime) {
+  return `<span class="num right hide-sm">${dash(v, fmtNum(v.deaths))}</span>
+    <span class="num right hide-sm">${dash(v, fmtTime(v.ticks))}</span>
+    <span class="num right hide-sm">${bestTime}</span>
+    <span class="num right hide-sm">${dash(v, fmtNum(v.berries))}</span>`;
+}
+
 function modCard({ m, v }) {
   const open = state.open.has(m.id);
   // The dim second line, as Olympus shows it: ID ∙ details (doc/UI.md, "What players already know").
   const sub = [m.id !== m.name ? m.id : "", m.sets.length > 1 ? `${m.sets.length} level sets` : ""]
     .filter(Boolean).join(" ∙ ");
+  const chs = chapters(m);
   return `<article class="mod${open ? " open" : ""}${m.user.dropped ? " dropped" : ""}" data-mod="${esc(m.id)}">
     <div class="mod-head" role="button" tabindex="0" aria-expanded="${open}">
       <span class="caret">▸</span>
       <span class="name">${esc(m.name)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</span>
-      <span class="progress">${bar(v)}<small class="num">${v.sides_done}/${v.sides_total}${q(m)} sides</small></span>
+      ${progress(v, q(m))}
       <span>${status(v.status, !known(m))}</span>
-      <span class="num right hide-sm">${v.status === "not started" ? "-" : fmtNum(v.deaths)}</span>
-      <span class="num right hide-sm">${v.status === "not started" ? "-" : fmtTime(v.ticks)}</span>
+      ${numbers(v, chs.length === 1 ? best(chs[0]) : "")}
       <span class="hide-sm">${tags(m, v)}</span>
     </div>
     ${open ? modBody(m, v) : ""}
@@ -195,71 +213,61 @@ function modCard({ m, v }) {
 function modBody(m, v) {
   const facts = [`<span>Mod ID <b>${esc(m.id)}</b></span>`];
   if (m.gamebanana_title && m.gamebanana_title !== m.name) facts.push(`<span>GameBanana <b>${esc(m.gamebanana_title)}</b></span>`);
-  facts.push(`<span>Deaths <b>${v.deaths}</b></span>`, `<span>Berries <b>${v.berries}</b></span>`,
-             `<span>Hearts collected <b>${v.hearts}</b></span>`);
+  facts.push(`<span>Hearts collected <b>${v.hearts}</b></span>`);
   if (state.key === "all" && v.slot) facts.push(`<span>${shownSlot(m, v)}</span>`);
   if (!known(m)) facts.push(`<span>Not in the Mods folder: only what you opened is listed</span>`);
-  const setNotes = m.sets.filter((s) => s.user.note).map((s) => `<div class="cps">${esc(s.title || s.name)}: ${esc(s.user.note)}</div>`);
-  const body = m.sets.length > 1
-    ? `<div class="sets">${m.sets.map((ls) => setBlock(m, ls)).join("")}</div>`
-    : chaptersBlock(m, m.sets[0].chapters);
-  return `<div class="mod-body">
-    <div class="facts">${facts.join("")}</div>
-    ${setNotes.join("")}
-    ${body}
-    ${SHOW_EDITOR ? mineEditor(m) : ""}
-    <div class="legend"><span><span class="chip c-completed">A</span> cleared</span>
-      <span><span class="chip c-in-progress">A</span> playing</span>
-      <span><span class="chip c-not-opened">A</span> not opened</span>
-      <span>♥ crystal heart collected (not needed to clear a side)</span></div>
-  </div>`;
+  return `<div class="mod-body"><div class="facts">${facts.join("")}</div>${SHOW_EDITOR ? mineEditor(m) : ""}</div>` +
+    modRows(m);
 }
 
 function setLabel(ls) {
   return ls.title || ls.name.split("/").pop(); // under its mod, the last part of the ID is enough ("0-Gyms")
 }
 
-function setBlock(m, ls) {
-  // A collab opens to its level sets (difficulty tiers); each tier opens to its chapters.
-  const v = viewOf(ls), id = setId(m, ls), open = state.openSet.has(id);
-  return `<section class="set${open ? " open" : ""}">
-    <div class="set-head" data-set="${esc(id)}" role="button" tabindex="0" aria-expanded="${open}">
-      <span class="caret">▸</span><span class="set-name">${esc(setLabel(ls))}</span>
-      <span class="progress">${bar(v)}<small class="num">${v.sides_done}/${v.sides_total}${q(m)} sides</small></span>
-      ${status(v.status)}<span class="num right muted">${v.deaths} deaths</span>
-      <span class="num right">${fmtTime(v.ticks)}</span></div>
-    ${open ? chaptersBlock(m, ls.chapters) : ""}</section>`;
+function treeRow(level, { attr = "", open = null, name, sub = "", strong = false, v, mark = "", bestTime = "" }) {
+  // open: null = nothing under this row; true/false = it opens, and is open or not.
+  const toggle = open !== null;
+  return `<div class="trow${open ? " open" : ""}"${attr}${toggle ? ` role="button" tabindex="0" aria-expanded="${open}"` : ""}>
+    <span></span>
+    <span class="tname${strong ? " strong" : ""}" style="--lvl:${level}"><span class="caret">${toggle ? "▸" : ""}</span>` +
+    `<span class="t">${name}${sub ? `<small>${sub}</small>` : ""}</span></span>
+    ${progress(v, mark)}<span>${status(v.status)}</span>${numbers(v, bestTime)}<span class="hide-sm"></span></div>`;
+}
+
+function modRows(m) {
+  const chs = chapters(m);
+  if (chs.length === 1) { // a one-chapter mod: straight to its sides, or nothing more when it has one
+    const sides = countedSides(chs[0]);
+    return sides.length > 1 ? sides.map((s) => sideRow(s, 1)).join("") : "";
+  }
+  if (m.sets.length === 1) return chapterRows(m, m.sets[0].chapters, 1);
+  return m.sets.map((ls) => {
+    // A collab opens to its level sets (difficulty tiers); each tier opens to its chapters.
+    const id = setId(m, ls), open = state.openSet.has(id);
+    return treeRow(1, { attr: ` data-set="${esc(id)}"`, open, name: esc(setLabel(ls)), strong: true,
+                        sub: ls.user.note ? `note: ${esc(ls.user.note)}` : "", v: viewOf(ls), mark: q(m) }) +
+      (open ? chapterRows(m, ls.chapters, 2) : "");
+  }).join("");
 }
 
 const RANK = { "in progress": 0, completed: 1, "not opened": 2 };
 
-function chaptersBlock(m, list) {
-  if (chapters(m).length === 1) return sideTable(list[0], false); // a one-chapter mod: straight to its sides
-  const rows = [...list]
+function chapterRows(m, list, level) {
+  return [...list]
     .sort((a, b) => (RANK[viewOf(a, "not opened").status] ?? 3) - (RANK[viewOf(b, "not opened").status] ?? 3))
-    .map((ch) => chapterRows(ch)).join("");
-  return `<table class="chapters"><colgroup><col class="w-ch"><col class="w-sides"><col class="w-n"><col class="w-n">` +
-         `<col></colgroup><thead><tr><th>Chapter</th><th>Sides</th><th class="right">Deaths</th>` +
-         `<th class="right">Time</th><th>Latest checkpoint</th></tr></thead><tbody>${rows}</tbody></table>`;
+    .map((ch) => {
+      const sides = countedSides(ch), many = sides.length > 1, open = many && state.openCh.has(ch.sid);
+      return treeRow(level, { attr: many ? ` data-ch="${esc(ch.sid)}"` : "", open: many ? open : null,
+                              name: esc(ch.title || ch.sid.split("/").pop()),
+                              sub: ch.user.note ? `note: ${esc(ch.user.note)}` : "",
+                              v: viewOf(ch, "not opened"), mark: q(m), bestTime: best(ch) }) +
+        (open ? sides.map((s) => sideRow(s, level + 1)).join("") : "");
+    }).join("");
 }
 
-function chapterRows(ch) {
-  const v = viewOf(ch, "not opened");
-  const sides = countedSides(ch);
-  const chips = sides.map((s) => chip(s, !!(s.progress[state.key] && s.progress[state.key].heart))).join("");
-  const lc = v.latest_checkpoint;
-  const open = state.openCh.has(ch.sid);
-  const note = ch.user.note ? `<div class="cps">note: ${esc(ch.user.note)}</div>` : "";
-  return `<tr class="chapter" data-ch="${esc(ch.sid)}" aria-expanded="${open}">
-      <td>${esc(ch.title || ch.sid.split("/").pop())}${note}</td><td><div class="chips">${chips || "-"}</div></td>
-      <td class="right num">${v.status === "not opened" ? "-" : v.deaths}</td>
-      <td class="right num">${v.status === "not opened" ? "-" : fmtTime(v.ticks)}</td>
-      <td class="cps">${lc ? esc(`${lc.side}: ${lc.title || lc.room}`) : ""}</td></tr>` +
-    (open ? `<tr><td colspan="5">${sideTable(ch)}</td></tr>` : "");
-}
-
-function cps(list) {
-  return list.length ? `${list.length}: ${list.map((c) => esc(c.title ? `${c.title} (${c.room})` : c.room)).join(", ")}` : "";
+function sideRow(s, level) {
+  const v = sideView(s);
+  return treeRow(level, { name: `${esc(s.side)} side`, v, bestTime: v.best_ticks ? fmtTime(v.best_ticks) : "-" });
 }
 
 function shownSlot(m, v) {
@@ -270,36 +278,6 @@ function shownSlot(m, v) {
   const list = others.length > 6 ? `${others.length} other slots`
     : others.map((k) => `slot ${esc(k)} (${m.progress[k].sides_done}/${m.progress[k].sides_total} sides)`).join(", ");
   return `Shown: <b>slot ${esc(v.slot)}</b>, your furthest; also played in ${list}`;
-}
-
-function sideTable(ch, berries = true) {
-  // berries: false where the mod's facts line above already gives them (a one-chapter mod)
-  const sides = countedSides(ch);
-  if (sides.length === 1) return sideFacts(sides[0], berries);
-  const rows = sides.map((s) => {
-    const v = s.progress[state.key];
-    return `<tr><td>${chip(s, !!(v && v.heart))}</td>
-      <td>${status(sideStatus(s))}</td>
-      <td class="right num">${v ? v.deaths : "-"}</td><td class="right num">${v ? fmtTime(v.ticks) : "-"}</td>
-      <td class="right num">${v && v.best_ticks ? fmtTime(v.best_ticks) : "-"}</td>
-      <td class="right num">${v ? v.berries : "-"}</td><td class="cps">${v ? cps(v.checkpoints) : ""}</td></tr>`;
-  }).join("");
-  return `<table class="sides"><colgroup><col class="w-side"><col class="w-status"><col class="w-n"><col class="w-n">` +
-         `<col class="w-n"><col class="w-n"><col></colgroup><thead><tr><th>Side</th><th>Status</th>` +
-         `<th class="right">Deaths</th><th class="right">Time</th><th class="right">Best</th>` +
-         `<th class="right">Berries</th><th>Checkpoints reached</th></tr></thead>` +
-         `<tbody>${rows || `<tr><td colspan="7" class="muted">Not opened in this slot</td></tr>`}</tbody></table>`;
-}
-
-function sideFacts(s, berries) {
-  // A chapter with one side: its row already shows the side's chip, deaths and time, so only the rest is listed.
-  const v = s.progress[state.key];
-  if (!v) return `<div class="facts side-facts">Not opened in this slot</div>`;
-  const facts = [`<span>Best <b>${v.best_ticks ? fmtTime(v.best_ticks) : "-"}</b></span>`];
-  if (berries) facts.push(`<span>Berries <b>${v.berries}</b></span>`);
-  const list = v.checkpoints.map((c) => esc(c.title ? `${c.title} (${c.room})` : c.room)).join(", ");
-  facts.push(`<span>Checkpoints reached <b>${v.checkpoints.length}</b>${list ? `: ${list}` : ""}</span>`);
-  return `<div class="facts side-facts">${facts.join("")}</div>`;
 }
 
 // The player's own fields (rating, difficulty, dropped, rename, note) are hidden on the page for now, at the
@@ -355,10 +333,10 @@ function renderSessions() {
 
 function renderSummary(rows) {
   const played = state.data.mods.map((m) => viewOf(m)).filter((v) => v.status !== "not started");
-  const done = played.filter((v) => pageStatus(v.status) === "complete").length;
+  const done = played.filter((v) => pageStatus(v.status) === "completed").length;
   const sides = played.reduce((a, v) => [a[0] + v.sides_done, a[1] + v.sides_total], [0, 0]);
   const fig = (label, n, of) => `<span>${label} <b>${fmtNum(n)}</b>${of === undefined ? "" : ` of ${fmtNum(of)}`}</span>`;
-  $("summary").innerHTML = fig("Sides cleared", sides[0], sides[1]) + fig("Mods complete", done, played.length) +
+  $("summary").innerHTML = fig("Sides completed", sides[0], sides[1]) + fig("Mods completed", done, played.length) +
     (state.show !== "all" || state.q.trim() ? fig("Showing", rows.length) : "");
   // Each Show option with how many mods it has in this slot.
   const all = state.data.mods.map((m) => ({ m, v: viewOf(m) }));
@@ -381,6 +359,8 @@ function listHead() {
   return `<div class="list-head" role="row"><span></span>${col("name", "Mod", "", "name")}` +
     `${col("progress", "Sides", "", "sides cleared")}${col("status", "Status")}` +
     `${col("deaths", "Deaths", "right hide-sm")}${col("time", "Time", "right hide-sm", "time played")}` +
+    `<span class="th right hide-sm" title="Best time, for a single side">Best</span>` +
+    `<span class="th right hide-sm">Berries</span>` +
     `${col("rating", "Slots and tags", "right hide-sm", "your rating")}</div>`;
 }
 
@@ -497,18 +477,19 @@ $("list").addEventListener("click", (e) => {
     render();
     return $("list").scrollIntoView({ block: "start" });
   }
-  const head = e.target.closest(".mod-head");
-  if (head) return toggle(state.open, head.closest(".mod").dataset.mod);
-  const set = e.target.closest(".set-head");
-  if (set) return toggle(state.openSet, set.dataset.set);
-  const ch = e.target.closest("tr.chapter");
-  if (ch) return toggle(state.openCh, ch.dataset.ch);
+  if (!e.target.closest("button, input, select, textarea, a")) openRow(e.target);
 });
+
+function openRow(target) {
+  // A mod, level set or chapter row: open or close it. Returns false when the target isn't one.
+  const head = target.closest(".mod-head"), set = target.closest(".trow[data-set]"), ch = target.closest(".trow[data-ch]");
+  if (head) toggle(state.open, head.closest(".mod").dataset.mod);
+  else if (set) toggle(state.openSet, set.dataset.set);
+  else if (ch) toggle(state.openCh, ch.dataset.ch);
+  return !!(head || set || ch);
+}
 $("list").addEventListener("keydown", (e) => {
-  if (e.key !== "Enter" && e.key !== " ") return;
-  const head = e.target.closest(".mod-head"), set = e.target.closest(".set-head");
-  if (head) { e.preventDefault(); toggle(state.open, head.closest(".mod").dataset.mod); }
-  else if (set) { e.preventDefault(); toggle(state.openSet, set.dataset.set); }
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches("[role=button]") && openRow(e.target)) e.preventDefault();
 });
 $("list").addEventListener("change", (e) => {
   if (e.target.matches("[data-per]")) {
