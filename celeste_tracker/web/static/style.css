@@ -62,7 +62,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .top {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 14px var(--gutter); background: var(--surface); border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; z-index: 2;
+  position: sticky; top: 0; z-index: 4;
 }
 .brand { display: flex; align-items: baseline; gap: 4px 14px; flex-wrap: wrap; min-width: 0; }
 h1 { font-size: 20px; margin: 0; color: var(--summit); }
@@ -100,18 +100,27 @@ button:hover { border-color: var(--summit); }
 
 .list {
   margin: 0 var(--gutter) 40px; display: grid; grid-template-columns: minmax(0, 1fr);
-  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  overflow: clip; /* not hidden: that would stop the header and the opened rows from sticking */
+  scroll-margin-top: var(--top-h, 0px);
 }
 .mod { min-width: 0; }
 .empty { padding: 30px; text-align: center; color: var(--muted); }
 .error { margin: 20px var(--gutter); color: #c0392b; }
 
 /* One table (doc/UI.md, Layout): a header row, then one row per mod, every second one shaded. */
-.list { --mod-cols: 16px minmax(160px, 2fr) minmax(130px, 1.3fr) 88px 64px 76px 58px 50px minmax(90px, .9fr); }
+/* The status is under the bar, next to "x/y sides" (doc/UI.md, "Progress bar"). Best and Berries are hidden for now
+   (SHOW_BEST_BERRIES in app.js); .more-cols brings their columns back. */
+.list { --mod-cols: 16px minmax(160px, 2fr) minmax(180px, 1.4fr) 64px 76px minmax(90px, .9fr); }
+.list.more-cols { --mod-cols: 16px minmax(160px, 2fr) minmax(180px, 1.4fr) 64px 76px 58px 50px minmax(90px, .9fr); }
 .list-head {
   display: grid; grid-template-columns: var(--mod-cols); gap: 12px; align-items: center;
   padding: 7px 14px; border-bottom: 1px solid var(--line);
   font-size: 12px; font-weight: 600; color: var(--muted);
+  /* The header row, an opened mod's row and an opened level set's row stay on screen while scrolling under them,
+     each below the one above (the heights are measured in app.js). A row leaving the screen slides under the
+     ones above it, hence the z-index steps 3, 2, 1. */
+  position: sticky; top: var(--top-h, 0px); z-index: 3; background: var(--surface);
 }
 /* Sortable column headers (after the WAI-ARIA sortable table example): the whole label is a button; ↕ marks a
    column you can sort by, ▲ / ▼ the one sorted now. Click it again to flip the direction. */
@@ -140,9 +149,19 @@ button:hover { border-color: var(--summit); }
 .pages button:disabled { opacity: .45; cursor: default; }
 .pages button:disabled:hover { border-color: var(--line); }
 .pages .gap { padding: 0 4px; }
-.mod { border-bottom: 1px solid var(--line); }
+.mod { border-bottom: 1px solid var(--line); --row-bg: var(--surface); background: var(--row-bg);
+       scroll-margin-top: calc(var(--top-h, 0px) + var(--head-h, 0px)); }
 .mod:last-child { border-bottom: 0; }
-.mod:nth-of-type(even) { background: var(--surface-alt); }
+.mod:nth-of-type(even) { --row-bg: var(--surface-alt); }
+.mod.open > .mod-head {
+  position: sticky; top: calc(var(--top-h, 0px) + var(--head-h, 0px)); z-index: 2;
+  background: var(--row-bg); box-shadow: 0 1px 0 var(--line);
+}
+.tgroup > .trow.open {
+  position: sticky; top: calc(var(--top-h, 0px) + var(--head-h, 0px) + var(--mh, 0px)); z-index: 1;
+  background: var(--row-bg); box-shadow: 0 1px 0 var(--line);
+}
+.tgroup > .trow.open[role=button]:hover { background: var(--snow); }
 .mod.dropped { opacity: .6; }
 .mod-head {
   display: grid; grid-template-columns: var(--mod-cols);
@@ -161,6 +180,7 @@ button:hover { border-color: var(--summit); }
 .bar { height: 8px; border-radius: 2px; overflow: hidden; background: var(--track); }
 .bar i { display: block; height: 100%; background: var(--progress); }
 .progress small { color: var(--muted); font-size: 12px; display: flex; gap: 14px; }
+.progress small .status { margin-left: auto; }
 
 .status { font-size: 12px; white-space: nowrap; }
 .s-completed { font-weight: 700; }
@@ -173,6 +193,8 @@ button:hover { border-color: var(--summit); }
   white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
 }
 .tag.own { border-color: var(--summit); color: var(--summit); }
+/* "not loaded" is on most rows, so it's a quiet mark with a tooltip, not a tag (doc/UI.md, "Slots"). */
+.unloaded { font-size: 13px; color: var(--faint); cursor: help; }
 .tags { align-items: center; }
 
 .mod-body { border-top: 1px solid var(--line); padding: 10px 14px 10px 42px; display: grid; gap: 14px; }

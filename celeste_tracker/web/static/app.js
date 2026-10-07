@@ -158,7 +158,7 @@ function tags(m, v) {
   if (m.user.rating) t.push(`<span class="tag own">${"★".repeat(m.user.rating)}</span>`);
   if (m.user.difficulty) t.push(`<span class="tag own">${esc(m.user.difficulty)}</span>`);
   if (m.user.dropped) t.push(`<span class="tag own">dropped</span>`);
-  if (!v.loaded) t.push(`<span class="tag" title="Everest didn't load this mod the last time the game saved">not loaded</span>`);
+  if (!v.loaded) t.push(`<span class="unloaded" role="img" aria-label="not loaded" title="Not loaded: Everest didn't load this mod the last time the game saved">⊘</span>`);
   return `<div class="tags">${t.join("")}</div>`;
 }
 
@@ -167,8 +167,10 @@ function tags(m, v) {
 const notPlayed = (v) => v.status === "not started" || v.status === "not opened";
 const dash = (v, text) => (notPlayed(v) ? "-" : text);
 
-function progress(v, mark = "") {
-  return `<span class="progress">${bar(v)}<small class="num">${v.sides_done}/${v.sides_total}${mark} sides</small></span>`;
+function progress(v, mark = "", unsure = false) {
+  // The bar, "x/y sides" under it, and the status at the right under it: there's no Status column.
+  return `<span class="progress">${bar(v)}<small><span class="num">${v.sides_done}/${v.sides_total}${mark} sides</span>` +
+    `${status(v.status, unsure)}</small></span>`;
 }
 
 function sideView(s) {
@@ -184,11 +186,14 @@ function best(ch) {
   return v.best_ticks ? fmtTime(v.best_ticks) : "-";
 }
 
+// The Best and Berries columns are hidden for now, at the user's request (2026-10-07).
+const SHOW_BEST_BERRIES = false;
+
 function numbers(v, bestTime) {
   return `<span class="num right hide-sm">${dash(v, fmtNum(v.deaths))}</span>
-    <span class="num right hide-sm">${dash(v, fmtTime(v.ticks))}</span>
-    <span class="num right hide-sm">${bestTime}</span>
-    <span class="num right hide-sm">${dash(v, fmtNum(v.berries))}</span>`;
+    <span class="num right hide-sm">${dash(v, fmtTime(v.ticks))}</span>` + (SHOW_BEST_BERRIES ?
+    `<span class="num right hide-sm">${bestTime}</span>
+    <span class="num right hide-sm">${dash(v, fmtNum(v.berries))}</span>` : "");
 }
 
 function modCard({ m, v }) {
@@ -201,8 +206,7 @@ function modCard({ m, v }) {
     <div class="mod-head" role="button" tabindex="0" aria-expanded="${open}">
       <span class="caret">▸</span>
       <span class="name">${esc(m.name)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</span>
-      ${progress(v, q(m))}
-      <span>${status(v.status, !known(m))}</span>
+      ${progress(v, q(m), !known(m))}
       ${numbers(v, chs.length === 1 ? best(chs[0]) : "")}
       <span class="hide-sm">${tags(m, v)}</span>
     </div>
@@ -231,7 +235,7 @@ function treeRow(level, { attr = "", open = null, name, sub = "", strong = false
     <span></span>
     <span class="tname${strong ? " strong" : ""}" style="--lvl:${level}"><span class="caret">${toggle ? "▸" : ""}</span>` +
     `<span class="t">${name}${sub ? `<small>${sub}</small>` : ""}</span></span>
-    ${progress(v, mark)}<span>${status(v.status)}</span>${numbers(v, bestTime)}<span class="hide-sm"></span></div>`;
+    ${progress(v, mark)}${numbers(v, bestTime)}<span class="hide-sm"></span></div>`;
 }
 
 function modRows(m) {
@@ -244,9 +248,10 @@ function modRows(m) {
   return m.sets.map((ls) => {
     // A collab opens to its level sets (difficulty tiers); each tier opens to its chapters.
     const id = setId(m, ls), open = state.openSet.has(id);
-    return treeRow(1, { attr: ` data-set="${esc(id)}"`, open, name: esc(setLabel(ls)), strong: true,
+    // Each in a group of its own, so an opened level set's row sticks only while its chapters are on screen.
+    return `<div class="tgroup">` + treeRow(1, { attr: ` data-set="${esc(id)}"`, open, name: esc(setLabel(ls)), strong: true,
                         sub: ls.user.note ? `note: ${esc(ls.user.note)}` : "", v: viewOf(ls), mark: q(m) }) +
-      (open ? chapterRows(m, ls.chapters, 2) : "");
+      (open ? chapterRows(m, ls.chapters, 2) : "") + `</div>`;
   }).join("");
 }
 
@@ -357,10 +362,10 @@ function listHead() {
       `<span class="icon" aria-hidden="true">${icon}</span></button></span>`;
   };
   return `<div class="list-head" role="row"><span></span>${col("name", "Mod", "", "name")}` +
-    `${col("progress", "Sides", "", "sides cleared")}${col("status", "Status")}` +
+    `${col("progress", "Sides", "", "sides cleared")}` +
     `${col("deaths", "Deaths", "right hide-sm")}${col("time", "Time", "right hide-sm", "time played")}` +
-    `<span class="th right hide-sm" title="Best time, for a single side">Best</span>` +
-    `<span class="th right hide-sm">Berries</span>` +
+    (SHOW_BEST_BERRIES ? `<span class="th right hide-sm" title="Best time, for a single side">Best</span>` +
+      `<span class="th right hide-sm">Berries</span>` : "") +
     `${col("rating", "Slots and tags", "right hide-sm", "your rating")}</div>`;
 }
 
@@ -394,8 +399,21 @@ function render() {
   const shown = state.per ? rows.slice((state.page - 1) * state.per, state.page * state.per) : rows;
   $("list").innerHTML = rows.length ? listHead() + shown.map(modCard).join("") + (rows.length > 25 ? pager(rows.length, pages) : "")
     : `<div class="empty">No mods match. Clear the search or pick "All mods" under Show.</div>`;
+  $("list").classList.toggle("more-cols", SHOW_BEST_BERRIES);
+  measure();
   writeHash();
 }
+
+function measure() {
+  // Where the sticky rows stop (style.css): under the top bar, then the header row, then an opened mod's row.
+  const root = document.documentElement.style;
+  root.setProperty("--top-h", `${document.querySelector(".top").offsetHeight}px`);
+  root.setProperty("--head-h", `${document.querySelector(".list-head")?.offsetHeight || 0}px`);
+  for (const mod of document.querySelectorAll(".mod.open")) {
+    mod.style.setProperty("--mh", `${mod.querySelector(".mod-head").offsetHeight}px`);
+  }
+}
+window.addEventListener("resize", measure);
 
 // ------------------------------------------------------------------ loading and editing
 
@@ -523,6 +541,13 @@ $("q").addEventListener("input", (e) => {
 $("slot").addEventListener("change", (e) => { state.key = e.target.value; state.page = 1; render(); });
 $("show").addEventListener("change", (e) => { state.show = e.target.value; state.page = 1; render(); });
 $("refresh").addEventListener("click", () => load(true));
+// "/" jumps to the search, as on GitHub and YouTube, unless the player is typing somewhere already.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, textarea, select")) return;
+  e.preventDefault();
+  $("q").focus();
+  $("q").select();
+});
 
 readHash();
 $("q").value = state.q;

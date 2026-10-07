@@ -51,7 +51,7 @@ The player's own fields (rating, difficulty, dropped, rename, note) are hidden o
 
 ## Statuses
 
-The page uses the same three statuses at every level (mod, level set, chapter, side), and the **Show** menu offers exactly those (plus All mods), each with its count, so the menu and the Status column use the same words (user, 2026-10-07; before, mods said playing / complete and sides said cleared / playing / not opened):
+The page uses the same three statuses at every level (mod, level set, chapter, side), and the **Show** menu offers exactly those (plus All mods), each with its count, so the menu and the rows use the same words (user, 2026-10-07; before, mods said playing / complete and sides said cleared / playing / not opened):
 
 | Page | Server status (`rules.py`, CLI, JSON) | Meaning |
 |---|---|---|
@@ -63,7 +63,7 @@ The page uses the same three statuses at every level (mod, level set, chapter, s
 - **"all opened done" is shown as completed.** It means the mod isn't in the Mods folder, so its real total is unknown and every side that was opened is cleared (2 mods in the author's saves). Its totals already carry a "?", and the status's tooltip says why.
 - The top bar says "Sides completed" and "Mods completed" to match.
 - Old bookmarks still work: the Show values stay `playing` and `complete` (labelled In progress and Completed); `show=played` and `show=dropped` open All mods, `show=unfinished` opens In progress. The Dropped filter is gone while the page can't set the flag (the edit fields are hidden); dropped mods are still dimmed.
-- Sorting by Status puts in progress first, then completed, then not started; within one status, the mods closest to done come first.
+- The status is shown under the bar, at the right of "x/y sides", not in a column of its own (user, 2026-10-08): a full bar already said completed, so the column repeated it. Sorting by status (in progress first, then completed, then not started; within one status, closest to done first) is left only for old bookmarks (`sort=status`); the Sides header sorts by the share of sides cleared.
 
 ## Slots
 
@@ -86,7 +86,7 @@ One table, Journal-style:
 │ [search……………………………]  Slot [All ▾]  Show [All mods ▾]                                          │
 │ ▸ Where you left off   Save & Quit in 15 slots                                                   │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────┤
-│   Mod ↕                  Sides ↕          Status ↕      Deaths  Time ▼     Best   Berries  Slots │
+│   Mod ↕                  Sides ↕                         Deaths ↕  Time ▼               Slots │
 │ ▾ Spring Collab 2020     ███████░░ 75/100  in progress  12,953  48:45:42           45  slot 1 (+1)│
 │     Mod ID … · Hearts collected 74 · Shown: slot 1, your furthest …                              │
 │     ▸ Collab - Beginner  █████████ 19/19   ✓ completed   1,095   4:45:40           20            │
@@ -100,12 +100,15 @@ One table, Journal-style:
 
 - **One surface** with a header row and alternating row backgrounds, not a separate card per mod.
 - **At most 1200 px wide**, centered: the side margins grow on wide screens, so the name, the bar and the numbers stay close together.
-- **Click a column header to sort** (it replaces the Sort menu), **click it again to flip the order.** A column starts in its natural order: names A to Z, numbers highest first, statuses in progress first. Following the WAI-ARIA sortable table example, each sortable header is a button with `aria-sort`, a ↕ marks the columns you can sort by, and ▲ / ▼ shows the sorted one; the header gets a background on hover.
+- **Click a column header to sort** (it replaces the Sort menu), **click it again to flip the order.** A column starts in its natural order: names A to Z, numbers highest first, Following the WAI-ARIA sortable table example, each sortable header is a button with `aria-sort`, a ↕ marks the columns you can sort by, and ▲ / ▼ shows the sorted one; the header gets a background on hover.
 - **Pages of 50 mods**, with the pager at the bottom of the table, as in Carbon's data table: rows per page (25, 50, 100 or all), "101–150 of 253 mods", and previous / page numbers / next. A new search, slot or filter goes back to page 1; the page is in the URL. The pager only appears when there are more than 25 mods.
 - **A Deaths column**, as in the Journal.
 - **Sides only under the bar** ("75/100 sides"): the chapter count was the same as the side count for 239 of 272 mods, so it was dropped (user, 2026-10-05).
 - **A tree table** (the WAI-ARIA treegrid pattern; user's choice, 2026-10-07, over a list-and-detail view after comparing mockups of both on real data): an opened mod's level sets, chapters and sides are rows of the same table, on the mod row's columns, indented one step per level. Only rows with something under them open: a collab opens to its level sets, a level set to its chapters, and only a chapter with B or C sides opens, to "A side", "B side", "C side" rows. A chapter with one side (most mod chapters) has its numbers on its own row. A one-chapter mod opens straight to its sides. Before, each level was a box or table of its own with different columns, three levels of toggles deep.
-- **Best and Berries columns:** Best is the best time of a single side, so it's filled on side rows and one-side chapters, and empty on rows that sum several sides.
+- **Best and Berries columns:** Best is the best time of a single side, so it's filled on side rows and one-side chapters, and empty on rows that sum several sides. Both are hidden for now, at the user's request (2026-10-08; `SHOW_BEST_BERRIES` in `app.js`): Best was empty on every mod row, the main view.
+- **Sticky rows** (user, 2026-10-08): while scrolling, the header row stays under the top bar, an opened mod's row under the header, and an opened level set's row under its mod, each only while the rows under it are on screen (as AG Grid's group rows and VS Code's sticky scroll do). A collab like Spring Collab opens to 100+ rows, and the column names and the mod you're in used to scroll away.
+- **"Not loaded"** is a faint ⊘ with a tooltip, not a tag: it was on most rows (2026-10-08).
+- **`/` focuses the search**, as on GitHub and YouTube, unless you're typing in a field already.
 - An opened mod first shows one line of facts: mod ID, GameBanana title, hearts collected and the slot shown.
 - Text is left-aligned, numbers right-aligned, and the bars share one column edge.
 - Rejected: a grid of postcard tiles like chapter select. It looks good at first, but 253 tiles are slow to scan and can't be sorted like columns.
@@ -133,5 +136,6 @@ Checked against the `frontend-design` skill's list of generic defaults:
 2. One table with a header row, sorting by column header, Deaths column, labeled totals in the top bar, the Olympus-style second line. (done; the Sort menu is gone, and "Slots and tags" sorts by the player's rating)
 3. After the user's review (2026-10-05): one color for every side, the edit fields hidden, the Ice blue palette. (done)
 4. After the user's review (2026-10-07): the tree table, a bar and "x/y sides" on every row instead of chips and hearts, Best and Berries columns, the statuses not started / in progress / completed at every level. (done)
+5. After the user's review (2026-10-08): sticky header, mod and level set rows; the status under the bar instead of a Status column; Best and Berries hidden; "not loaded" as a quiet mark; `/` for the search. (done)
 
 Check each step with `playwright-cli` on the real saves (scratch config), light and dark.
