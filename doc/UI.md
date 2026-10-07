@@ -117,7 +117,17 @@ One table, Journal-style:
 - Text is left-aligned, numbers right-aligned, and the bars share one column edge.
 - Rejected: a grid of postcard tiles like chapter select. It looks good at first, but 253 tiles are slow to scan and can't be sorted like columns.
 
-## Principles
+## Mod card (branch `mod-card`, to try, 2026-10-08)
+
+Clicking a mod opens a card in front of the list (a modal `<dialog>`) instead of opening its rows inside the table, at the user's request to try "full mod info in a card". Esc, ✕ or a click outside closes it; it's in the URL as `open=<mod id>`.
+
+- **Header:** the mod's name, its ID and GameBanana title, its slot tag. It stays put while the body scrolls.
+- **Summary:** a big bar with "x/y sides" and the status; Deaths, Time, Hearts and Berries as labeled figures; a bar per side letter (A, B, C) when the mod has more than A sides; "not in the Mods folder" and "not loaded" as notes.
+- **Slots:** in the all-slots view, a table of every slot it was played in (sides, deaths, time), the shown one first. Clicking a slot switches the page to that slot.
+- **Rows:** the level sets, chapters and sides as in the list's tree, with their thread lines; the column names stick at the top of the card.
+- The list's rows no longer open in place, so the list stays one row per mod.
+
+
 
 1. **Scan first, read second:** a row answers "how done is this?" at a glance, through the bar.
 2. **Celeste's own words:** sides, hearts, checkpoints, and the statuses below.

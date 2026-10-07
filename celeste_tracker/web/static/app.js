@@ -196,34 +196,22 @@ function numbers(v, bestTime) {
 }
 
 function modCard({ m, v }) {
-  const open = state.open.has(m.id);
+  // A row of the list; clicking it opens the mod's card (cardHtml) in front of the list.
   // The dim second line, as Olympus shows it: ID ∙ details (doc/UI.md, "What players already know").
   const sub = [m.id !== m.name ? m.id : "", m.sets.length > 1 ? `${m.sets.length} level sets` : ""]
     .filter(Boolean).join(" ∙ ");
   const chs = chapters(m);
-  return `<article class="mod${open ? " open" : ""}${m.user.dropped ? " dropped" : ""}" data-mod="${esc(m.id)}">
-    <div class="mod-head" role="button" tabindex="0" aria-expanded="${open}">
-      <span class="caret">▸</span>
+  return `<article class="mod${m.user.dropped ? " dropped" : ""}" data-mod="${esc(m.id)}">
+    <div class="mod-head" role="button" tabindex="0" aria-haspopup="dialog">
+      <span class="caret"></span>
       <span class="name">${esc(m.name)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</span>
       ${progress(v, q(m), !known(m))}
       ${numbers(v, chs.length === 1 ? best(chs[0]) : "")}
       <span class="hide-sm">${tags(m, v)}</span>
     </div>
-    ${open ? modBody(m, v) : ""}
   </article>`;
 }
 
-function modBody(m, v) {
-  const facts = [`<span>Mod ID <b>${esc(m.id)}</b></span>`];
-  if (m.gamebanana_title && m.gamebanana_title !== m.name) facts.push(`<span>GameBanana <b>${esc(m.gamebanana_title)}</b></span>`);
-  facts.push(`<span>Hearts collected <b>${v.hearts}</b></span>`);
-  if (state.key === "all" && v.slot) facts.push(`<span>${shownSlot(m, v)}</span>`);
-  if (!known(m)) facts.push(`<span>Not in the Mods folder: only what you opened is listed</span>`);
-  // Not on the row: on most rows, and it doesn't help pick what to play (user, 2026-10-08).
-  if (!v.loaded) facts.push(`<span>Everest didn't load this mod the last time the game saved</span>`);
-  return `<div class="mod-body">${guide({ kind: "mod", id: m.id, name: m.name })}<div class="facts">${facts.join("")}</div>${SHOW_EDITOR ? mineEditor(m) : ""}</div>` +
-    modRows(m);
-}
 
 function setLabel(ls) {
   return ls.title || ls.name.split("/").pop(); // under its mod, the last part of the ID is enough ("0-Gyms")
@@ -239,7 +227,7 @@ function treeRow(level, { attr = "", open = null, name, sub = "", strong = false
   // the mod first, each drawn as a thread line.
   const toggle = open !== null;
   return `<div class="trow${open ? " open" : ""}"${attr}${toggle ? ` role="button" tabindex="0" aria-expanded="${open}"` : ""}>
-    ${guide(anc[0])}
+    ${anc[0] ? guide(anc[0]) : "<span></span>"}
     <span class="tname${strong ? " strong" : ""}" style="--lvl:${level}">` +
     anc.slice(1).map((a, k) => guide(a, ` style="left:${k * 20 - 2}px"`)).join("") +
     `<span class="caret">${toggle ? "▸" : ""}</span>` +
@@ -248,7 +236,7 @@ function treeRow(level, { attr = "", open = null, name, sub = "", strong = false
 }
 
 function modRows(m) {
-  const chs = chapters(m), anc = [{ kind: "mod", id: m.id, name: m.name }];
+  const chs = chapters(m), anc = [null]; // in the card, the mod itself has no thread line
   if (chs.length === 1) { // a one-chapter mod: straight to its sides, or nothing more when it has one
     const sides = countedSides(chs[0]);
     return sides.length > 1 ? sides.map((s) => sideRow(s, 1, anc)).join("") : "";
@@ -284,15 +272,6 @@ function sideRow(s, level, anc) {
   return treeRow(level, { name: `${esc(s.side)} side`, v, bestTime: v.best_ticks ? fmtTime(v.best_ticks) : "-", anc });
 }
 
-function shownSlot(m, v) {
-  // "Shown: slot 1, your furthest; also played in slot 2 (2/3 sides), slot 31 (0/3 sides)". Every number on an
-  // opened mod comes from the slot shown; more than 6 other slots are just counted.
-  const others = v.slots.filter((k) => k !== v.slot);
-  if (!others.length) return `From slot <b>${esc(v.slot)}</b>, the only one it was played in`;
-  const list = others.length > 6 ? `${others.length} other slots`
-    : others.map((k) => `slot ${esc(k)} (${m.progress[k].sides_done}/${m.progress[k].sides_total} sides)`).join(", ");
-  return `Shown: <b>slot ${esc(v.slot)}</b>, your furthest; also played in ${list}`;
-}
 
 // The player's own fields (rating, difficulty, dropped, rename, note) are hidden on the page for now, at the
 // user's request (2026-10-05); the CLI still edits them, and the tags column still shows what's set.
@@ -409,8 +388,83 @@ function render() {
   $("list").innerHTML = rows.length ? listHead() + shown.map(modCard).join("") + (rows.length > 25 ? pager(rows.length, pages) : "")
     : `<div class="empty">No mods match. Clear the search or pick "All mods" under Show.</div>`;
   $("list").classList.toggle("more-cols", SHOW_BEST_BERRIES);
+  renderCard();
   measure();
   writeHash();
+}
+
+// ------------------------------------------------------------------ the mod card
+
+const cardMod = () => state.data.mods.find((m) => m.id === [...state.open][0]);
+
+function renderCard() {
+  // Clicking a mod opens one card in front of the list (a modal <dialog>): everything about the mod, then its level
+  // sets, chapters and sides as rows. It's in the URL as open=<mod id>, so it can be bookmarked.
+  const dlg = $("card"), m = cardMod();
+  if (!m) {
+    if (dlg.open) dlg.close();
+    return;
+  }
+  const body = dlg.querySelector(".card-body"), scroll = body && dlg.dataset.mod === m.id ? body.scrollTop : 0;
+  dlg.dataset.mod = m.id;
+  dlg.innerHTML = cardHtml(m, viewOf(m));
+  dlg.querySelector(".card-body").scrollTop = scroll; // a re-render (a row opened, the game saved) keeps the place
+  if (!dlg.open) dlg.showModal();
+}
+
+function cardHtml(m, v) {
+  const sub = [m.id !== m.name ? m.id : "", m.gamebanana_title && m.gamebanana_title !== m.name ? `GameBanana: ${m.gamebanana_title}` : ""]
+    .filter(Boolean).map(esc).join(" ∙ ");
+  const fig = (label, value) => `<div class="fig"><span>${label}</span><b class="num">${value}</b></div>`;
+  const played = !notPlayed(v);
+  const figs = [fig("Deaths", played ? fmtNum(v.deaths) : "–"), fig("Time", played ? fmtTime(v.ticks) : "–"),
+                fig("Hearts", fmtNum(v.hearts)), fig("Berries", played ? fmtNum(v.berries) : "–")];
+  // Sides per letter, each with its own bar ("B sides 5/10"); with only A sides, the big bar already says it.
+  const bySide = Object.entries(v.by_side || {});
+  const letters = bySide.length < 2 ? "" : bySide.map(([k, [d, t]]) =>
+    `<div class="letter"><span>${esc(k)} sides</span>${bar({ sides_done: d, sides_total: t })}<span class="num">${d}/${t}</span></div>`).join("");
+  const notes = [];
+  if (!known(m)) notes.push("Not in the Mods folder: only what you opened is listed, so the totals may be higher.");
+  if (!v.loaded) notes.push("Everest didn't load this mod the last time the game saved.");
+  if (m.user.note) notes.push(`Your note: ${esc(m.user.note)}`);
+  return `<header class="card-head">
+      <div class="card-title"><h2 id="card-title">${esc(m.name)}</h2>${sub ? `<p class="sub">${sub}</p>` : ""}</div>
+      <span class="tags">${tags(m, v)}</span>
+      <button type="button" class="card-close" data-close-card aria-label="Close" title="Close (Esc)">✕</button>
+    </header>
+    <div class="card-body">
+      <section class="card-sum">
+        <div class="card-progress">${progress(v, q(m), !known(m))}</div>
+        <div class="figs">${figs.join("")}</div>
+        ${letters ? `<div class="letters">${letters}</div>` : ""}
+        ${SHOW_EDITOR ? mineEditor(m) : ""}
+        ${notes.length ? `<ul class="notes">${notes.map((n) => `<li>${n}</li>`).join("")}</ul>` : ""}
+      </section>
+      ${slotTable(m, v)}
+      <section class="card-tree">
+        <div class="list-head card-cols" role="row"><span></span><span>${m.sets.length > 1 ? "Level set" : "Chapter"}</span>
+          <span>Sides</span><span class="right">Deaths</span><span class="right">Time</span><span></span></div>
+        ${modRows(m) || cardOneChapter(m)}
+      </section>
+    </div>`;
+}
+
+function cardOneChapter(m) {
+  // A mod of one chapter with one side has no rows under it: say so instead of an empty table.
+  return `<p class="muted card-empty">One chapter, one side: everything is above.</p>`;
+}
+
+function slotTable(m, v) {
+  // Every slot the mod was played in, the one shown first; clicking a slot shows the whole page for that slot.
+  if (state.key !== "all" || v.slots.length < 2) return "";
+  const rows = [v.slot, ...v.slots.filter((k) => k !== v.slot)].map((k) => {
+    const p = m.progress[k];
+    return `<tr data-slot="${esc(k)}" title="Show slot ${esc(k)}"><td class="num">Slot ${esc(k)}${k === v.slot ? ' <span class="muted">shown, your furthest</span>' : ""}</td>
+      <td class="num right">${p.sides_done}/${p.sides_total}</td><td class="num right">${fmtNum(p.deaths)}</td>
+      <td class="num right">${fmtTime(p.ticks)}</td></tr>`;
+  }).join("");
+  return `<section class="card-slots"><h3>Played in ${v.slots.length} slots</h3><table><thead><tr><th>Slot</th>
+    <th class="right">Sides</th><th class="right">Deaths</th><th class="right">Time</th></tr></thead><tbody>${rows}</tbody></table></section>`;
 }
 
 function measure() {
@@ -532,10 +586,21 @@ $("list").addEventListener("mouseover", (e) => {
   for (const g of document.querySelectorAll(same)) g.classList.add("hot");
 });
 
+function openCard(id) {
+  state.open = new Set([id]);
+  render();
+}
+
+function closeCard() {
+  if (!state.open.size) return;
+  state.open.clear();
+  render();
+}
+
 function openRow(target) {
   // A mod, level set or chapter row: open or close it. Returns false when the target isn't one.
   const head = target.closest(".mod-head"), set = target.closest(".trow[data-set]"), ch = target.closest(".trow[data-ch]");
-  if (head) toggle(state.open, head.closest(".mod").dataset.mod);
+  if (head) openCard(head.closest(".mod").dataset.mod);
   else if (set) toggle(state.openSet, set.dataset.set);
   else if (ch) toggle(state.openCh, ch.dataset.ch);
   return !!(head || set || ch);
@@ -554,17 +619,34 @@ $("list").addEventListener("change", (e) => {
   const key = e.target.closest(".mine").dataset.key;
   save(key, f, e.target.type === "checkbox" ? e.target.checked : e.target.value, e.target);
 });
+// The card: rows open and thread lines close as in the list; Esc, ✕ or a click outside the card closes it.
+$("card").addEventListener("click", (e) => {
+  if (e.target === $("card") || e.target.closest("[data-close-card]")) return $("card").close();
+  const slot = e.target.closest("[data-slot]");
+  if (slot) {
+    state.key = slot.dataset.slot;
+    $("slot").value = state.key;
+    return render();
+  }
+  const line = e.target.closest(".guide");
+  if (line) return closeFromLine(line);
+  openRow(e.target);
+});
+$("card").addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches("[role=button]") && openRow(e.target)) e.preventDefault();
+});
+$("card").addEventListener("close", closeCard);
+$("card").addEventListener("mouseover", (e) => {
+  const line = e.target.closest(".guide");
+  for (const g of document.querySelectorAll(".guide.hot")) g.classList.remove("hot");
+  if (!line) return;
+  const same = `.guide[data-close="${line.dataset.close}"][data-id="${CSS.escape(line.dataset.id)}"]`;
+  for (const g of document.querySelectorAll(same)) g.classList.add("hot");
+});
 $("sessions").addEventListener("toggle", (e) => { sessionsOpen = e.target.open; }, true);
 $("sessions").addEventListener("click", (e) => {
   const a = e.target.closest("[data-goto]");
-  if (!a) return;
-  state.open.add(a.dataset.goto);
-  state.q = "";
-  $("q").value = "";
-  const i = visibleMods().findIndex(({ m }) => m.id === a.dataset.goto);  // go to the page that has it
-  if (i >= 0 && state.per) state.page = Math.floor(i / state.per) + 1;
-  render();
-  document.querySelector(`.mod[data-mod="${CSS.escape(a.dataset.goto)}"]`)?.scrollIntoView({ block: "start" });
+  if (a) openCard(a.dataset.goto);
 });
 
 let typingTimer;
@@ -578,6 +660,7 @@ $("refresh").addEventListener("click", () => load(true));
 // "/" jumps to the search, as on GitHub and YouTube, unless the player is typing somewhere already.
 document.addEventListener("keydown", (e) => {
   if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, textarea, select")) return;
+  if ($("card").open) $("card").close(); // the search is behind the card
   e.preventDefault();
   $("q").focus();
   $("q").select();
