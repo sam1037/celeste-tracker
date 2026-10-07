@@ -167,8 +167,10 @@ const notPlayed = (v) => v.status === "not started" || v.status === "not opened"
 const dash = (v, text) => (notPlayed(v) ? "-" : text);
 
 function progress(v, mark = "", unsure = false) {
-  // The bar, "x/y sides" under it, and the status at the right under it: there's no Status column.
-  return `<span class="progress">${bar(v)}<small><span class="num">${v.sides_done}/${v.sides_total}${mark} sides</span>` +
+  // The bar, "x/y sides" under it, and the status at the right under it: there's no Status column. A single side
+  // (a side row, a one-side chapter or mod) has no count: "1/1 sides" only repeated the bar and the status.
+  const count = v.sides_total === 1 && !mark ? "" : `${v.sides_done}/${v.sides_total}${mark} sides`;
+  return `<span class="progress">${bar(v)}<small><span class="num">${count}</span>` +
     `${status(v.status, unsure)}</small></span>`;
 }
 

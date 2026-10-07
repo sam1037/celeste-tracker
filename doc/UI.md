@@ -43,7 +43,7 @@ This is the "Ice blue" palette, one hue on plain greys. The user found the first
 
 ## Progress bar
 
-Every row has one bar with "x/y sides" under it, at every level: mod, level set, chapter and side (a side is 0/1 or 1/1). It's filled in the progress color by the share of sides cleared. Hovering over a mod's or level set's bar lists the sides per letter ("B sides: 5 of 10 cleared"), from `by_side` in every view (DESIGN.md "JSON export"), so the page applies no rules.
+Every row has one bar with "x/y sides" under it, at every level: mod, level set, chapter and side. A row of a single side (a side, a one-side chapter or mod) has no count, only the bar and the status: "1/1 sides" next to "completed" and a full bar said the same thing three times (2026-10-08). It's filled in the progress color by the share of sides cleared. Hovering over a mod's or level set's bar lists the sides per letter ("B sides: 5 of 10 cleared"), from `by_side` in every view (DESIGN.md "JSON export"), so the page applies no rules.
 
 The first version split the bar into A | B | C portions in the three heart colors. It read as a jumble when a later side was done before an earlier one (Dream to Awakening: B cleared, A not), so it went back to one bar in one color (2026-10-05).
 
