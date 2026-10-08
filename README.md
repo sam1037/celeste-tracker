@@ -6,7 +6,17 @@ One row per **mod**, named the way you know it from Olympus (its GameBanana titl
 
 With `--mods` it reads your Mods folder (zip file lists, `everest.yaml` and `Dialog/English.txt` only) for each mod's chapters and sides and their in-game titles. Mod names come from Everest's public mod list (the same one Olympus uses), downloaded once a week and cached; nothing about your saves is sent. Without internet it uses the chapter's title, then the level set's title, then the mod's ID.
 
-## Run
+## Download (players)
+
+Get the zip for your system from the [Releases page](https://github.com/sam1037/celeste-tracker/releases), unzip it anywhere, and start it. It finds your Celeste folder by itself (from Olympus or Steam); if it can't, it asks you to pick the folder Celeste is installed in. Your progress shows up as a page in its own window, and follows the game while you play.
+
+- **Windows:** unzip, open the `CelesteTracker` folder, run `CelesteTracker.exe`. Windows may warn that the app is from an unknown publisher: click *More info*, then *Run anyway*.
+- **macOS:** unzip and move *Celeste Tracker* to Applications. The app isn't signed, so the first time, open it, close the warning, then go to System Settings > Privacy & Security and click *Open Anyway*.
+- **Linux:** run it from source (below): `uv run --extra desktop celeste_desktop.py`, or `uv run celeste_progress.py --serve` for the page in your browser.
+
+It only reads your saves and mods, and never changes them. Its own files (notes, ratings, caches, `desktop.log`) are in `%APPDATA%\celeste-tracker` on Windows and `~/Library/Application Support/celeste-tracker` on macOS.
+
+## Run from source
 
 ```bash
 S="/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Saves"   # Windows saves, from WSL
@@ -39,12 +49,17 @@ The tool only reads your saves and mods; it never writes to them.
 ## Develop
 
 ```bash
-uv run pytest     # tests use made-up saves in tests/fixtures, never real ones
+uv run pytest                                  # tests use made-up saves in tests/fixtures, never real ones
+uv run --extra desktop celeste_desktop.py      # the desktop window (--browser for the browser, --saves, --config)
+uv run --group build --extra desktop pyinstaller packaging/celeste-tracker.spec --noconfirm   # build for this OS
 ```
+
+Releases: push a tag like `v0.2.0`, and `.github/workflows/release.yml` tests, builds Windows and macOS, and publishes both zips. *Run workflow* on the Actions tab builds without publishing.
 
 ## Files
 
-- `celeste_tracker/`: the code (layout in `doc/DESIGN.md`); `celeste_progress.py` is a thin entry point
+- `celeste_tracker/`: the code (layout in `doc/DESIGN.md`); `celeste_progress.py` (CLI) and `celeste_desktop.py` (window) are thin entry points
+- `packaging/`: the PyInstaller spec for the downloads
 - `tests/`: pytest tests and made-up fixture saves
 - `doc/PRD.md`: goal, users, requirements and the definition of "completed"
 - `doc/DESIGN.md`: tech stack and architecture

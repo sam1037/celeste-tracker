@@ -98,6 +98,7 @@ def run_window(webview, cfg_file, saves_dir, offline):
             window.load_html(PAGE % f"<h1>Something went wrong</h1><p>{html.escape(repr(e))}</p>")
             return
         servers.append(server)
+        print(f"Celeste tracker running at {url} (saves: {saves})")
         window.load_url(url)
 
     class Api:
@@ -143,7 +144,7 @@ def run_browser(cfg_file, saves_dir, offline):
             sys.exit(f"{problem} You can also pass --saves <folder>.")
         remember(cfg_file, saves_dir)
     server, url = start_server(cfg_file, saves_dir, offline)
-    print(f"Celeste tracker running at {url}  (close this window or press Ctrl+C to stop)")
+    print(f"Celeste tracker running at {url} (saves: {saves_dir}); close this window or press Ctrl+C to stop")
     webbrowser.open(url)
     try:
         threading.Event().wait()

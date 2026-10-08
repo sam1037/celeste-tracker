@@ -7,13 +7,13 @@ How the tracker is built. What it does is in [PRD.md](PRD.md). Status and file-f
 | Topic | Decision | Why |
 |---|---|---|
 | Language | Python, managed with uv | The parser already works. The standard library covers XML, zip, `struct` (map `.bin`), `sqlite3` and `http.server` |
-| Runtime dependencies | Standard library only until the desktop phase, then `pywebview` | Keeps running and packaging simple |
-| Dev dependencies | `pytest` | |
+| Runtime dependencies | Standard library only, plus `pywebview` for the desktop window, as the optional `desktop` extra | The CLI and `--serve` stay standard library only |
+| Dev dependencies | `pytest`; `pyinstaller` in the `build` group | |
 | Code layout | A `celeste_tracker/` package, replacing the single script | The script is ~670 lines, and the later items add a store, a server and a `.bin` parser |
 | Storage | SQLite file in the user data folder (never in the repo) | Needed for snapshots (dates), editable fields and caches. `sqlite3` is in the standard library |
 | Mod names | GameBanana titles from Everest's public mod database (maddie480.ovh), downloaded with `urllib`, cached in the user data folder | The zip only holds the mod ID; the title players know is only on GameBanana. Optional: everything works offline |
 | UI | One HTML/JS page that reads the JSON API. First served by `--serve` in the browser, then shown in a `pywebview` desktop window | The same page works in both. No build step while the UI is small |
-| Distribution (later) | PyInstaller `.exe` for Windows players | Players don't need Python, uv or WSL |
+| Distribution | PyInstaller builds from GitHub Actions, published as GitHub releases: a Windows folder (zipped) and an unsigned macOS `.app` | Players don't need Python, uv or WSL. PyInstaller can't cross-build, so CI builds each OS on its own runner |
 
 Users today: only the author, running from WSL. Later: other players, mostly on Windows. Choices that only matter for other players (installer, auto-detecting the Celeste folder, a desktop window) can wait, but nothing should block them. In particular, the core must not assume WSL paths.
 
@@ -37,7 +37,7 @@ Everest mod database  ─┘    ▲                                            �
 
 ```
 celeste_tracker/
-  paths.py      find Saves and Mods (per OS, config file, CLI flags)
+  paths.py      find Saves and Mods (config file, CLI flags, else Olympus's installs, Steam libraries, Epic, itch)
   save.py       .celeste XML -> raw records (slot, sets, areas, sides, session)
   mods.py       zip / folder scan: map list, sides per map, dialog titles, mod IDs
   moddb.py      Everest's public mod database: mod ID -> GameBanana title, downloaded and cached
@@ -49,6 +49,8 @@ celeste_tracker/
   export.py     model -> JSON
   cli.py        argparse, text and markdown rendering
   web/          server.py + static/index.html, app.js, style.css, fonts/: the --serve page
+  desktop.py    the page in a pywebview window, the folder picker, the browser fallback
+packaging/      PyInstaller spec (.github/workflows/release.yml runs it)
 tests/
   fixtures/     small made-up .celeste files and mod zips, safe to commit
 ```
@@ -167,6 +169,17 @@ How the page looks (tokens, the side strip, layout) is in [UI.md](UI.md). This s
 - `app.js` applies no rules: statuses and totals come from the JSON. It filters, sorts and draws: mod rows → level sets (collabs only) → chapters → sides, skipping a level with one entry. View state (slot, filter, sort, search, open mods / level sets / chapters) is in the URL hash.
 - No framework and no build step: ~400 lines of JS. Revisit if the UI grows.
 
+## Desktop app
+
+For players who don't use a terminal: `celeste_desktop.py` (`celeste_tracker/desktop.py`) is what the downloads run.
+
+- **Same page, same server.** It starts the `--serve` server on a free port (port 0, so it never clashes with another copy or a `--serve`) on a daemon thread, and shows `http://localhost:<port>/` in a pywebview window: Edge WebView2 on Windows (part of Windows 11 and updated Windows 10), WebKit on macOS. Nothing in the page knows it's in a window.
+- **Finding the game.** The config file's `saves` first, else `paths.find_saves_dir()`: Olympus's `config.json` (it lists the installs it manages; `%LOCALAPPDATA%\Olympus` on Windows), every Steam library (the registry's `SteamPath`, then `steamapps/libraryfolders.vdf` for other drives), the Epic and itch folders, then the OS's usual user folders. A folder with save slots wins over an empty one. The Mods folder is Everest's next to Saves, else one in a known Celeste folder.
+- **Nothing found:** the window shows a "Where is Celeste?" page with a folder picker (pywebview's dialog), accepts the Celeste folder or the Saves folder, and writes `saves` to the config file.
+- **No window possible** (pywebview missing, no WebView2, no GTK or Qt on Linux): the page opens in the default browser, with tkinter's folder picker if needed.
+- **Logs:** a windowed build has no console, so notes and errors go to `desktop.log` next to the config, which a player can attach to a bug report.
+- **Build:** `packaging/celeste-tracker.spec`, a one-folder build (starts faster and gets fewer antivirus false alarms than one file), no UPX. `.github/workflows/release.yml` runs the tests, then builds on `windows-latest` and `macos-latest`; a `v*` tag publishes both zips as a GitHub release. The macOS app is unsigned: players open it through System Settings > Privacy & Security > Open Anyway. Signing costs $99/year and waits until Mac players ask.
+
 ## Testing
 
 - `pytest` with fixtures in `tests/fixtures/`: small hand-written saves and mod zips covering B/C folding, B/C-only maps, AltSidesHelper `-D` maps, placeholder sides, the recycle bin and the session. Real saves never go in git.
@@ -182,7 +195,7 @@ How the page looks (tokens, the side strip, layout) is in [UI.md](UI.md). This s
 4. Mods as the top level (PRD #1, #3, #8, #9, #12): catalog / progress split, chapters grouped by zip, the all-slots view as the default (`--slot N` filters; since 2026-10-05 each mod shows its furthest slot instead of a per-side merge), `moddb.py` and GameBanana names, JSON schema 2. The overview gets one row per mod, with the level sets indented under a mod that has several; `--set` also accepts a mod name. (done; the combined CLI view leaves out the long unfinished-chapters list and points to `--set` / `--slot N`)
 5. Store: move notes over, add user fields and mod renames, cache the mod scan. (done)
 6. `--serve` UI. (done)
-7. For other players: `pywebview` window, PyInstaller build, auto-detect the Celeste folder.
+7. For other players: `pywebview` window, PyInstaller build, auto-detect the Celeste folder. (in progress, see Desktop app)
 
 ## Maybe later
 
@@ -193,5 +206,5 @@ Not planned; worth doing if the need shows up.
 
 ## Open design questions
 
-- Desktop shell: `pywebview` is the plan. Revisit Tauri only if the Python window falls short (size, look, auto-update).
+- Desktop shell: `pywebview`. Revisit Tauri only if the Python window falls short (size, look, auto-update).
 - Whether the UI needs a framework (Preact or Svelte) once it has filters and editing. Start without one.

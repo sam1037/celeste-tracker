@@ -19,7 +19,7 @@ Build status, the save and mod file format, and open technical questions. What t
 | 11 | Read-only | holds today, keep it |
 | 12 | Offline, nothing sent | holds. The only network use is two GETs for the public mod list, at most weekly (`--offline` to skip); the cache is `moddb.json` next to the config |
 
-UI (Later): `--serve` done, see DESIGN "UI". Desktop window and the Windows download are still todo.
+UI (Later): `--serve` done, see DESIGN "UI". Desktop window and downloads (DESIGN step 7, branch `desktop-release`): `celeste_desktop.py` shows the page in a pywebview window; `packaging/celeste-tracker.spec` and `.github/workflows/release.yml` build a Windows folder and an unsigned macOS app. Verified 2026-10-08 on the author's PC: the Windows build (35 MB) found the Steam Saves and Mods folders with no config, 32 slots and 273 mods. Not verified yet: the macOS build (built only by CI), the folder picker on a PC where nothing is found, the browser fallback without WebView2, and Olympus's `config.json` format (the reader follows Olympus's public format, `installs: [{path}]`).
 
 Should have: config file done (`--save-config`). User fields done: note, rating (`--rate`, 1-5), difficulty (free text), dropped (`--drop`/`--undrop`), mod rename (`--rename`), in `tracker.db` next to the config. Extra stats (best time, best deaths, berries per side) are in the model and JSON but not shown yet.
 
@@ -74,7 +74,8 @@ Technical notes on the "Later" items:
 ## TODO
 
 - See how players track progress manually in Excel sheets, to find which columns matter. First pass (2026-10-04): no public personal sheets found. The community challenge lists (Hardest Maps Clear List, goldberries.net) give each side its own entry and mark the level of clearing (clear, full clear, golden). This is why the side became the unit. Real personal sheets would still help: ask in r/celestegame or the Celeste Discord.
-- Next build step: DESIGN.md step 7, for other players: the desktop window, the Windows download, auto-detecting the Celeste folder. Snapshots and `.bin` parsing moved to DESIGN's "Maybe later".
+- Next build step: finish DESIGN.md step 7: check the macOS build and the Windows folder picker, add an app icon, then tag the first release. Snapshots and `.bin` parsing moved to DESIGN's "Maybe later".
+- Desktop app, later: edit fields in the page (the window has no CLI), a single instance (a second start opens a second window today), code signing if players hit SmartScreen or Gatekeeper too often.
 - Page help (user, 2026-10-08): tell players how to use the page: rows open by clicking, columns sort by clicking their header, `/` jumps to the search, what the statuses, "slot 1 (+5)", ⊘ (not loaded) and "?" totals mean, and that the page updates by itself when the game saves. Ideas to compare, from mature tools:
   - An info or "?" button in the top bar that opens a short help panel (Linear and Notion keep a "?" in a corner; GitHub's help menu).
   - `?` opens a list of keyboard shortcuts (GitHub, Gmail, YouTube), next to `/` for the search.
