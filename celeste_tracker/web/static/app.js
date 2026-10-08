@@ -639,6 +639,7 @@ $("list").addEventListener("pointerdown", (e) => {
   const fixed = shownCols().filter((x) => x !== flex).reduce((a, x) => a + colWidth(x), 0);
   const spare = Math.max(0, head.clientWidth - pad - ARROW - GAP * shownCols().length - fixed - flex.min);
   grip.setPointerCapture(e.pointerId);
+  grip.classList.add("drag");
   document.body.classList.add("resizing");
   const move = (ev) => {
     // d > 0: the line moves right, the left column widens and the right one narrows
@@ -654,6 +655,7 @@ $("list").addEventListener("pointerdown", (e) => {
   };
   const up = () => {
     grip.removeEventListener("pointermove", move);
+    grip.classList.remove("drag");
     document.body.classList.remove("resizing");
     measure();
     savePrefs();

@@ -182,11 +182,13 @@ button:hover { border-color: var(--summit); }
 .list-head .th { display: flex; min-width: 0; position: relative; }
 /* The resize grip, on the gap left of a column: drag it to move the line between the two columns (app.js).
    ew-resize, not col-resize: Chrome on Windows draws col-resize as a white bar, hard to see on the white header;
-   ew-resize is the system's black arrow. */
+   ew-resize is the system's black arrow. The line always shows, faint, so it's clear the columns can be resized (as
+   in AG Grid and Excel); it turns blue and thicker under the mouse and while dragged. It's a border, not a filled
+   box: browsers round border widths to whole screen pixels, so every line is as thick as the others on a scaled
+   screen (at 125%, a 2px box came out 2 or 3 pixels wide depending on where it fell). */
 .grip { position: absolute; top: -7px; bottom: -7px; left: -12px; width: 12px; cursor: ew-resize; z-index: 1; touch-action: none; }
-.grip::after { content: ""; position: absolute; top: 9px; bottom: 9px; left: 5px; width: 2px; border-radius: 1px; }
-.list-head:hover .grip::after { background: var(--line); }
-.grip:hover::after, .resizing .grip::after { background: var(--summit); }
+.grip::after { content: ""; position: absolute; top: 9px; bottom: 9px; left: 5px; border-left: 1px solid var(--guide); }
+.grip:hover::after, .grip.drag::after { border-left: 2px solid var(--summit); }
 body.resizing { cursor: ew-resize; user-select: none; }
 .list-head .th.right { justify-content: flex-end; }
 .list-head button {
