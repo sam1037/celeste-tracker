@@ -691,6 +691,12 @@ document.addEventListener("click", (e) => {
   if (menu.open && !menu.contains(e.target)) menu.open = false;
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("cols-menu").open = false; });
+
+// Help: the ? button or the ? key opens it; Escape (the dialog's own), the ✕ or a click outside closes it.
+$("help-open").addEventListener("click", () => $("help").showModal());
+$("help").addEventListener("click", (e) => {
+  if (e.target.closest("[data-close-help]") || e.target === $("help")) $("help").close();  // the backdrop is the dialog itself
+});
 $("sessions").addEventListener("toggle", (e) => { sessionsOpen = e.target.open; }, true);
 $("sessions").addEventListener("click", (e) => {
   const a = e.target.closest("[data-goto]");
@@ -714,6 +720,10 @@ $("show").addEventListener("change", (e) => { state.show = e.target.value; state
 $("refresh").addEventListener("click", () => load(true));
 // "/" jumps to the search, as on GitHub and YouTube, unless the player is typing somewhere already.
 document.addEventListener("keydown", (e) => {
+  if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.closest("input, textarea, select") && !$("help").open) {
+    e.preventDefault();
+    return $("help").showModal();
+  }
   if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, textarea, select")) return;
   e.preventDefault();
   $("q").focus();

@@ -16,8 +16,62 @@
     <div class="actions">
       <span id="live" class="muted" title="The page reloads by itself when the game saves">● live</span>
       <button id="refresh" type="button" title="Read the Mods folder and all saves again">Refresh</button>
+      <button id="help-open" class="help-btn" type="button" title="How to use this page (?)" aria-label="Help">?</button>
     </div>
   </header>
+
+  <!-- Help (doc/UI.md, "Help"): opened by the ? button or the ? key, closed by Escape or a click outside. -->
+  <dialog id="help" class="help" aria-labelledby="help-title">
+    <div class="help-head">
+      <h2 id="help-title">How to use Celeste Tracker</h2>
+      <button type="button" class="help-close" data-close-help aria-label="Close help">✕</button>
+    </div>
+    <div class="help-body" tabindex="-1" autofocus><!-- focused on open, so arrow keys scroll it -->
+      <section>
+        <h3>Reading a row</h3>
+        <p>Each row is a mod. The bar and <b>x/y sides</b> show how many sides (A, B, C and any extra sides) you've
+          cleared. Hover over a bar to see the count for each side letter.</p>
+        <dl>
+          <dt>completed</dt><dd>every side cleared</dd>
+          <dt>in progress</dt><dd>opened, with sides still to clear</dd>
+          <dt>not started</dt><dd>never opened</dd>
+          <dt>3/5? sides</dt><dd>the mod isn't in your Mods folder, so only the maps you opened are counted</dd>
+        </dl>
+      </section>
+      <section>
+        <h3>Slots</h3>
+        <p>With <b>All slots</b>, each mod shows the save slot where you got furthest with it, and the <b>Slot</b>
+          column says which. Hover over the number to see the other slots you played it in. Pick one slot in the
+          <b>Slot</b> menu to see only that one.</p>
+      </section>
+      <section>
+        <h3>The table</h3>
+        <ul>
+          <li>Click a row to open it: a mod opens to its level sets, a level set to its chapters, a chapter to its
+            sides. Click the thin line down the left side to close it again.</li>
+          <li>Click a column name to sort by it; click it again to flip the order.</li>
+          <li><b>Columns</b> shows or hides columns (Best and Berries are hidden at first).</li>
+          <li>Drag the line between two column names to resize them; double-click it to reset them.</li>
+          <li>The search matches mod names, authors, mod IDs, level sets and chapters.</li>
+        </ul>
+      </section>
+      <section>
+        <h3>Keys</h3>
+        <dl class="keys">
+          <dt><kbd>/</kbd></dt><dd>search</dd>
+          <dt><kbd>?</kbd></dt><dd>this help</dd>
+          <dt><kbd>Esc</kbd></dt><dd>close a menu or this help</dd>
+        </dl>
+      </section>
+      <section>
+        <h3>Staying up to date</h3>
+        <p>The page updates by itself when the game saves (<span class="live-dot">●</span> live). Press
+          <b>Refresh</b> after installing or updating mods, to read the Mods folder again.</p>
+        <p class="muted">The tracker only reads your save files and never changes them. Saves don't record
+          dates, so it can't tell when you played something.</p>
+      </section>
+    </div>
+  </dialog>
 
   <section class="toolbar" aria-label="Filters">
     <input id="q" type="search" placeholder="Search by mod name, author, ID, level set or chapter (press /)" autocomplete="off">
