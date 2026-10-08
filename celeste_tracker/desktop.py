@@ -127,8 +127,9 @@ def run_window(webview, cfg_file, saves_dir, offline):
             if problem:
                 return problem
             remember(cfg_file, saves)
-            window.load_html(LOADING)
-            show(saves)
+            # Change the page only after this call has returned: pywebview hands the return value to the page,
+            # which fails (an error in the log) if the page is already gone.
+            threading.Timer(0.5, lambda: (window.load_html(LOADING), show(saves))).start()
             return ""
 
     def started():
