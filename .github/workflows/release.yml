@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - run: uv run pytest -q
 
   build:
@@ -26,11 +26,13 @@ jobs:
           - os: macos-latest
             zip: CelesteTracker-macos.zip
     runs-on: ${{ matrix.os }}
+    env:
+      UV_PYTHON: "3.12"  # the Python that gets bundled into the build
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
-      - run: uv sync --group build --extra desktop --python 3.12
-      - run: uv run pyinstaller packaging/celeste-tracker.spec --noconfirm
+      - uses: astral-sh/setup-uv@v7
+      # the same --group/--extra on uv run, or it syncs back to the default environment, without PyInstaller
+      - run: uv run --group build --extra desktop pyinstaller packaging/celeste-tracker.spec --noconfirm
       - if: runner.os == 'Windows'
         run: Compress-Archive -Path dist/CelesteTracker -DestinationPath ${{ matrix.zip }}
       - if: runner.os == 'macOS'
