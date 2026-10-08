@@ -1,10 +1,20 @@
-# celeste-tracker
+# Celeste-tracker
 
 See your Celeste mod progress straight from the save files, without enabling the mods (loading many mods slows the game down). Standard library only.
 
 One row per **mod**, named the way you know it from Olympus (its GameBanana title), with collabs split into their level sets underneath. Progress is counted in **sides**: a chapter's A, B and C sides each count once, and a side is done when it's cleared (crystal hearts are shown, but don't count). By default all your save slots are shown together: each mod shows the slot where you got furthest in it (the row says which), and opening it lists the other slots you played it in.
 
 With `--mods` it reads your Mods folder (zip file lists, `everest.yaml` and `Dialog/English.txt` only) for each mod's chapters and sides and their in-game titles. Mod names come from Everest's public mod list (the same one Olympus uses), downloaded once a week and cached; nothing about your saves is sent. Without internet it uses the chapter's title, then the level set's title, then the mod's ID.
+
+## Demo
+
+![Opening a collab to its tiers and chapters, then searching for a mod and opening its A, B and C sides](doc/media/demo.gif)
+
+| Every mod, from the slot you got furthest in | A collab opens to its tiers | One mod opens to its sides |
+|---|---|---|
+| [![Overview: one row per mod with sides done, deaths, time and slot](doc/media/overview.png)](doc/media/overview.png) | [![Spring Collab 2020 opened to its six tiers](doc/media/collab.png)](doc/media/collab.png) | [![Sentient Forest opened to its A, B and C sides](doc/media/sides.png)](doc/media/sides.png) |
+
+*The author's own saves: 32 slots, about 270 mods.*
 
 > **Made with AI.** Most of this project's code and docs were written with an AI coding assistant ([Claude Code](https://claude.com/claude-code)), directed, reviewed and tested by the author on their own saves and Mods folder. It can still have mistakes, so if a number looks wrong, compare it with the game and [open an issue](https://github.com/sam1037/celeste-tracker/issues). The tool only reads your files, so a bug can show wrong progress but can't change your saves or mods.
 
