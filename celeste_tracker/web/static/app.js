@@ -172,11 +172,11 @@ function ownTags(m) {
 
 // ------------------------------------------------------------------ columns
 
-// The columns after the arrow (doc/UI.md, "Columns"). Mod always shows and takes the width that's left; the
-// others have a width in px that the player can drag (the grip on a column's left edge), and can be hidden from
-// the Columns menu. Best and Berries start hidden (user, 2026-10-07). Slot only shows with "All slots".
+// The columns after the arrow (doc/UI.md, "Columns"). Each has a width in px that the player can drag (the line
+// between two columns), except the flexible one, which takes the width that's left: Sides (a longer bar is more use
+// than room after a name), or Mod when Sides is hidden. Every column but Mod can be hidden from the Columns menu. Best and Berries start hidden (user, 2026-10-07). Slot only shows with "All slots".
 const COLUMNS = [
-  { id: "mod", label: "Mod", sort: "name", what: "name", min: 160 },
+  { id: "mod", label: "Mod", sort: "name", what: "name", width: 320, min: 160 },
   { id: "author", label: "Author", sort: "author", width: 170, min: 60 },
   { id: "sides", label: "Sides", sort: "progress", what: "sides cleared", width: 220, min: 120 },
   { id: "deaths", label: "Deaths", sort: "deaths", width: 64, min: 48, right: true },
@@ -192,11 +192,12 @@ let prefs = { hidden: DEFAULT_HIDDEN, widths: {} };
 const colWidth = (c) => prefs.widths[c.id] || c.width;
 const canShow = (c) => c.id !== "slot" || state.key === "all";
 const shownCols = () => COLUMNS.filter((c) => c.id === "mod" || (canShow(c) && !prefs.hidden.includes(c.id)));
+const flexCol = () => shownCols().find((c) => c.id === "sides") || COLUMNS[0];
 
 function applyColumns() {
   // The grid every row uses; rows inside an opened mod have no author, so their name takes its place too.
-  const cols = shownCols(), list = $("list").style;
-  list.setProperty("--mod-cols", `${ARROW}px ` + cols.map((c) => (c.width ? `${colWidth(c)}px` : `minmax(${c.min}px, 1fr)`)).join(" "));
+  const cols = shownCols(), flex = flexCol(), list = $("list").style;
+  list.setProperty("--mod-cols", `${ARROW}px ` + cols.map((c) => (c === flex ? `minmax(${c.min}px, 1fr)` : `${colWidth(c)}px`)).join(" "));
   list.setProperty("--name-span", cols.some((c) => c.id === "author") ? 2 : 1);
 }
 
@@ -431,7 +432,7 @@ function listHead() {
   // Each column but Mod has a grip on its left edge: drag it to resize the column, double-click it for the default.
   const th = (c) => {
     const extra = `${c.right ? " right" : ""}${c.id === "mod" || c.id === "sides" ? "" : " hide-sm"}`;
-    const grip = c.width ? `<span class="grip" data-grip="${c.id}" title="Drag to resize ${c.label}, double-click for the default"></span>` : "";
+    const grip = c.id !== "mod" ? `<span class="grip" data-grip="${c.id}" title="Drag to resize, double-click for the default widths"></span>` : "";
     if (!c.sort) return `<span class="th${extra}" role="columnheader"${c.help ? ` title="${esc(c.help)}"` : ""}>${grip}${c.label}</span>`;
     const on = state.sort === c.sort, dir = on ? sortDir() : FIRST_DIR[c.sort];
     const next = on ? (dir === "asc" ? "desc" : "asc") : dir;
@@ -621,20 +622,34 @@ $("list").addEventListener("change", (e) => {
   const key = e.target.closest(".mine").dataset.key;
   save(key, f, e.target.type === "checkbox" ? e.target.checked : e.target.value, e.target);
 });
-// Resizing a column: the grip sits on the column's left edge, and the columns right of it keep their place, so
-// dragging left widens the column and the Mod column gives up the width. Mod never gets narrower than its minimum.
+// Resizing a column: the grip on a column's left edge is the line between it and the column before it, and dragging
+// it moves only that line: the two columns change width in opposite directions, and every other line stays put.
+// When one of the two is the flexible column, it changes by itself, never below its minimum.
+const pairOf = (id) => {
+  const cols = shownCols(), i = cols.findIndex((x) => x.id === id);
+  return [cols[i - 1], cols[i]];
+};
 $("list").addEventListener("pointerdown", (e) => {
   const grip = e.target.closest("[data-grip]");
   if (!grip || e.button !== 0) return;
   e.preventDefault();
-  const c = COLUMNS.find((x) => x.id === grip.dataset.grip), x0 = e.clientX, w0 = colWidth(c);
+  const [left, right] = pairOf(grip.dataset.grip), flex = flexCol(), x0 = e.clientX;
+  const l0 = colWidth(left), r0 = colWidth(right);
   const head = grip.closest(".list-head"), pad = parseFloat(getComputedStyle(head).paddingLeft) * 2;
-  const others = shownCols().filter((x) => x.width && x !== c).reduce((a, x) => a + colWidth(x), 0);
-  const max = head.clientWidth - pad - ARROW - GAP * shownCols().length - others - COLUMNS[0].min;
+  const fixed = shownCols().filter((x) => x !== flex).reduce((a, x) => a + colWidth(x), 0);
+  const spare = Math.max(0, head.clientWidth - pad - ARROW - GAP * shownCols().length - fixed - flex.min);
   grip.setPointerCapture(e.pointerId);
   document.body.classList.add("resizing");
   const move = (ev) => {
-    prefs.widths = { ...prefs.widths, [c.id]: Math.round(Math.min(Math.max(c.min, w0 + x0 - ev.clientX), Math.max(c.min, max))) };
+    // d > 0: the line moves right, the left column widens and the right one narrows
+    let d = ev.clientX - x0;
+    if (left === flex) d = Math.min(Math.max(d, -spare), r0 - right.min);
+    else if (right === flex) d = Math.min(Math.max(d, left.min - l0), spare);
+    else d = Math.min(Math.max(d, left.min - l0), r0 - right.min);
+    const w = { ...prefs.widths };
+    if (left !== flex) w[left.id] = Math.round(l0 + d);
+    if (right !== flex) w[right.id] = Math.round(r0 - d);
+    prefs.widths = w;
     applyColumns();
   };
   const up = () => {
@@ -647,11 +662,13 @@ $("list").addEventListener("pointerdown", (e) => {
   grip.addEventListener("pointerup", up, { once: true });
   grip.addEventListener("pointercancel", up, { once: true });
 });
+// Double-clicking a line gives the columns on both sides of it their default widths.
 $("list").addEventListener("dblclick", (e) => {
   const grip = e.target.closest("[data-grip]");
   if (!grip) return;
-  const { [grip.dataset.grip]: _, ...rest } = prefs.widths;
-  prefs.widths = rest;
+  const widths = { ...prefs.widths };
+  for (const c of pairOf(grip.dataset.grip)) delete widths[c.id];
+  prefs.widths = widths;
   applyColumns();
   savePrefs();
 });
