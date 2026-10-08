@@ -6,13 +6,17 @@ One row per **mod**, named the way you know it from Olympus (its GameBanana titl
 
 With `--mods` it reads your Mods folder (zip file lists, `everest.yaml` and `Dialog/English.txt` only) for each mod's chapters and sides and their in-game titles. Mod names come from Everest's public mod list (the same one Olympus uses), downloaded once a week and cached; nothing about your saves is sent. Without internet it uses the chapter's title, then the level set's title, then the mod's ID.
 
+> **Made with AI.** Most of this project's code and docs were written with an AI coding assistant ([Claude Code](https://claude.com/claude-code)), directed, reviewed and tested by the author on their own saves and Mods folder. It can still have mistakes, so if a number looks wrong, compare it with the game and [open an issue](https://github.com/sam1037/celeste-tracker/issues). The tool only reads your files, so a bug can show wrong progress but can't change your saves or mods.
+
 ## Download (players)
 
 Get the zip for your system from the [Releases page](https://github.com/sam1037/celeste-tracker/releases), unzip it anywhere, and start it. It finds your Celeste folder by itself (from Olympus or Steam); if it can't, it asks you to pick the folder Celeste is installed in. Your progress shows up as a page in its own window, and follows the game while you play.
 
 - **Windows:** unzip, open the `CelesteTracker` folder, run `CelesteTracker.exe`. Windows may warn that the app is from an unknown publisher: click *More info*, then *Run anyway*.
-- **macOS:** unzip and move *Celeste Tracker* to Applications. The app isn't signed, so the first time, open it, close the warning, then go to System Settings > Privacy & Security and click *Open Anyway*.
+- **macOS** (not the main platform, see below): unzip and move *Celeste Tracker* to Applications. The app isn't signed, so the first time, open it, close the warning, then go to System Settings > Privacy & Security and click *Open Anyway*.
 - **Linux:** run it from source (below): `uv run --extra desktop celeste_desktop.py`, or `uv run celeste_progress.py --serve` for the page in your browser.
+
+**Windows is the supported platform.** It's what the author plays on, and every change is tested there on real saves. The macOS app is built from the same code and has been run on a Mac, but it gets far less testing and isn't signed; treat it as a bonus. Bug reports are welcome either way.
 
 It only reads your saves and mods, and never changes them. Its own files (notes, ratings, caches, `desktop.log`) are in `%APPDATA%\celeste-tracker` on Windows and `~/Library/Application Support/celeste-tracker` on macOS.
 
