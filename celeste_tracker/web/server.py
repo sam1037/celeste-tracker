@@ -4,6 +4,8 @@ GET  /                 the page (static/index.html, app.js, style.css, icon.png,
 GET  /api/library      the whole model as JSON (schema 2, same as --json); ?refresh=1 rescans the Mods folder
 GET  /api/status       {"version": n}: n goes up when a save file changed, so the page knows to reload
 POST /api/user         {"key", "field", "value"}: set one of the player's fields (store.FIELDS)
+GET  /api/prefs        the page's own settings (hidden columns, column widths), {} at first
+POST /api/prefs        a JSON object of at most 4 KB: replaces them
 
 Only 127.0.0.1 is served. Requests must name localhost in the Host header (against DNS rebinding), and POSTs
 need the X-Celeste-Tracker header, which other websites can't send without a CORS preflight we never answer.
@@ -28,6 +30,7 @@ FILES = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascrip
          "/fonts/atkinson-next-latin.woff2": ("fonts/atkinson-next-latin.woff2", "font/woff2"),
          "/fonts/atkinson-next-latin-ext.woff2": ("fonts/atkinson-next-latin-ext.woff2", "font/woff2")}
 HEADER = "X-Celeste-Tracker"
+MAX_PREFS = 4096
 
 
 class App:
@@ -129,6 +132,8 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.app.check()
             return self.send(200, self.app.json)
+        if url.path == "/api/prefs":
+            return self.send(200, self.app.store.page_prefs())
         if url.path == "/api/status":
             self.app.check()
             return self.send(200, {"version": self.app.version})
@@ -137,10 +142,19 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.host_ok() or self.headers.get(HEADER) != "1":
             return self.send(403, {"error": "forbidden"})
-        if urlparse(self.path).path != "/api/user":
+        path = urlparse(self.path).path
+        if path not in ("/api/user", "/api/prefs"):
             return self.send(404, {"error": "not found"})
         try:
-            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+            size = int(self.headers.get("Content-Length", 0))
+            if path == "/api/prefs" and size > MAX_PREFS:
+                raise ValueError("settings too large")
+            body = json.loads(self.rfile.read(size) or b"{}")
+            if not isinstance(body, dict):
+                raise ValueError("expected a JSON object")
+            if path == "/api/prefs":
+                self.app.store.set_page_prefs(body)
+                return self.send(200, {"ok": True})
             self.app.edit(body.get("key"), body.get("field"), body.get("value"))
         except (ValueError, TypeError, json.JSONDecodeError) as e:
             return self.send(400, {"error": str(e)})

@@ -89,6 +89,25 @@ button:hover { border-color: var(--summit); }
 }
 .toolbar label { color: var(--muted); display: flex; gap: 6px; align-items: center; }
 .toolbar select { padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+/* The Columns menu: a checkbox per column, and a reset. */
+.cols-menu { position: relative; }
+.cols-menu summary {
+  list-style: none; cursor: pointer; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); color: var(--muted);
+}
+.cols-menu summary::-webkit-details-marker { display: none; }
+.cols-menu summary::after { content: " ▾"; font-size: 11px; }
+.cols-menu summary:hover, .cols-menu[open] summary { border-color: var(--summit); color: var(--ink); }
+.cols-menu .menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 160px; padding: 6px;
+  display: grid; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / .12);
+}
+.cols-menu .menu label { color: var(--ink); padding: 4px 6px; border-radius: 4px; cursor: pointer; }
+.cols-menu .menu label:hover { background: var(--hover); }
+.cols-menu .menu label.muted { color: var(--faint); cursor: default; }
+.cols-menu .menu label.muted:hover { background: none; }
+.cols-menu .menu button { margin-top: 4px; font-size: 12px; color: var(--muted); }
 
 .sessions { margin: 0 var(--gutter) 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .sessions summary { font-size: 13px; color: var(--muted); font-weight: 600; cursor: pointer; }
@@ -113,13 +132,13 @@ button:hover { border-color: var(--summit); }
 .error { margin: 20px var(--gutter); color: #c0392b; }
 
 /* One table (doc/UI.md, Layout): a header row, then one row per mod, every second one shaded. */
-/* The status is under the bar, next to "x/y sides" (doc/UI.md, "Progress bar"). Best and Berries are hidden for now
-   (SHOW_BEST_BERRIES in app.js); .more-cols brings their columns back. */
-.list { --mod-cols: 16px minmax(160px, 2fr) minmax(90px, .8fr) minmax(180px, 1.4fr) 64px 76px minmax(90px, .9fr); }
-.list.more-cols { --mod-cols: 16px minmax(160px, 2fr) minmax(90px, .8fr) minmax(180px, 1.4fr) 64px 76px 58px 50px minmax(90px, .9fr); }
-/* The GameBanana author, after the mod's name. Rows inside an opened mod have none, so their name takes both columns. */
+/* The columns: --mod-cols is set by app.js (applyColumns) from the columns shown and their widths; this is only the
+   default before the page has loaded. The status is under the bar, next to "x/y sides" (doc/UI.md, "Progress bar"). */
+.list { --mod-cols: 16px minmax(160px, 1fr) 170px 220px 64px 72px 44px; }
+/* The GameBanana author, after the mod's name. Rows inside an opened mod have none, so their name takes both columns
+   (--name-span, 1 when the Author column is hidden). */
 .author { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tname { grid-column: span 2; }
+.tname { grid-column: span var(--name-span, 2); }
 .list-head {
   display: grid; grid-template-columns: var(--mod-cols); gap: 12px; align-items: center;
   padding: 7px 14px; border-bottom: 1px solid var(--line);
@@ -131,7 +150,13 @@ button:hover { border-color: var(--summit); }
 }
 /* Sortable column headers (after the WAI-ARIA sortable table example): the whole label is a button; ↕ marks a
    column you can sort by, ▲ / ▼ the one sorted now. Click it again to flip the direction. */
-.list-head .th { display: flex; min-width: 0; }
+.list-head .th { display: flex; min-width: 0; position: relative; }
+/* The resize grip, on the gap left of a column: drag it to resize the column (app.js). */
+.grip { position: absolute; top: -7px; bottom: -7px; left: -12px; width: 12px; cursor: col-resize; z-index: 1; touch-action: none; }
+.grip::after { content: ""; position: absolute; top: 9px; bottom: 9px; left: 5px; width: 2px; border-radius: 1px; }
+.list-head:hover .grip::after { background: var(--line); }
+.grip:hover::after, .resizing .grip::after { background: var(--summit); }
+body.resizing { cursor: col-resize; user-select: none; }
 .list-head .th.right { justify-content: flex-end; }
 .list-head button {
   display: inline-flex; align-items: center; gap: 4px; margin: -3px -6px; padding: 3px 6px; border: 0;
@@ -181,9 +206,10 @@ button:hover { border-color: var(--summit); }
 .tname > .guide { position: absolute; top: 0; bottom: 0; width: 16px; }    /* the lines of a level set or chapter */
 .mod-body > .guide { position: absolute; top: 0; bottom: 0; left: 14px; width: 16px; }
 .mod.dropped { opacity: .6; }
+/* Every mod row has the same height, with room for the dim second line whether it has one or not. */
 .mod-head {
   display: grid; grid-template-columns: var(--mod-cols);
-  gap: 12px;
+  gap: 12px; min-height: 58px;
   align-items: center; padding: 9px 14px; cursor: pointer; user-select: none;
 }
 /* Every row gets the same background on hover, to follow it across to its numbers; only rows that open have the
@@ -193,6 +219,8 @@ button:hover { border-color: var(--summit); }
 .mod.open > .mod-head .caret { transform: rotate(90deg); }
 .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sub { display: block; font-weight: 400; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.sub .tag { margin-left: 6px; }
+.sub .tag:first-child { margin-left: 0; }
 .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .right { text-align: right; }
 
@@ -207,13 +235,12 @@ button:hover { border-color: var(--summit); }
 .s-completed::before { content: "✓ "; }
 .s-not-started { color: var(--faint); }
 
-.tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+/* The player's own marks (rating, difficulty, dropped), on a mod's second line. */
 .tag {
-  font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--line); color: var(--muted);
+  font-size: 11px; padding: 0 6px; border-radius: 10px; border: 1px solid var(--line); color: var(--muted);
   white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
 }
 .tag.own { border-color: var(--summit); color: var(--summit); }
-.tags { align-items: center; }
 
 .mod-body { position: relative; padding: 6px 14px 6px 42px; display: grid; gap: 14px; }
 .facts { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 16px; }
