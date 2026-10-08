@@ -8,6 +8,7 @@ for it first, and remembers the answer in the config file.
 """
 import argparse
 import html
+import os
 import sys
 import threading
 import webbrowser
@@ -57,6 +58,21 @@ def log_to_file(folder):
         log = open(Path(folder) / "desktop.log", "w", encoding="utf-8", buffering=1)
         sys.stdout = sys.stdout or log
         sys.stderr = sys.stderr or log
+
+
+def unblock_dlls(folder):
+    """Remove Windows' "downloaded from the internet" mark (the Zone.Identifier stream) from the DLLs in the app's
+    own folder. Unzipping a downloaded zip with Explorer marks every file, and .NET then refuses to load pythonnet's
+    Python.Runtime.dll, so pywebview can't open a window (verified 2026-10-08 on a CI build). Only touches files
+    inside the app; a folder it can't write to just keeps the browser fallback."""
+    removed = 0
+    for dll in Path(folder).rglob("*.dll"):
+        try:
+            os.remove(f"{dll}:Zone.Identifier")
+            removed += 1
+        except OSError:
+            pass
+    return removed
 
 
 def remember(cfg_file, saves_dir):
@@ -170,6 +186,8 @@ def main(argv=None):
 
     webview = None
     if not args.browser:
+        if sys.platform.startswith("win") and getattr(sys, "frozen", False):
+            unblock_dlls(sys._MEIPASS)  # before pywebview loads pythonnet
         try:
             import webview
         except ImportError:

@@ -113,3 +113,17 @@ def test_log_to_file_without_console(tmp_path, monkeypatch):
     print("Note: hello", file=sys.stderr)
     sys.stderr.close()
     assert (tmp_path / "desktop.log").read_text(encoding="utf-8") == "Note: hello\n"
+
+
+def test_unblock_dlls_removes_only_the_dll_marks(tmp_path):
+    # On NTFS "x.dll:Zone.Identifier" is a stream of x.dll; elsewhere it's a plain file, which tests the same calls.
+    (tmp_path / "pythonnet/runtime").mkdir(parents=True)
+    marked = tmp_path / "pythonnet/runtime/Python.Runtime.dll"
+    marked.write_bytes(b"")
+    (tmp_path / "pythonnet/runtime/Python.Runtime.dll:Zone.Identifier").write_text("[ZoneTransfer]\nZoneId=3\n")
+    (tmp_path / "clean.dll").write_bytes(b"")
+    (tmp_path / "app.exe").write_bytes(b"")
+    (tmp_path / "app.exe:Zone.Identifier").write_text("[ZoneTransfer]\nZoneId=3\n")
+    assert desktop.unblock_dlls(tmp_path) == 1
+    assert marked.exists() and not (tmp_path / "pythonnet/runtime/Python.Runtime.dll:Zone.Identifier").exists()
+    assert (tmp_path / "app.exe:Zone.Identifier").exists()  # only DLLs; the exe's mark is what SmartScreen checks
