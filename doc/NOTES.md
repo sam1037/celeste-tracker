@@ -13,7 +13,7 @@ Build status, the save and mod file format, and open technical questions. What t
 | 5 | Checkpoints per side and saved room | done |
 | 6 | Status per side | done (`rules.side_status`) |
 | 7 | Completion rules | done (`rules.py`): a side is completed when cleared; hearts are counted separately. Collab gyms are left out of the catalog (`model.is_gym`) |
-| 8 | All slots in one view | done: the default. Each mod shows its furthest slot (`rules.furthest_slot`), named in the Slot column ("8 (+5)" = 5 other slots); `--set` lists the other slots with their counts. `--slot N` for one slot. An unreadable slot is skipped with a warning. (Until 2026-10-05 sides were merged across slots, which double-counted berries) |
+| 8 | All slots in one view | done: the default. Each mod shows its furthest slot (`rules.furthest_slot`), named in the Slot column: the CLI shows "8 (+5)" (5 other slots), the page only the number, with the other slots in its tooltip and the opened mod's facts (2026-10-08); `--set` lists the other slots with their counts. `--slot N` for one slot. An unreadable slot is skipped with a warning. (Until 2026-10-05 sides were merged across slots, which double-counted berries) |
 | 9 | Mod name | done. GameBanana title from the mod list (260 of my 272 mods), else chapter title, level set title, mod ID (OmoriPack shows "Cold") |
 | 10 | JSON export | done (`--json FILE`, `-` for stdout), schema 2: one catalog tree, progress per slot and `all`. All 32 of my slots: 5.6 MB indented, 2.3 MB compact (what `--serve` sends) |
 | 11 | Read-only | holds today, keep it |
@@ -21,7 +21,7 @@ Build status, the save and mod file format, and open technical questions. What t
 
 UI (Later): `--serve` done, see DESIGN "UI". Desktop window and downloads (DESIGN step 7, branch `desktop-release`): `celeste_desktop.py` shows the page in a pywebview window; `packaging/celeste-tracker.spec` and `.github/workflows/release.yml` build a Windows folder and an unsigned macOS app. Verified 2026-10-08 on the author's PC: the Windows build (35 MB) found the Steam Saves and Mods folders with no config, 32 slots and 273 mods. Not verified yet: the macOS build (built only by CI), the folder picker on a PC where nothing is found, the browser fallback without WebView2, and Olympus's `config.json` format (the reader follows Olympus's public format, `installs: [{path}]`).
 
-Should have: config file done (`--save-config`). User fields done: note, rating (`--rate`, 1-5), difficulty (free text), dropped (`--drop`/`--undrop`), mod rename (`--rename`), in `tracker.db` next to the config. Extra stats (best time, best deaths, berries per side) are in the model and JSON but not shown yet.
+Should have: config file done (`--save-config`). User fields done: note, rating (`--rate`, 1-5), difficulty (free text), dropped (`--drop`/`--undrop`), mod rename (`--rename`), in `tracker.db` next to the config. Extra stats (best time, best deaths, berries per side) are in the model and JSON; the page has Best and Berries columns, hidden at first (Columns menu), and best deaths isn't shown anywhere yet.
 
 Technical notes on the "Later" items:
 
@@ -81,4 +81,9 @@ Technical notes on the "Later" items:
   - `?` opens a list of keyboard shortcuts (GitHub, Gmail, YouTube), next to `/` for the search.
   - Hints where they're needed, without a separate page: an empty search says what you can search for, the first opened mod points at the sticky rows, column headers keep their tooltips.
   - Avoid step-by-step tours that pop up on first open (Intro.js, Shepherd): they get in the way of a page opened every day, and would add a dependency.
-- Author column and search by author: done on the `author-column` branch (2026-10-08), from the GameBanana list; see UI.md "Layout". Maybe later: the per-map `<key>_author` dialog lines of collabs ("by ethanol", 23 zips) as search words, so a mapper finds their map inside a collab. They aren't all authors, so they'd need care.
+- Branch `author-column` (2026-10-08), not merged yet. Done: the Author column and search by author, from the GameBanana list; Slot instead of "Slots and tags" (the player's tags moved to the mod's second line); the Columns menu (show or hide any column but Mod); column resizing by dragging the line between two column names, kept in the store through `/api/prefs`; one height for every mod row; the help panel. See UI.md "Layout". Verified with Playwright on the real saves in Chrome, light and dark, and the line widths at 125% scaling. Before the PR:
+  - README: the `--serve` paragraph doesn't mention the Author column, the Columns menu, resizing or the help, and the screenshots and GIF in `doc/media/` still show "Slots and tags" and the old widths.
+  - Desktop app: not tried as a Windows build yet. Check that column widths survive closing and reopening the window (that's why they're in the store, not localStorage) and that the help dialog opens in WebView2.
+  - The narrow-screen layout wasn't rechecked after the column changes (phones aren't a target, UI.md "Brief").
+- Columns, maybe later: when the column next to a dragged line is at its minimum, take the width from Sides instead of stopping; double-click a line to fit the column to its longest value (as in Excel and File Explorer) instead of resetting it; reach the resize lines with the keyboard. The page can't sort by rating any more (the old "Slots and tags" header did; `sort=rating` bookmarks still work): add it back if ratings get edited on the page.
+- Author search, maybe later: the per-map `<key>_author` dialog lines of collabs ("by ethanol", 23 zips) as search words, so a mapper finds their map inside a collab. They aren't all authors, so they'd need care.
