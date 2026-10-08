@@ -37,7 +37,7 @@ jobs:
         run: Compress-Archive -Path dist/CelesteTracker -DestinationPath ${{ matrix.zip }}
       - if: runner.os == 'macOS'
         run: ditto -c -k --keepParent "dist/Celeste Tracker.app" ${{ matrix.zip }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.zip }}
           path: ${{ matrix.zip }}
@@ -49,7 +49,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
       - run: gh release create "$GITHUB_REF_NAME" CelesteTracker-*.zip --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
