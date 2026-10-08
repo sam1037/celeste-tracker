@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 root = Path(SPECPATH).parent
+icon = str(root / "celeste_tracker/web/static/icon.png")  # also the page's favicon; PyInstaller makes the .ico/.icns with Pillow
 
 a = Analysis(
     [str(root / "celeste_desktop.py")],
@@ -15,10 +16,10 @@ a = Analysis(
     excludes=["pytest"],
 )
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="CelesteTracker", console=False,
+exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="CelesteTracker", console=False, icon=icon,
           upx=False)  # UPX-packed exes get flagged by antivirus far more often
 coll = COLLECT(exe, a.binaries, a.datas, name="CelesteTracker", upx=False)
 
 if sys.platform == "darwin":
-    app = BUNDLE(coll, name="Celeste Tracker.app", bundle_identifier="io.github.sam1037.celeste-tracker",
+    app = BUNDLE(coll, name="Celeste Tracker.app", bundle_identifier="io.github.sam1037.celeste-tracker", icon=icon,
                  info_plist={"NSHighResolutionCapable": True})

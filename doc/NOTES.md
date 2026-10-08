@@ -74,7 +74,7 @@ Technical notes on the "Later" items:
 ## TODO
 
 - See how players track progress manually in Excel sheets, to find which columns matter. First pass (2026-10-04): no public personal sheets found. The community challenge lists (Hardest Maps Clear List, goldberries.net) give each side its own entry and mark the level of clearing (clear, full clear, golden). This is why the side became the unit. Real personal sheets would still help: ask in r/celestegame or the Celeste Discord.
-- Next build step: finish DESIGN.md step 7: check the macOS build and the Windows folder picker, add an app icon, then tag the first release. Snapshots and `.bin` parsing moved to DESIGN's "Maybe later".
+- Next build step: finish DESIGN.md step 7: tag the first release. (Checked 2026-10-08: the Windows build from CI, the folder picker on Windows, the macOS build finding the Mac's saves. The app icon is in.) Snapshots and `.bin` parsing moved to DESIGN's "Maybe later".
 - Desktop app, later: edit fields in the page (the window has no CLI), a single instance (a second start opens a second window today), code signing if players hit SmartScreen or Gatekeeper too often.
 - Page help (user, 2026-10-08): tell players how to use the page: rows open by clicking, columns sort by clicking their header, `/` jumps to the search, what the statuses, "slot 1 (+5)", ⊘ (not loaded) and "?" totals mean, and that the page updates by itself when the game saves. Ideas to compare, from mature tools:
   - An info or "?" button in the top bar that opens a short help panel (Linear and Notion keep a "?" in a corner; GitHub's help menu).
