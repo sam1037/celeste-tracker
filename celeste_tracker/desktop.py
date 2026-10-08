@@ -132,12 +132,13 @@ def run_window(webview, cfg_file, saves_dir, offline):
             return ""
 
     def started():
+        # Replacing the first page before it has loaded doesn't stick (WebView2 kept showing it), so wait for it.
+        window.events.loaded.wait(10)
         if saves_dir:
             show(saves_dir)
-        else:
-            window.load_html(SETUP % "")
 
-    window = webview.create_window(TITLE, html=LOADING, js_api=Api(), width=1280, height=860, min_size=(640, 480),
+    first = LOADING if saves_dir else SETUP % ""
+    window = webview.create_window(TITLE, html=first, js_api=Api(), width=1280, height=860, min_size=(640, 480),
                                    text_select=True, zoomable=True)
     webview.start(started)
     for server in servers:
