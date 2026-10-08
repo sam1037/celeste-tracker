@@ -1,6 +1,6 @@
 # celeste-tracker
 
-A CLI that shows Celeste (Everest) mod progress straight from save files, without loading the mods. The code is the `celeste_tracker/` package laid out in `doc/DESIGN.md`; `celeste_progress.py` is a thin entry point.
+A CLI and desktop app that show Celeste (Everest) mod progress straight from save files, without loading the mods. The code is the `celeste_tracker/` package laid out in `doc/DESIGN.md`; `celeste_progress.py` (CLI) and `celeste_desktop.py` (window, what the downloads run) are thin entry points.
 
 Read the docs in `doc/` first:
 
@@ -51,6 +51,18 @@ W=$(wslpath -w $SP/ui)
 
 `--dump-dom` instead of `--screenshot` prints the rendered HTML. `--force-dark-mode` checks the dark theme. Chrome won't go narrower than ~500 px. Ignore its `LockFileEx` errors.
 
+Desktop app (`celeste_tracker/desktop.py`, doc/DESIGN.md "Desktop app"): pywebview has no backend on WSL (no GTK/Qt), so test it as a Windows build. PyInstaller can't cross-build; the Windows Python 3.12 works from WSL, in a temp copy outside the repo. Always pass a scratch `--config` (a Windows path), so `%APPDATA%\celeste-tracker` stays empty. Output goes to the terminal when launched from WSL, to `desktop.log` next to the config when started by double-click.
+
+```bash
+B=/mnt/c/Users/manyi/AppData/Local/Temp/celeste-tracker-build; PY=/mnt/c/Users/manyi/AppData/Local/Programs/Python/Python312/python.exe
+mkdir -p $B/src && git ls-files | tar -cf - -T - | tar -xf - -C $B/src
+$PY -m venv $B/venv && $B/venv/Scripts/python.exe -m pip install pywebview pyinstaller pillow
+(cd $B/src && ../venv/Scripts/python.exe -m PyInstaller packaging/celeste-tracker.spec --noconfirm)
+$B/src/dist/CelesteTracker/CelesteTracker.exe --config 'C:\Users\manyi\AppData\Local\Temp\celeste-tracker-build\cfg\c.toml' --offline   # in the background
+```
+
+The CI workflow (`.github/workflows/release.yml`) is the only place the macOS app gets built.
+
 - Mods folder (WSL): `/mnt/c/Program Files (x86)/Steam/steamapps/common/Celeste/Mods` (~450 zips). `--mods` scans it in ~3 s the first time, then ~0.1 s: unchanged zips come from the cache in `tracker.db`.
 - Verify changes by running against slot 1 and slot 31, not only mock files.
 - On the Windows PC the user has a config (`~/.local/share/celeste-tracker/config.toml` in WSL), so a bare `uv run celeste_progress.py` shows their real view. The first run of a week downloads the public mod list into `moddb.json` next to it; pass `--offline` to avoid that.
@@ -64,7 +76,7 @@ W=$(wslpath -w $SP/ui)
 - **Read-only:** never write to save files or the Mods folder.
 - **No personal data in git:** `local/`, `*.celeste`, `Saves/`, `celeste_notes.json`, `tracker.db*` and `moddb.json` are gitignored, and must stay out of git.
 - **Commit as you go:** make a commit after each finished change, push when needed.
-- **Dependencies:** runtime code uses only the standard library until the desktop phase (then `pywebview`, see `doc/DESIGN.md`). `pytest` is the only dev dependency. Ask before adding anything else.
+- **Dependencies:** runtime code uses only the standard library, except `pywebview` in `desktop.py` (the optional `desktop` extra). Dev: `pytest`; build: `pyinstaller`, `pillow`. Ask before adding anything else.
 - **Follow the layers in `doc/DESIGN.md`:** front ends (CLI, web, desktop) never parse files themselves, and the completion rules live in one module.
 - **Don't assume WSL:** other players will run this on Windows, so no hardcoded `/mnt/c` paths in the code.
 - **Be honest about the data:** the save only stores internal IDs and opened maps, and has no dates. Say what is verified on real saves and what is inferred.
