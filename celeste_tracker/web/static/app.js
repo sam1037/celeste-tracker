@@ -76,7 +76,7 @@ const countedSides = (ch) => Object.values(ch.sides).filter((s) => s.exists || s
 function buildIndex(data) {
   index = { modOfSid: {}, search: {} };
   for (const m of data.mods) {
-    const words = [m.name, m.id, m.gamebanana_title];
+    const words = [m.name, m.id, m.gamebanana_title, m.author];
     for (const ls of m.sets) {
       words.push(ls.name, ls.title);
       for (const ch of ls.chapters) {
@@ -115,13 +115,18 @@ const SORTS = {
   time: (a, b) => a.v.ticks - b.v.ticks,
   progress: (a, b) => a.v.sides_done / (a.v.sides_total || 1) - b.v.sides_done / (b.v.sides_total || 1),
   name: (a, b) => a.m.name.localeCompare(b.m.name),
+  // A to Z; mods without an author (not on GameBanana) last, whichever way the column is sorted
+  author: (a, b) => (!a.m.author - !b.m.author) * (sortDir() === "asc" ? 1 : -1) || a.m.author.localeCompare(b.m.author),
   deaths: (a, b) => a.v.deaths - b.v.deaths,
-  rating: (a, b) => (a.m.user.rating || 0) - (b.m.user.rating || 0),
+  rating: (a, b) => (a.m.user.rating || 0) - (b.m.user.rating || 0),  // no column now; kept for old bookmarks
+  // the slot shown (All slots); mods not played in any slot last, whichever way the column is sorted
+  slot: (a, b) => (!a.v.slot - !b.v.slot) * (sortDir() === "asc" ? 1 : -1) || Number(a.v.slot) - Number(b.v.slot),
   // in progress, then completed, then not started; within one status, the most sides cleared first
   status: (a, b) => STATUS_RANK[pageStatus(a.v.status)] - STATUS_RANK[pageStatus(b.v.status)] ||
     (sortDir() === "asc" ? -1 : 1) * SORTS.progress(a, b),
 };
-const FIRST_DIR = { time: "desc", progress: "desc", name: "asc", deaths: "desc", rating: "desc", status: "asc" };
+const FIRST_DIR = { time: "desc", progress: "desc", name: "asc", author: "asc", deaths: "desc", rating: "desc", status: "asc",
+                    slot: "asc" };
 const sortDir = () => state.dir || FIRST_DIR[state.sort];
 
 function visibleMods() {
@@ -147,18 +152,78 @@ function status(s, unsure = false) {
   return `<span class="status s-${cls(st)}" title="${esc(help)}">${esc(st)}</span>`;
 }
 
-function tags(m, v) {
+function slotCell(v) {
+  // All slots: the row shows one slot, the mod's furthest (rules.py); the other slots it was played in are in the
+  // tooltip and in the opened mod's facts.
+  if (!v.slot) return `<span class="num right hide-sm"></span>`;
+  const others = v.slots.filter((k) => k !== v.slot);
+  const title = `Shown: slot ${v.slot}, your furthest` + (others.length ? `. Also played in slot${others.length > 1 ? "s" : ""} ${others.join(", ")}` : "");
+  return `<span class="num right hide-sm" title="${esc(title)}">${esc(v.slot)}</span>`;
+}
+
+function ownTags(m) {
+  // What the player set with the CLI (rating, difficulty, dropped), on the mod's second line.
   const t = [];
-  if (state.key === "all" && v.slot) {
-    // All slots: the row shows one slot, the mod's furthest (rules.py); "(+2)" = also played in 2 other slots.
-    const others = v.slots.filter((k) => k !== v.slot);
-    const title = `Shown: slot ${v.slot}, your furthest` + (others.length ? `. Also played in slot${others.length > 1 ? "s" : ""} ${others.join(", ")}` : "");
-    t.push(`<span class="tag" title="${esc(title)}">slot ${esc(v.slot)}${others.length ? ` (+${others.length})` : ""}</span>`);
-  }
   if (m.user.rating) t.push(`<span class="tag own">${"★".repeat(m.user.rating)}</span>`);
   if (m.user.difficulty) t.push(`<span class="tag own">${esc(m.user.difficulty)}</span>`);
   if (m.user.dropped) t.push(`<span class="tag own">dropped</span>`);
-  return `<div class="tags">${t.join("")}</div>`;
+  return t.join("");
+}
+
+// ------------------------------------------------------------------ columns
+
+// The columns after the arrow (doc/UI.md, "Columns"). Each has a width in px that the player can drag (the line
+// between two columns), except the flexible one, which takes the width that's left: Sides (a longer bar is more use
+// than room after a name), or Mod when Sides is hidden. Every column but Mod can be hidden from the Columns menu. Best and Berries start hidden (user, 2026-10-07). Slot only shows with "All slots".
+const COLUMNS = [
+  { id: "mod", label: "Mod", sort: "name", what: "name", width: 320, min: 160 },
+  { id: "author", label: "Author", sort: "author", width: 170, min: 60 },
+  { id: "sides", label: "Sides", sort: "progress", what: "sides cleared", width: 220, min: 120 },
+  { id: "deaths", label: "Deaths", sort: "deaths", width: 64, min: 48, right: true },
+  { id: "time", label: "Time", sort: "time", what: "time played", width: 72, min: 56, right: true },
+  { id: "best", label: "Best", help: "Best time, for a single side", width: 64, min: 48, right: true },
+  { id: "berries", label: "Berries", width: 60, min: 48, right: true },
+  { id: "slot", label: "Slot", sort: "slot", what: "slot shown", help: "The slot shown: your furthest", width: 44, min: 40, right: true },
+];
+const DEFAULT_HIDDEN = ["best", "berries"];
+const GAP = 12, ARROW = 16; // .mod-head's gap and arrow column, in style.css
+let prefs = { hidden: DEFAULT_HIDDEN, widths: {} };
+
+const colWidth = (c) => prefs.widths[c.id] || c.width;
+const canShow = (c) => c.id !== "slot" || state.key === "all";
+const shownCols = () => COLUMNS.filter((c) => c.id === "mod" || (canShow(c) && !prefs.hidden.includes(c.id)));
+const flexCol = () => shownCols().find((c) => c.id === "sides") || COLUMNS[0];
+
+function applyColumns() {
+  // The grid every row uses; rows inside an opened mod have no author, so their name takes its place too.
+  const cols = shownCols(), flex = flexCol(), list = $("list").style;
+  list.setProperty("--mod-cols", `${ARROW}px ` + cols.map((c) => (c === flex ? `minmax(${c.min}px, 1fr)` : `${colWidth(c)}px`)).join(" "));
+  list.setProperty("--name-span", cols.some((c) => c.id === "author") ? 2 : 1);
+}
+
+function cells(map) {
+  // One cell per shown column, in order; a column missing from map (author, on rows inside a mod) is left out.
+  return shownCols().filter((c) => c.id in map).map((c) => map[c.id]).join("");
+}
+
+async function loadPrefs() {
+  try {
+    const r = await fetch("/api/prefs");
+    const p = r.ok ? await r.json() : {};
+    prefs = { hidden: Array.isArray(p.hidden) ? p.hidden : DEFAULT_HIDDEN, widths: p.widths && typeof p.widths === "object" ? p.widths : {} };
+  } catch { /* the defaults */ }
+}
+
+function savePrefs() {
+  fetch("/api/prefs", { method: "POST", headers: { "Content-Type": "application/json", "X-Celeste-Tracker": "1" },
+                        body: JSON.stringify(prefs) }).catch(() => {});
+}
+
+function renderColumnsMenu() {
+  $("cols").innerHTML = COLUMNS.filter((c) => c.id !== "mod").map((c) =>
+    `<label${canShow(c) ? "" : ' class="muted" title="Only with All slots"'}><input type="checkbox" data-col="${c.id}"` +
+    `${prefs.hidden.includes(c.id) ? "" : " checked"}${canShow(c) ? "" : " disabled"}> ${c.label}</label>`).join("") +
+    `<button type="button" data-reset-cols>Reset columns</button>`;
 }
 
 // The tree table (doc/UI.md, "Layout"): mods, level sets, chapters and sides are all rows of one grid with the
@@ -185,29 +250,31 @@ function best(ch) {
   return v.best_ticks ? fmtTime(v.best_ticks) : "-";
 }
 
-// The Best and Berries columns are hidden for now, at the user's request (2026-10-07).
-const SHOW_BEST_BERRIES = false;
-
 function numbers(v, bestTime) {
-  return `<span class="num right hide-sm">${dash(v, fmtNum(v.deaths))}</span>
-    <span class="num right hide-sm">${dash(v, fmtTime(v.ticks))}</span>` + (SHOW_BEST_BERRIES ?
-    `<span class="num right hide-sm">${bestTime}</span>
-    <span class="num right hide-sm">${dash(v, fmtNum(v.berries))}</span>` : "");
+  return {
+    deaths: `<span class="num right hide-sm">${dash(v, fmtNum(v.deaths))}</span>`,
+    time: `<span class="num right hide-sm">${dash(v, fmtTime(v.ticks))}</span>`,
+    best: `<span class="num right hide-sm">${bestTime}</span>`,
+    berries: `<span class="num right hide-sm">${dash(v, fmtNum(v.berries))}</span>`,
+  };
 }
 
 function modCard({ m, v }) {
   const open = state.open.has(m.id);
   // The dim second line, as Olympus shows it: ID ∙ details (doc/UI.md, "What players already know").
-  const sub = [m.id !== m.name ? m.id : "", m.sets.length > 1 ? `${m.sets.length} level sets` : ""]
-    .filter(Boolean).join(" ∙ ");
+  const sub = esc([m.id !== m.name ? m.id : "", m.sets.length > 1 ? `${m.sets.length} level sets` : ""]
+    .filter(Boolean).join(" ∙ ")) + ownTags(m);
   const chs = chapters(m);
   return `<article class="mod${open ? " open" : ""}${m.user.dropped ? " dropped" : ""}" data-mod="${esc(m.id)}">
     <div class="mod-head" role="button" tabindex="0" aria-expanded="${open}">
       <span class="caret">▸</span>
-      <span class="name">${esc(m.name)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</span>
-      ${progress(v, q(m), !known(m))}
-      ${numbers(v, chs.length === 1 ? best(chs[0]) : "")}
-      <span class="hide-sm">${tags(m, v)}</span>
+      ${cells({
+        mod: `<span class="name">${esc(m.name)}${sub ? `<span class="sub">${sub}</span>` : ""}</span>`,
+        author: `<span class="author hide-sm" title="${esc(m.author ? `GameBanana author: ${m.author}` : "Not on GameBanana's mod list")}">${esc(m.author)}</span>`,
+        sides: progress(v, q(m), !known(m)),
+        ...numbers(v, chs.length === 1 ? best(chs[0]) : ""),
+        slot: slotCell(v),
+      })}
     </div>
     ${open ? modBody(m, v) : ""}
   </article>`;
@@ -239,12 +306,13 @@ function treeRow(level, { attr = "", open = null, name, sub = "", strong = false
   // the mod first, each drawn as a thread line.
   const toggle = open !== null;
   return `<div class="trow${open ? " open" : ""}"${attr}${toggle ? ` role="button" tabindex="0" aria-expanded="${open}"` : ""}>
-    ${guide(anc[0])}
-    <span class="tname${strong ? " strong" : ""}" style="--lvl:${level}">` +
-    anc.slice(1).map((a, k) => guide(a, ` style="left:${k * 20 - 2}px"`)).join("") +
-    `<span class="caret">${toggle ? "▸" : ""}</span>` +
-    `<span class="t">${name}${sub ? `<small>${sub}</small>` : ""}</span></span>
-    ${progress(v, mark)}${numbers(v, bestTime)}<span class="hide-sm"></span></div>`;
+    ${guide(anc[0])}` + cells({
+      mod: `<span class="tname${strong ? " strong" : ""}" style="--lvl:${level}">` +
+        anc.slice(1).map((a, k) => guide(a, ` style="left:${k * 20 - 2}px"`)).join("") +
+        `<span class="caret">${toggle ? "▸" : ""}</span>` +
+        `<span class="t">${name}${sub ? `<small>${sub}</small>` : ""}</span></span>`,
+      sides: progress(v, mark), ...numbers(v, bestTime), slot: `<span class="hide-sm"></span>`,
+    }) + `</div>`;
 }
 
 function modRows(m) {
@@ -295,7 +363,7 @@ function shownSlot(m, v) {
 }
 
 // The player's own fields (rating, difficulty, dropped, rename, note) are hidden on the page for now, at the
-// user's request (2026-10-05); the CLI still edits them, and the tags column still shows what's set.
+// user's request (2026-10-05); the CLI still edits them, and a mod's second line still shows what's set.
 const SHOW_EDITOR = false;
 
 function mineEditor(m) {
@@ -361,21 +429,20 @@ function renderSummary(rows) {
 
 // The header row over the mods (same grid as .mod-head). Click a column name to sort by it, again to flip it.
 function listHead() {
-  const col = (sort, text, extra = "", what = text.toLowerCase()) => {
-    const on = state.sort === sort, dir = on ? sortDir() : FIRST_DIR[sort];
+  // Each column but Mod has a grip on its left edge: drag it to resize the column, double-click it for the default.
+  const th = (c) => {
+    const extra = `${c.right ? " right" : ""}${c.id === "mod" || c.id === "sides" ? "" : " hide-sm"}`;
+    const grip = c.id !== "mod" ? `<span class="grip" data-grip="${c.id}" title="Drag to resize, double-click for the default widths"></span>` : "";
+    if (!c.sort) return `<span class="th${extra}" role="columnheader"${c.help ? ` title="${esc(c.help)}"` : ""}>${grip}${c.label}</span>`;
+    const on = state.sort === c.sort, dir = on ? sortDir() : FIRST_DIR[c.sort];
     const next = on ? (dir === "asc" ? "desc" : "asc") : dir;
     const icon = on ? (dir === "asc" ? "▲" : "▼") : "↕";
-    return `<span class="th ${extra}" role="columnheader"${on ? ` aria-sort="${dir}ending"` : ""}>` +
-      `<button type="button" data-sort="${sort}" title="Sort by ${what}, ${next === "asc" ? "lowest" : "highest"} first` +
-      `${sort === "name" ? (next === "asc" ? " (A to Z)" : " (Z to A)") : ""}">${text}` +
+    return `<span class="th${extra}" role="columnheader"${on ? ` aria-sort="${dir}ending"` : ""}>${grip}` +
+      `<button type="button" data-sort="${c.sort}" title="Sort by ${c.what || c.id}, ${next === "asc" ? "lowest" : "highest"} first` +
+      `${c.sort === "name" || c.sort === "author" ? (next === "asc" ? " (A to Z)" : " (Z to A)") : ""}">${c.label}` +
       `<span class="icon" aria-hidden="true">${icon}</span></button></span>`;
   };
-  return `<div class="list-head" role="row"><span></span>${col("name", "Mod", "", "name")}` +
-    `${col("progress", "Sides", "", "sides cleared")}` +
-    `${col("deaths", "Deaths", "right hide-sm")}${col("time", "Time", "right hide-sm", "time played")}` +
-    (SHOW_BEST_BERRIES ? `<span class="th right hide-sm" title="Best time, for a single side">Best</span>` +
-      `<span class="th right hide-sm">Berries</span>` : "") +
-    `${col("rating", "Slots and tags", "right hide-sm", "your rating")}</div>`;
+  return `<div class="list-head" role="row"><span></span>${shownCols().map(th).join("")}</div>`;
 }
 
 // Pagination under the table: rows per page, the range shown, and the pages (first, last, and the ones around
@@ -403,12 +470,13 @@ function render() {
   const rows = visibleMods();
   renderSummary(rows);
   renderSessions();
+  renderColumnsMenu();
+  applyColumns();
   const pages = state.per ? Math.max(1, Math.ceil(rows.length / state.per)) : 1;
   state.page = Math.min(Math.max(1, state.page), pages);
   const shown = state.per ? rows.slice((state.page - 1) * state.per, state.page * state.per) : rows;
   $("list").innerHTML = rows.length ? listHead() + shown.map(modCard).join("") + (rows.length > 25 ? pager(rows.length, pages) : "")
     : `<div class="empty">No mods match. Clear the search or pick "All mods" under Show.</div>`;
-  $("list").classList.toggle("more-cols", SHOW_BEST_BERRIES);
   measure();
   writeHash();
 }
@@ -554,6 +622,83 @@ $("list").addEventListener("change", (e) => {
   const key = e.target.closest(".mine").dataset.key;
   save(key, f, e.target.type === "checkbox" ? e.target.checked : e.target.value, e.target);
 });
+// Resizing a column: the grip on a column's left edge is the line between it and the column before it, and dragging
+// it moves only that line: the two columns change width in opposite directions, and every other line stays put.
+// When one of the two is the flexible column, it changes by itself, never below its minimum.
+const pairOf = (id) => {
+  const cols = shownCols(), i = cols.findIndex((x) => x.id === id);
+  return [cols[i - 1], cols[i]];
+};
+$("list").addEventListener("pointerdown", (e) => {
+  const grip = e.target.closest("[data-grip]");
+  if (!grip || e.button !== 0) return;
+  e.preventDefault();
+  const [left, right] = pairOf(grip.dataset.grip), flex = flexCol(), x0 = e.clientX;
+  const l0 = colWidth(left), r0 = colWidth(right);
+  const head = grip.closest(".list-head"), pad = parseFloat(getComputedStyle(head).paddingLeft) * 2;
+  const fixed = shownCols().filter((x) => x !== flex).reduce((a, x) => a + colWidth(x), 0);
+  const spare = Math.max(0, head.clientWidth - pad - ARROW - GAP * shownCols().length - fixed - flex.min);
+  grip.setPointerCapture(e.pointerId);
+  grip.classList.add("drag");
+  document.body.classList.add("resizing");
+  const move = (ev) => {
+    // d > 0: the line moves right, the left column widens and the right one narrows
+    let d = ev.clientX - x0;
+    if (left === flex) d = Math.min(Math.max(d, -spare), r0 - right.min);
+    else if (right === flex) d = Math.min(Math.max(d, left.min - l0), spare);
+    else d = Math.min(Math.max(d, left.min - l0), r0 - right.min);
+    const w = { ...prefs.widths };
+    if (left !== flex) w[left.id] = Math.round(l0 + d);
+    if (right !== flex) w[right.id] = Math.round(r0 - d);
+    prefs.widths = w;
+    applyColumns();
+  };
+  const up = () => {
+    grip.removeEventListener("pointermove", move);
+    grip.classList.remove("drag");
+    document.body.classList.remove("resizing");
+    measure();
+    savePrefs();
+  };
+  grip.addEventListener("pointermove", move);
+  grip.addEventListener("pointerup", up, { once: true });
+  grip.addEventListener("pointercancel", up, { once: true });
+});
+// Double-clicking a line gives the columns on both sides of it their default widths.
+$("list").addEventListener("dblclick", (e) => {
+  const grip = e.target.closest("[data-grip]");
+  if (!grip) return;
+  const widths = { ...prefs.widths };
+  for (const c of pairOf(grip.dataset.grip)) delete widths[c.id];
+  prefs.widths = widths;
+  applyColumns();
+  savePrefs();
+});
+$("cols").addEventListener("change", (e) => {
+  const id = e.target.dataset.col;
+  if (!id) return;
+  prefs.hidden = e.target.checked ? prefs.hidden.filter((x) => x !== id) : [...prefs.hidden, id];
+  savePrefs();
+  render();
+});
+$("cols").addEventListener("click", (e) => {
+  if (!e.target.closest("[data-reset-cols]")) return;
+  prefs = { hidden: DEFAULT_HIDDEN, widths: {} };
+  savePrefs();
+  render();
+});
+// The Columns menu closes on a click anywhere else, or Escape.
+document.addEventListener("click", (e) => {
+  const menu = $("cols-menu");
+  if (menu.open && !menu.contains(e.target)) menu.open = false;
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("cols-menu").open = false; });
+
+// Help: the ? button or the ? key opens it; Escape (the dialog's own), the ✕ or a click outside closes it.
+$("help-open").addEventListener("click", () => $("help").showModal());
+$("help").addEventListener("click", (e) => {
+  if (e.target.closest("[data-close-help]") || e.target === $("help")) $("help").close();  // the backdrop is the dialog itself
+});
 $("sessions").addEventListener("toggle", (e) => { sessionsOpen = e.target.open; }, true);
 $("sessions").addEventListener("click", (e) => {
   const a = e.target.closest("[data-goto]");
@@ -577,6 +722,10 @@ $("show").addEventListener("change", (e) => { state.show = e.target.value; state
 $("refresh").addEventListener("click", () => load(true));
 // "/" jumps to the search, as on GitHub and YouTube, unless the player is typing somewhere already.
 document.addEventListener("keydown", (e) => {
+  if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.closest("input, textarea, select") && !$("help").open) {
+    e.preventDefault();
+    return $("help").showModal();
+  }
   if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, textarea, select")) return;
   e.preventDefault();
   $("q").focus();
@@ -586,5 +735,5 @@ document.addEventListener("keydown", (e) => {
 readHash();
 $("q").value = state.q;
 $("show").value = state.show;
-load();
+loadPrefs().then(() => load());
 setInterval(poll, 5000);

@@ -119,6 +119,7 @@ class Mod:
     name: str                    # what players see (doc/DESIGN.md, "Mod names")
     name_source: str             # renamed | gamebanana | map title | level set title | mod id | vanilla
     gamebanana_title: str
+    author: str                  # GameBanana author (a collab's is its team); "" when the mod isn't on GameBanana
     found: bool                  # in the Mods folder (or vanilla): its chapters and sides are known
     vanilla: bool
     sets: list[LevelSet]
@@ -240,10 +241,10 @@ def build_library(loaded, mods_info, titles=None, user=None):
             continue
         for ch in (ch for ls in sets for ch in ls.chapters):
             ch.user = user.get(ch.sid, {})
-        gb = titles.get(mod_id, {}).get("title", "")
+        gb, author = (titles.get(mod_id, {}).get(k, "") for k in ("title", "author"))
         mine = user.get(mod_id, {})
         name, source = (mine["rename"], "renamed") if mine.get("rename") else mod_name(mod_id, m["vanilla"], gb, sets)
-        mods.append(Mod(mod_id, name, source, gb, m["found"], m["vanilla"], sets, user=mine))
+        mods.append(Mod(mod_id, name, source, gb, author, m["found"], m["vanilla"], sets, user=mine))
     return Library(slots, mods)
 
 

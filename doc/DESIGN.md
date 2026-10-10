@@ -64,7 +64,7 @@ Catalog: one, built from the Mods folder, the vanilla list, and any chapter a sl
          collab gyms (level sets named `Gyms`, `0-Gyms`, ...) are left out (model.is_gym, PRD)
   Mod       id            everest.yaml Name; "Celeste" for vanilla; the level set name if no mod was found
             name          what players see (rule below); name_source: gamebanana | map title | level set title | mod id
-            gamebanana_title, found (is in the Mods folder), sets[]
+            gamebanana_title, author (GameBanana, "" when not listed), found (is in the Mods folder), sets[]
   LevelSet  name, title, chapters[]      the part of the level set this mod provides
   Chapter   sid, title, sides{A, B, C}   (a `Map` in code)
   Side      side, exists                 known from the mod files (A/B/C .bin); vanilla from a hardcoded list
@@ -163,7 +163,7 @@ Snapshots are only taken when the tool runs. Dates are "seen by" dates, as preci
 
 How the page looks (tokens, the side strip, layout) is in [UI.md](UI.md). This section is how it's built.
 
-- `web/server.py`: `http.server` on 127.0.0.1 only, single-threaded. `GET /` serves `static/index.html`, `app.js` and `style.css` (nothing else); `GET /api/library` is the schema 2 JSON (compact, ~2.3 MB for the author's 32 slots, built once per change in ~0.1 s and kept in memory) plus a `version`; `GET /api/status` returns the version; `POST /api/user {key, field, value}` sets one store field.
+- `web/server.py`: `http.server` on 127.0.0.1 only, single-threaded. `GET /` serves `static/index.html`, `app.js` and `style.css` (nothing else); `GET /api/library` is the schema 2 JSON (compact, ~2.3 MB for the author's 32 slots, built once per change in ~0.1 s and kept in memory) plus a `version`; `GET /api/status` returns the version; `POST /api/user {key, field, value}` sets one store field. `GET/POST /api/prefs` keeps the page's own settings (hidden columns, column widths) as one JSON object of at most 4 KB, in the store's `meta` table.
 - The server keeps the parsed slots in memory. An edit rebuilds the model from them (no file reads); `/api/status` and `/api/library` stat the slot files (on a thread pool) and reparse when one changed, so the page, which polls `/api/status` every 5 s, follows the game's saves. `?refresh=1` also rescans the Mods folder.
 - Security: requests must name `localhost`/`127.0.0.1` in `Host` (DNS rebinding); POSTs need the `X-Celeste-Tracker: 1` header, which a page on another site can't send without a CORS preflight the server never answers. The page puts every string through `esc()`; verified in Chrome with a mod renamed to an `<img onerror>` payload.
 - `app.js` applies no rules: statuses and totals come from the JSON. It filters, sorts and draws: mod rows → level sets (collabs only) → chapters → sides, skipping a level with one entry. View state (slot, filter, sort, search, open mods / level sets / chapters) is in the URL hash.

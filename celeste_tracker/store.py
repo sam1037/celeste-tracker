@@ -3,6 +3,7 @@
 - user_fields: what the player adds, per mod ID, level set or chapter SID: note, difficulty, rating, dropped,
   and a rename (mods only).
 - mod_cache: what was read from each mod zip, keyed by path, size and mtime, so unchanged zips aren't reopened.
+- meta: the schema version, and the page's own settings (which columns are shown, their widths).
 The save files and the Mods folder are never written (PRD #11); only this file is.
 """
 import json
@@ -119,6 +120,21 @@ class Store:
         with self.db:
             self.set_meta("old_notes_imported", str(path))
         return n
+
+    # ------------------------------------------------------------ page settings
+
+    def page_prefs(self):
+        """The --serve page's settings (hidden columns, column widths), as the page last sent them. They live here,
+        not in the browser: the desktop window forgets its localStorage, and gets a new port every run."""
+        try:
+            prefs = json.loads(self.meta("page_prefs") or "{}")
+        except json.JSONDecodeError:
+            return {}
+        return prefs if isinstance(prefs, dict) else {}
+
+    def set_page_prefs(self, prefs):
+        with self.db:
+            self.set_meta("page_prefs", json.dumps(prefs, separators=(",", ":")))
 
     # ------------------------------------------------------------ mod-scan cache
 

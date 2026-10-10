@@ -102,6 +102,19 @@ def test_edits_are_saved_and_shown(server):
     assert app.store.user_fields()["Collab"]["rating"] == 4  # in the store, not just in memory
 
 
+def test_page_settings_are_kept_in_the_store(server):
+    srv, app, _ = server
+    headers = {"Content-Type": "application/json", "X-Celeste-Tracker": "1"}
+    assert json.loads(request(srv, "GET", "/api/prefs")[2]) == {}
+    prefs = {"hidden": ["author"], "widths": {"sides": 260}}
+    assert request(srv, "POST", "/api/prefs", prefs, headers=headers)[0] == 200
+    assert json.loads(request(srv, "GET", "/api/prefs")[2]) == prefs
+    assert app.store.page_prefs() == prefs
+    assert request(srv, "POST", "/api/prefs", prefs, headers={"Content-Type": "text/plain"})[0] == 403
+    assert request(srv, "POST", "/api/prefs", ["author"], headers=headers)[0] == 400
+    assert request(srv, "POST", "/api/prefs", {"x": "y" * 5000}, headers=headers)[0] == 400
+
+
 def test_a_changed_save_is_picked_up(server):
     srv, _, saves = server
     v1 = json.loads(request(srv, "GET", "/api/status")[2])["version"]
