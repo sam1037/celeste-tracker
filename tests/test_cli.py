@@ -89,10 +89,24 @@ def test_json(run, mods_dir):
 
 
 def test_note(run, tmp_path):
-    out = run("--file", str(SLOTS / "1.celeste"), "--note", "Forest", "stopped at C")
-    assert "Saved note for Test/Sides/Forest" in out
-    assert Store(tmp_path / "tracker.db").user_fields() == {"Test/Sides/Forest": {"note": "stopped at C"}}
-    assert "<- stopped at C" in run("--file", str(SLOTS / "1.celeste"))
+    out = run("--file", str(SLOTS / "1.celeste"), "--note", "Test/Sides", "stopped at C")
+    assert "Saved note for Test/Sides" in out
+    assert Store(tmp_path / "tracker.db").user_fields() == {"Test/Sides": {"note": "stopped at C"}}
+    assert "note: stopped at C" in run("--file", str(SLOTS / "1.celeste"))
+
+
+def test_notes_and_ratings_are_per_mod(run, mods_dir):
+    args = ("--file", str(SLOTS / "1.celeste"), "--mods", str(mods_dir))
+    for flag, value in (("--note", "x"), ("--rate", "3"), ("--difficulty", "Expert")):
+        with pytest.raises(SystemExit, match="No mod matches"):
+            run(*args, flag, "Test/Collab/M1", value)  # a chapter, not a mod
+    with pytest.raises(SystemExit, match="No mod matches"):
+        run(*args, "--drop", "Test/Collab/M1")
+
+
+def test_old_chapter_notes_still_show(run, tmp_path):
+    Store(tmp_path / "tracker.db").set_field("Test/Sides/Forest", "note", "from before")
+    assert "<- from before" in run("--file", str(SLOTS / "1.celeste"))
 
 
 def test_note_on_a_name_shared_by_a_mod_and_its_chapter_goes_to_the_mod(run, tmp_path, mods_dir):
@@ -145,7 +159,7 @@ def test_user_fields_show_in_the_overview_and_json(run, mods_dir):
 
 def test_rating_must_be_1_to_5(run, mods_dir):
     with pytest.raises(SystemExit, match="1 to 5"):
-        run("--file", str(SLOTS / "1.celeste"), "--rate", "Forest", "9")
+        run("--file", str(SLOTS / "1.celeste"), "--rate", "Test/Sides", "9")
 
 
 def test_rename_a_mod(run, mods_dir):

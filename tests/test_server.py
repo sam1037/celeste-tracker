@@ -88,6 +88,8 @@ def test_edit_needs_the_header_and_valid_fields(server):
     assert plain[0] == 403  # what a form on another website could send
     assert post(srv, {"key": "Collab", "field": "colour", "value": "red"})[0] == 400
     assert post(srv, {"key": "Collab", "field": "rating", "value": 9})[0] == 400
+    assert post(srv, {"key": "Test/Collab/M1", "field": "note", "value": "x"})[0] == 400  # a chapter: fields are per mod
+    assert post(srv, {"key": "No/Such/Mod", "field": "note", "value": "x"})[0] == 400
 
 
 def test_edits_are_saved_and_shown(server):

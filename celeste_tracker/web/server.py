@@ -3,7 +3,7 @@
 GET  /                 the page (static/index.html, app.js, style.css, icon.png, and its font in static/fonts)
 GET  /api/library      the whole model as JSON (schema 2, same as --json); ?refresh=1 rescans the Mods folder
 GET  /api/status       {"version": n}: n goes up when a save file changed, so the page knows to reload
-POST /api/user         {"key", "field", "value"}: set one of the player's fields (store.FIELDS)
+POST /api/user         {"key", "field", "value"}: set one of the player's fields (store.FIELDS) on a mod
 GET  /api/prefs        the page's own settings (hidden columns, column widths), {} at first
 POST /api/prefs        a JSON object of at most 4 KB: replaces them
 
@@ -81,6 +81,8 @@ class App:
     def edit(self, key, field, value):
         if field not in FIELDS or not isinstance(key, str) or not key:
             raise ValueError("bad key or field")
+        if not any(m.id == key for m in self.library.mods):  # the player's fields are per mod (doc/UI.md)
+            raise ValueError(f"no mod {key!r}")
         if field == "rating":
             value = int(value or 0)
         elif field == "dropped":
