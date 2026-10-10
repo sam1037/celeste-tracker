@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Filter and edit mockup</title>
+  <!-- Mockup 3 for doc/PLAN-notes-rating.md: an Edit button on the hovered row, and one Filter panel with chips
+       (as in Linear and Notion) in place of the Show menu. The page's real style.css, made-up mods; nothing is saved.
+       Serve the repo root to open it. -->
+  <link rel="stylesheet" href="../../celeste_tracker/web/static/style.css">
+  <style>
+    /* ---- mockup-only chrome ---- */
+    .mock-note { margin: 18px var(--gutter) 6px; font-size: 13px; color: var(--muted); max-width: 840px; }
+    .mock-note h2 { font-size: 15px; color: var(--ink); margin: 0 0 4px; }
+    .mock-note ol { margin: 4px 0 0; padding-left: 18px; }
+    .mock-sep { margin: 34px var(--gutter) 0; border: 0; border-top: 2px dashed var(--line); }
+    .callout { display: inline-block; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #e2554f;
+      color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; vertical-align: middle; }
+    .pin { position: absolute; z-index: 7; }
+
+    /* ---- proposed additions to style.css ---- */
+
+    /* Rating stars (mockup 1). */
+    .rate { display: flex; gap: 1px; }
+    .rate button { border: 0; background: none; padding: 0 1px; font-size: 15px; line-height: 1; cursor: pointer; color: var(--guide); }
+    .rate button.on { color: var(--summit); }
+    .rate:not(.rated) button { color: transparent; }
+    .mod-head:hover .rate:not(.rated) button, .mod-head.demo-hover .rate:not(.rated) button { color: var(--guide); }
+    .sub.note { color: var(--ink); opacity: .8; white-space: nowrap; }
+    .sub.note::before { content: "✎ "; color: var(--summit); }
+    .mod-head.demo-hover { background: var(--hover); }
+
+    /* The Edit button: on the hovered row only, at the right end of the mod's name, over a fade so a long name
+       or note runs under it (as Gmail shows its actions on the row under the mouse). It opens the mod at its
+       Yours panel. */
+    .namecell { position: relative; min-width: 0; }
+    .edit {
+      display: none; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+      padding: 2px 10px 2px 26px; border: 0; font-size: 12px; color: var(--summit);
+      background: linear-gradient(to right, transparent, var(--hover) 18px);
+    }
+    .edit span { border: 1px solid var(--summit); border-radius: 12px; padding: 1px 9px; background: var(--surface); }
+    .mod-head:hover .edit, .mod-head.demo-hover .edit { display: block; }
+
+    /* Difficulty and Tags cells (mockup 2). */
+    .diff { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tagcell { display: flex; gap: 4px; overflow: hidden; align-items: center; }
+    .ptag { font-size: 11px; padding: 0 6px; border-radius: 10px; border: 1px solid var(--line); color: var(--ink); background: var(--snow); white-space: nowrap; }
+    .tagcell .more { font-size: 11px; color: var(--muted); }
+
+    /* The Filter button and its panel. The button says how many filters are on. */
+    .filter-menu { position: relative; }
+    .filter-menu summary {
+      list-style: none; cursor: pointer; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px;
+      background: var(--surface); color: var(--muted); display: flex; gap: 6px; align-items: center;
+    }
+    .filter-menu summary::-webkit-details-marker { display: none; }
+    .filter-menu summary::after { content: "▾"; font-size: 11px; }
+    .filter-menu[open] summary, .filter-menu.active summary { border-color: var(--summit); color: var(--ink); }
+    .filter-menu .count { background: var(--summit); color: var(--chip-ink); border-radius: 9px; font-size: 11px; font-weight: 700; padding: 0 6px; }
+    .fpanel {
+      position: absolute; right: 0; top: calc(100% + 4px); z-index: 6; width: 470px; padding: 6px 16px 12px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 20px rgb(0 0 0 / .12);
+      display: grid; grid-template-columns: 82px 1fr; gap: 10px 12px; align-items: start; font-size: 13px;
+    }
+    .fpanel .lab { color: var(--muted); font-size: 12px; padding-top: 4px; }
+    .fpanel .opts { display: flex; flex-wrap: wrap; gap: 5px; }
+    .fpanel hr { grid-column: 1 / -1; border: 0; border-top: 1px solid var(--line); margin: 0; }
+    .fpanel .foot { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; }
+    .fpanel .foot button { font-size: 12px; padding: 3px 10px; }
+    .fpanel select { padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 13px; }
+    .fpanel .any { font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+    /* A choice is a toggle chip: pressed = filtered by it. Choices in one group are OR, groups are AND. */
+    .opt {
+      font-size: 12px; padding: 2px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface);
+      color: var(--ink); cursor: pointer;
+    }
+    .opt small { color: var(--muted); margin-left: 3px; font-size: 11px; }
+    .opt[aria-pressed=true] { border-color: var(--summit); background: var(--hover); color: var(--summit); font-weight: 600; }
+    .opt[aria-pressed=true] small { color: var(--summit); }
+
+    /* The filters on, as chips under the toolbar: click ✕ to drop one. */
+    .chips { margin: -4px var(--gutter) 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
+    .chip-f {
+      display: inline-flex; gap: 4px; align-items: center; padding: 2px 4px 2px 10px; border-radius: 12px;
+      border: 1px solid var(--summit); background: var(--hover); color: var(--ink);
+    }
+    .chip-f b { font-weight: 600; color: var(--summit); }
+    .chip-f button { border: 0; background: none; padding: 0 5px; font-size: 11px; color: var(--muted); }
+    .chips .clear { border: 0; background: none; color: var(--summit); font-size: 12px; padding: 2px 6px; }
+    .chips .shown { margin-left: auto; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1>Celeste Tracker</h1>
+      <span class="figures"><span>Sides completed <b>486</b> of 1,318</span><span>Mods completed <b>113</b> of 253</span></span>
+    </div>
+    <div class="actions">
+      <span class="muted on" id="live">● live</span>
+      <button type="button">Refresh</button>
+      <button class="help-btn" type="button" aria-label="Help">?</button>
+    </div>
+  </header>
+
+  <div class="mock-note">
+    <h2>A. The Filter panel open before anything is picked, and a hovered row</h2>
+    <ol>
+      <li><span class="callout">1</span> <b>Filter</b> takes the place of Show. Status, rating, difficulty, tags and notes are in one
+        panel. Pick any number of choices: choices in one line widen the list (in progress <i>or</i> not started), and
+        lines narrow it (and rated 4 or more). The numbers are how many mods each choice has.</li>
+      <li><span class="callout">2</span> <b>Slot</b> stays its own menu: it picks which slot's numbers you see, it doesn't hide mods.</li>
+      <li><span class="callout">3</span> Hovering a row shows <b>✎ Edit</b> at the end of the name. It opens the mod at its Yours panel
+        (rating, difficulty, tags, note). The faint stars also show, to rate it in one click.</li>
+    </ol>
+  </div>
+  <section class="toolbar" aria-label="Filters" style="position:relative">
+    <input type="search" placeholder="Search by mod name, author, ID, level set, chapter or your note (press /)">
+    <label style="position:relative">Slot <select><option>All slots</option></select><span class="callout pin" style="left:-12px; top:-12px">2</span></label>
+    <details class="filter-menu" open>
+      <summary>Filter</summary>
+      <div class="fpanel" id="panel"></div>
+    </details>
+    <details class="cols-menu"><summary>Columns</summary></details>
+    <span class="callout pin" style="right:calc(var(--gutter) + 92px); top:0">1</span>
+  </section>
+  <main id="listA" class="list"></main>
+
+  <hr class="mock-sep">
+  <div class="mock-note">
+    <h2>B. After picking In progress, Not started and ★ 4 or more, the panel closed</h2>
+    <ol>
+      <li><span class="callout">4</span> The filters on show as chips under the toolbar, with ✕ to drop one and "Clear filters".
+        They're kept in the URL like the search and the slot, so a filtered view can be bookmarked.</li>
+      <li>Difficulty and Tags are on here (mockup 2).</li>
+    </ol>
+  </div>
+  <section class="toolbar" aria-label="Filters">
+    <input type="search" placeholder="Search by mod name, author, ID, level set, chapter or your note (press /)">
+    <label>Slot <select><option>All slots</option></select></label>
+    <details class="filter-menu active"><summary>Filter <span class="count">2</span></summary></details>
+    <details class="cols-menu"><summary>Columns</summary></details>
+  </section>
+  <div class="chips" id="chipsB"></div>
+  <main id="listB" class="list"></main>
+
+<script>
+const MODS = [
+  { name: "Glacier Pass", id: "GlacierPass", author: "frostbyte", done: 3, total: 5, st: "in progress", deaths: "2,431", time: "6:12:08", slot: 1, rating: 5,
+    note: "Stopped at the ice part in C-side. Try the upper route next time, it skips the long wind room.", diff: "Advanced", tags: ["favorite", "for golden"] },
+  { name: "Midnight Spire Collab", id: "MidnightSpire", author: "Spire Collab Team", done: 41, total: 88, st: "in progress", deaths: "9,870", time: "31:04:51", slot: 2, rating: 4,
+    note: "Beginner and Intermediate lobbies done; Expert heartside is the next goal", sets: 4, diff: "Expert", tags: ["collab", "tech", "long"] },
+  { name: "Heartwood", id: "Heartwood", author: "mossy_m", done: 2, total: 2, st: "completed", deaths: "312", time: "1:48:20", slot: 1, rating: 3, diff: "Intermediate", tags: ["chill"] },
+  { name: "Cloudline", id: "Cloudline", author: "Pellucid", done: 0, total: 3, st: "in progress", deaths: "57", time: "18:44", slot: 5, rating: 0, hover: true },
+  { name: "Ember Archive", id: "EmberArchive_Remake", author: "kiln", done: 1, total: 1, st: "completed", deaths: "640", time: "2:02:13", slot: 1, rating: 2, note: "Too much backtracking", diff: "Advanced" },
+  { name: "Lantern Hollow", id: "LanternHollow", author: "Tsubame", done: 0, total: 4, st: "not started", deaths: "-", time: "-", slot: "", rating: 4, tags: ["to play"], diff: "Advanced" },
+  { name: "The Salt Flats", id: "SaltFlats", author: "brine", done: 1, total: 3, st: "in progress", deaths: "1,104", time: "3:30:00", slot: 3, rating: 0 },
+];
+// The filters on in this mockup: in progress or not started, and rated 4 or more.
+const ON = { status: ["in progress", "not started"], rating: 4 };
+const keep = (m) => ON.status.includes(m.st) && m.rating >= ON.rating;
+
+const PICK = false; // A: nothing picked yet
+const opt = (label, n, on) => `<button type="button" class="opt" aria-pressed="${!!on && PICK}">${label}${n === undefined ? "" : `<small>${n}</small>`}</button>`;
+document.getElementById("panel").innerHTML = `
+  <span class="lab">Status</span><span class="opts">${opt("In progress", 95, 1)}${opt("Completed", 113)}${opt("Not started", 45, 1)}</span>
+  <span class="lab">Rating</span><span class="opts">${opt("Any", undefined)}${opt("★ 5", 6)}${opt("★ 4 or more", 19, 1)}${opt("★ 3 or more", 31)}${opt("Not rated", 222)}</span>
+  <span class="lab">Difficulty</span><span class="opts">${["Beginner", "Intermediate", "Advanced", "Expert", "Grandmaster", "Not set"].map((d, k) => opt(d, [4, 9, 14, 6, 2, 218][k])).join("")}</span>
+  <span class="lab">Tags</span><span><span class="opts">${["favorite", "tech", "collab", "chill", "for golden", "to play"].map((t, k) => opt(t, [7, 5, 4, 3, 2, 11][k])).join("")}</span>
+    <span class="any">A mod needs <select><option>any of them</option><option>all of them</option></select></span></span>
+  <span class="lab">Note</span><span class="opts">${opt("Has a note", 12)}${opt("No note", 241)}</span>
+  <hr>
+  <div class="foot"><span>All 253 mods</span><button type="button">Clear filters</button></div>`;
+
+const chips = `<span class="chip-f">Status <b>in progress, not started</b><button type="button" aria-label="Remove">✕</button></span>
+  <span class="chip-f">Rating <b>★ 4 or more</b><button type="button" aria-label="Remove">✕</button></span>
+  <button type="button" class="clear">Clear filters</button><span class="shown">3 of 253 mods</span>`;
+document.getElementById("chipsB").innerHTML = chips.replace('<span class="chip-f">', '<span class="callout" style="margin-right:2px">4</span><span class="chip-f">');
+
+const VIEWS = {
+  A: { cols: "16px 320px 170px minmax(120px, 1fr) 64px 72px 84px 44px", extra: false, mods: MODS },
+  B: { cols: "16px 260px 120px minmax(120px, 1fr) 64px 72px 84px 96px 140px 44px", extra: true, mods: MODS.filter(keep) },
+};
+const stars = (r) => `<span class="rate${r ? " rated" : ""}">` +
+  [1, 2, 3, 4, 5].map((n) => `<button type="button" class="${n <= r ? "on" : ""}" aria-label="${n} of 5">${n <= r ? "★" : "☆"}</button>`).join("") + `</span>`;
+
+function head(v) {
+  const th = (label, right, sorted, first) => `<span class="th${right ? " right" : ""}">${first ? "" : '<span class="grip"></span>'}` +
+    `<button type="button">${label}<span class="icon">${sorted ? "▼" : "↕"}</span></button></span>`;
+  return `<div class="list-head"><span></span>` + th("Mod", 0, 0, 1) + th("Author") + th("Sides") + th("Deaths", 1) + th("Time", 1, 1) +
+    th("Rating") + (v.extra ? th("Difficulty") + th("Tags") : "") + th("Slot", 1) + `</div>`;
+}
+
+function row(m, v, k) {
+  const cls = m.st === "completed" ? "s-completed" : m.st === "not started" ? "s-not-started" : "s-in-progress";
+  const idLine = [m.id !== m.name ? m.id : "", m.sets ? `${m.sets} level sets` : ""].filter(Boolean).join(" ∙ ");
+  const sub = m.note ? `<span class="sub note">${m.note}</span>` : idLine ? `<span class="sub">${idLine}</span>` : "";
+  const tags = (m.tags || []).slice(0, 2).map((t) => `<span class="ptag">${t}</span>`).join("") +
+    ((m.tags || []).length > 2 ? `<span class="more">+${m.tags.length - 2}</span>` : "");
+  const hover = m.hover && k === "A";
+  return `<article class="mod">
+    <div class="mod-head${hover ? " demo-hover" : ""}" style="position:relative">
+      <span class="caret">▸</span>
+      <span class="namecell"><span class="name">${m.name}${sub}</span>
+        <button type="button" class="edit" title="Open to rate it, set a difficulty, tag it or write a note"><span>✎ Edit</span></button></span>
+      <span class="author hide-sm">${m.author}</span>
+      <span class="progress"><div class="bar"><i style="width:${(100 * m.done) / m.total}%"></i></div>
+        <small><span class="num">${m.done}/${m.total} sides</span><span class="status ${cls}">${m.st}</span></small></span>
+      <span class="num right hide-sm">${m.deaths}</span>
+      <span class="num right hide-sm">${m.time}</span>
+      ${stars(m.rating)}
+      ${v.extra ? `<span class="diff">${m.diff || ""}</span><span class="tagcell">${tags}</span>` : ""}
+      <span class="num right hide-sm">${m.slot}</span>
+      ${hover ? `<span class="callout pin" style="left:340px; top:6px">3</span>` : ""}
+    </div>
+  </article>`;
+}
+
+for (const k of ["A", "B"]) {
+  const el = document.getElementById("list" + k), v = VIEWS[k];
+  el.style.setProperty("--mod-cols", v.cols);
+  el.innerHTML = head(v) + v.mods.map((m) => row(m, v, k)).join("");
+}
+</script>
+</body>
+</html>

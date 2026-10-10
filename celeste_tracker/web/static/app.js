@@ -17,7 +17,10 @@ function fmtTime(ticks) {
 }
 
 const PER_PAGE = 50;
-const state = { data: null, key: "all", show: "all", sort: "time", dir: "", page: 1, per: PER_PAGE, q: "", open: new Set(), openSet: new Set(),
+const DIFFICULTIES = ["Beginner", "Intermediate", "Advanced", "Expert", "Grandmaster"];  // as in store.py
+const MAX_TAG = 30;
+const cleanTag = (t) => t.toLowerCase().split(/\s+/).filter(Boolean).join(" ").slice(0, MAX_TAG);  // as store.clean_tag
+const state = { data: null, key: "all", f: {}, tagAll: false, sort: "time", dir: "", page: 1, per: PER_PAGE, q: "", open: new Set(), openSet: new Set(),
                 openCh: new Set() };
 const setId = (m, ls) => `${m.id}/${ls.name}`; // a level set can be split across mods (Glyph + Glyph D side)
 let index = { modOfSid: {}, search: {} };
@@ -28,7 +31,14 @@ let sessionsOpen = null; // the player's choice once they open or close the pane
 function readHash() {
   const p = new URLSearchParams(location.hash.slice(1));
   state.key = p.get("slot") || "all";
-  state.show = FILTERS[p.get("show")] ? p.get("show") : (OLD_SHOW[p.get("show")] || "all");
+  // The filters, one list per line of the Filter panel; show= is the Show menu's, from before the panel.
+  for (const g of FILTER_GROUPS) {
+    const ok = g.dynamic ? null : new Set(g.opts().map((o) => o.id));  // the tags aren't known before loading
+    state.f[g.id] = (p.get(g.id) || "").split(SEP).filter((x) => x && (!ok || ok.has(x))).slice(0, g.multi ? undefined : 1);
+  }
+  state.tagAll = p.get("tagall") === "1";
+  const show = OLD_SHOW[p.get("show")] ?? p.get("show");
+  if (show && !state.f.st.length && FILTER_GROUPS[0].opts().some((o) => o.id === show)) state.f.st = [show];
   state.sort = SORTS[p.get("sort")] ? p.get("sort") : "time";
   state.dir = ["asc", "desc"].includes(p.get("dir")) ? p.get("dir") : "";
   state.page = Math.max(1, parseInt(p.get("page"), 10) || 1);
@@ -42,7 +52,8 @@ function readHash() {
 function writeHash() {
   const p = new URLSearchParams();
   if (state.key !== "all") p.set("slot", state.key);
-  if (state.show !== "all") p.set("show", state.show);
+  for (const g of FILTER_GROUPS) if (state.f[g.id].length) p.set(g.id, state.f[g.id].join(SEP));
+  if (state.tagAll && state.f.tag.length) p.set("tagall", "1");
   if (state.sort !== "time") p.set("sort", state.sort);
   if (state.dir && state.dir !== FIRST_DIR[state.sort]) p.set("dir", state.dir);
   if (state.page > 1) p.set("page", state.page);
@@ -76,7 +87,7 @@ const countedSides = (ch) => Object.values(ch.sides).filter((s) => s.exists || s
 function buildIndex(data) {
   index = { modOfSid: {}, search: {} };
   for (const m of data.mods) {
-    const words = [m.name, m.id, m.gamebanana_title, m.author];
+    const words = [m.name, m.id, m.gamebanana_title, m.author, m.user.note, ...(m.user.tags || [])];
     for (const ls of m.sets) {
       words.push(ls.name, ls.title);
       for (const ch of ls.chapters) {
@@ -99,15 +110,41 @@ const STATUS_HELP = {
   completed: "Every side cleared",
   "not started": "Never opened",
 };
-// Show filters by those statuses, so the menu and the Status column use the same words. The values (playing,
-// complete) are older names, kept so bookmarks still work.
-const FILTERS = {
-  all: () => true,
-  playing: (m, v) => pageStatus(v.status) === "in progress",
-  complete: (m, v) => pageStatus(v.status) === "completed",
-  notstarted: (m, v) => v.status === "not started",
-};
-const OLD_SHOW = { played: "all", unfinished: "playing", dropped: "all" };  // bookmarks from before
+// The Filter panel (doc/UI.md, "Filters"): one line per group. Choices in one line widen the list (a mod needs one of
+// them), lines narrow it (a mod needs every line). A group that isn't multi takes one choice at a time. The status
+// IDs (playing, complete) are the old Show menu's, so bookmarks still work.
+const FILTER_GROUPS = [
+  { id: "st", label: "Status", multi: true, opts: () => [
+    { id: "playing", label: "In progress", chip: "in progress", test: (m, v) => pageStatus(v.status) === "in progress" },
+    { id: "complete", label: "Completed", chip: "completed", test: (m, v) => pageStatus(v.status) === "completed" },
+    { id: "notstarted", label: "Not started", chip: "not started", test: (m, v) => v.status === "not started" },
+  ] },
+  { id: "rate", label: "Rating", opts: () => [
+    { id: "5", label: "★ 5", test: (m) => m.user.rating === 5 },
+    { id: "4", label: "★ 4 or more", test: (m) => m.user.rating >= 4 },
+    { id: "3", label: "★ 3 or more", test: (m) => m.user.rating >= 3 },
+    { id: "none", label: "Not rated", test: (m) => !m.user.rating },
+  ] },
+  { id: "diff", label: "Difficulty", multi: true, opts: () => [
+    ...DIFFICULTIES.map((d) => ({ id: d, label: d, test: (m) => m.user.difficulty === d })),
+    { id: "none", label: "Not set", test: (m) => !m.user.difficulty },
+  ] },
+  // The player's tags, from the data; "tagall" makes a mod need every tag picked instead of one of them.
+  { id: "tag", label: "Tags", multi: true, dynamic: true, opts: () => allTags().map((t) => ({ id: t, label: t,
+    test: (m) => (m.user.tags || []).includes(t) })) },
+  { id: "note", label: "Note", opts: () => [
+    { id: "yes", label: "Has a note", test: (m) => !!m.user.note },
+    { id: "no", label: "No note", test: (m) => !m.user.note },
+  ] },
+];
+const allTags = () => [...new Set((state.data?.mods || []).flatMap((m) => m.user.tags || []))].sort();
+const OLD_SHOW = { all: "", played: "", dropped: "", unfinished: "playing" };  // Show menu values from before
+const filtersOn = () => FILTER_GROUPS.filter((g) => state.f[g.id].length);
+const passes = (m, v) => filtersOn().every((g) => {
+  const picked = g.opts().filter((o) => state.f[g.id].includes(o.id));
+  return g.id === "tag" && state.tagAll ? picked.length === state.f.tag.length && picked.every((o) => o.test(m, v))
+    : picked.some((o) => o.test(m, v));
+});
 const STATUS_RANK = { "in progress": 0, completed: 1, "not started": 2 };
 // Sort keys, each comparing in ascending order; FIRST_DIR is the direction a column starts in when clicked
 // (names A to Z, numbers high to low). Clicking the sorted column again flips it.
@@ -118,14 +155,19 @@ const SORTS = {
   // A to Z; mods without an author (not on GameBanana) last, whichever way the column is sorted
   author: (a, b) => (!a.m.author - !b.m.author) * (sortDir() === "asc" ? 1 : -1) || a.m.author.localeCompare(b.m.author),
   deaths: (a, b) => a.v.deaths - b.v.deaths,
-  rating: (a, b) => (a.m.user.rating || 0) - (b.m.user.rating || 0),  // no column now; kept for old bookmarks
+  // the player's rating; mods not rated last, whichever way the column is sorted
+  rating: (a, b) => (!a.m.user.rating - !b.m.user.rating) * (sortDir() === "asc" ? 1 : -1) ||
+    (a.m.user.rating || 0) - (b.m.user.rating || 0),
+  // Beginner to Grandmaster; mods without one last, whichever way the column is sorted
+  difficulty: (a, b) => (!diffRank(a.m) - !diffRank(b.m)) * (sortDir() === "asc" ? 1 : -1) || diffRank(a.m) - diffRank(b.m),
   // the slot shown (All slots); mods not played in any slot last, whichever way the column is sorted
   slot: (a, b) => (!a.v.slot - !b.v.slot) * (sortDir() === "asc" ? 1 : -1) || Number(a.v.slot) - Number(b.v.slot),
   // in progress, then completed, then not started; within one status, the most sides cleared first
   status: (a, b) => STATUS_RANK[pageStatus(a.v.status)] - STATUS_RANK[pageStatus(b.v.status)] ||
     (sortDir() === "asc" ? -1 : 1) * SORTS.progress(a, b),
 };
-const FIRST_DIR = { time: "desc", progress: "desc", name: "asc", author: "asc", deaths: "desc", rating: "desc", status: "asc",
+const diffRank = (m) => DIFFICULTIES.indexOf(m.user.difficulty) + 1;  // 0: not set (or an old free-text value)
+const FIRST_DIR = { time: "desc", progress: "desc", name: "asc", author: "asc", deaths: "desc", rating: "desc", status: "asc", difficulty: "asc",
                     slot: "asc" };
 const sortDir = () => state.dir || FIRST_DIR[state.sort];
 
@@ -133,7 +175,7 @@ function visibleMods() {
   const needle = state.q.trim().toLowerCase();
   return state.data.mods
     .map((m) => ({ m, v: viewOf(m) }))
-    .filter(({ m, v }) => FILTERS[state.show](m, v) && (!needle || index.search[m.id].includes(needle)))
+    .filter(({ m, v }) => passes(m, v) && (!needle || index.search[m.id].includes(needle)))
     .sort((a, b) => (sortDir() === "asc" ? 1 : -1) * SORTS[state.sort](a, b) || a.m.name.localeCompare(b.m.name));
 }
 
@@ -162,12 +204,27 @@ function slotCell(v) {
 }
 
 function ownTags(m) {
-  // What the player set with the CLI (rating, difficulty, dropped), on the mod's second line.
-  const t = [];
-  if (m.user.rating) t.push(`<span class="tag own">${"★".repeat(m.user.rating)}</span>`);
-  if (m.user.difficulty) t.push(`<span class="tag own">${esc(m.user.difficulty)}</span>`);
-  if (m.user.dropped) t.push(`<span class="tag own">dropped</span>`);
-  return t.join("");
+  // "dropped", set with the CLI, on the mod's second line.
+  return m.user.dropped ? `<span class="tag own">dropped</span>` : "";
+}
+
+function tagCell(m) {
+  // The player's tags as small chips; the ones that don't fit are counted, and all are in the tooltip.
+  const tags = m.user.tags || [];
+  return `<span class="tagcell hide-sm"${tags.length ? ` title="${esc(tags.join(", "))}"` : ""}>` +
+    tags.slice(0, 3).map((t) => `<span class="ptag">${esc(t)}</span>`).join("") +
+    (tags.length > 3 ? `<span class="more">+${tags.length - 3}</span>` : "") + `</span>`;
+}
+
+function stars(m, where) {
+  // The player's rating, 1 to 5, as a radio group (the WAI-ARIA rating pattern): one Tab stop, arrow keys move.
+  // Clicking the star given clears it. where: "row" (the Rating column) or "panel" (the Yours panel).
+  const r = m.user.rating || 0;
+  return `<span class="rate${r ? " rated" : ""}${where === "row" ? " hide-sm" : ""}" role="radiogroup" ` +
+    `aria-label="Your rating for ${esc(m.name)}" data-key="${esc(m.id)}" data-where="${where}">` +
+    [1, 2, 3, 4, 5].map((n) => `<button type="button" role="radio" data-rate="${n}" aria-checked="${n === r}"` +
+      ` tabindex="${n === (r || 1) ? 0 : -1}" class="${n <= r ? "on" : ""}" aria-label="${n} of 5"` +
+      ` title="${n === r ? "Clear your rating" : `${n} of 5`}">${n <= r ? "★" : "☆"}</button>`).join("") + `</span>`;
 }
 
 // ------------------------------------------------------------------ columns
@@ -178,26 +235,54 @@ function ownTags(m) {
 const COLUMNS = [
   { id: "mod", label: "Mod", sort: "name", what: "name", width: 320, min: 160 },
   { id: "author", label: "Author", sort: "author", width: 170, min: 60 },
-  { id: "sides", label: "Sides", sort: "progress", what: "sides cleared", width: 220, min: 120 },
+  { id: "sides", label: "Sides", sort: "progress", what: "sides cleared", width: 220, min: 150 },
   { id: "deaths", label: "Deaths", sort: "deaths", width: 64, min: 48, right: true },
   { id: "time", label: "Time", sort: "time", what: "time played", width: 72, min: 56, right: true },
   { id: "best", label: "Best", help: "Best time, for a single side", width: 64, min: 48, right: true },
   { id: "berries", label: "Berries", width: 60, min: 48, right: true },
+  { id: "rating", label: "Rating", sort: "rating", what: "your rating", help: "How much you enjoyed it, 1 to 5", width: 92, min: 92, mine: true },
+  { id: "difficulty", label: "Difficulty", sort: "difficulty", what: "your difficulty", help: "How hard it is for you", width: 100, min: 72, mine: true },
+  { id: "tags", label: "Tags", help: "Your tags", width: 150, min: 70, mine: true },
+  { id: "note", label: "Note", help: "Your note: click one to write or change it", width: 200, min: 80, mine: true },
   { id: "slot", label: "Slot", sort: "slot", what: "slot shown", help: "The slot shown: your furthest", width: 44, min: 40, right: true },
 ];
-const DEFAULT_HIDDEN = ["best", "berries"];
+const DEFAULT_HIDDEN = ["best", "berries", "difficulty", "tags"];
+// The columns there were before the page saved which ones it knew: a column added since starts as DEFAULT_HIDDEN says,
+// even for a player whose saved settings don't mention it.
+const OLD_COLUMNS = ["mod", "author", "sides", "deaths", "time", "best", "berries", "slot"];
 const GAP = 12, ARROW = 16; // .mod-head's gap and arrow column, in style.css
-let prefs = { hidden: DEFAULT_HIDDEN, widths: {} };
+let prefs = { hidden: DEFAULT_HIDDEN, widths: {}, auto: [] };  // auto: the player's columns that turned on by themselves
 
 const colWidth = (c) => prefs.widths[c.id] || c.width;
 const canShow = (c) => c.id !== "slot" || state.key === "all";
 const shownCols = () => COLUMNS.filter((c) => c.id === "mod" || (canShow(c) && !prefs.hidden.includes(c.id)));
 const flexCol = () => shownCols().find((c) => c.id === "sides") || COLUMNS[0];
 
+// When the columns shown don't fit (every one of the player's columns on, say), the widest give way first, down to
+// their minimum, so the last column doesn't slide out of view. Only on screen: the saved widths stay.
+const SHRINK = ["mod", "author", "note", "tags", "difficulty"];
+let fitted = {};
+const shownWidth = (c) => fitted[c.id] ?? colWidth(c);
+
+function fitColumns() {
+  const cols = shownCols(), flex = flexCol();
+  const room = $("list").clientWidth - 2 * 14 - ARROW - GAP * cols.length - flex.min;  // 14: .mod-head's padding
+  let over = cols.filter((c) => c !== flex).reduce((a, c) => a + colWidth(c), 0) - room;
+  fitted = {};
+  for (const id of SHRINK) {
+    const c = cols.find((x) => x.id === id);
+    if (over <= 0 || !c || c === flex) continue;
+    const take = Math.min(over, Math.max(0, colWidth(c) - c.min));
+    fitted[id] = colWidth(c) - take;
+    over -= take;
+  }
+}
+
 function applyColumns() {
   // The grid every row uses; rows inside an opened mod have no author, so their name takes its place too.
+  fitColumns();
   const cols = shownCols(), flex = flexCol(), list = $("list").style;
-  list.setProperty("--mod-cols", `${ARROW}px ` + cols.map((c) => (c === flex ? `minmax(${c.min}px, 1fr)` : `${colWidth(c)}px`)).join(" "));
+  list.setProperty("--mod-cols", `${ARROW}px ` + cols.map((c) => (c === flex ? `minmax(${c.min}px, 1fr)` : `${shownWidth(c)}px`)).join(" "));
   list.setProperty("--name-span", cols.some((c) => c.id === "author") ? 2 : 1);
 }
 
@@ -210,19 +295,23 @@ async function loadPrefs() {
   try {
     const r = await fetch("/api/prefs");
     const p = r.ok ? await r.json() : {};
-    prefs = { hidden: Array.isArray(p.hidden) ? p.hidden : DEFAULT_HIDDEN, widths: p.widths && typeof p.widths === "object" ? p.widths : {} };
+    const hidden = Array.isArray(p.hidden) ? p.hidden : DEFAULT_HIDDEN, known = Array.isArray(p.known) ? p.known : OLD_COLUMNS;
+    prefs = { hidden: [...hidden, ...DEFAULT_HIDDEN.filter((id) => !known.includes(id) && !hidden.includes(id))],
+              widths: p.widths && typeof p.widths === "object" ? p.widths : {}, auto: Array.isArray(p.auto) ? p.auto : [] };
   } catch { /* the defaults */ }
 }
 
 function savePrefs() {
   fetch("/api/prefs", { method: "POST", headers: { "Content-Type": "application/json", "X-Celeste-Tracker": "1" },
-                        body: JSON.stringify(prefs) }).catch(() => {});
+                        body: JSON.stringify({ ...prefs, known: COLUMNS.map((c) => c.id) }) }).catch(() => {});
 }
 
 function renderColumnsMenu() {
-  $("cols").innerHTML = COLUMNS.filter((c) => c.id !== "mod").map((c) =>
-    `<label${canShow(c) ? "" : ' class="muted" title="Only with All slots"'}><input type="checkbox" data-col="${c.id}"` +
-    `${prefs.hidden.includes(c.id) ? "" : " checked"}${canShow(c) ? "" : " disabled"}> ${c.label}</label>`).join("") +
+  // Two groups: what comes from the saves, and the player's own fields.
+  const box = (c) => `<label${canShow(c) ? "" : ' class="muted" title="Only with All slots"'}><input type="checkbox" data-col="${c.id}"` +
+    `${prefs.hidden.includes(c.id) ? "" : " checked"}${canShow(c) ? "" : " disabled"}> ${c.label}</label>`;
+  $("cols").innerHTML = `<h4>From your saves</h4>` + COLUMNS.filter((c) => c.id !== "mod" && !c.mine).map(box).join("") +
+    `<hr><h4>Yours</h4>` + COLUMNS.filter((c) => c.mine).map(box).join("") +
     `<button type="button" data-reset-cols>Reset columns</button>`;
 }
 
@@ -273,6 +362,11 @@ function modCard({ m, v }) {
         author: `<span class="author hide-sm" title="${esc(m.author ? `GameBanana author: ${m.author}` : "Not on GameBanana's mod list")}">${esc(m.author)}</span>`,
         sides: progress(v, q(m), !known(m)),
         ...numbers(v, chs.length === 1 ? best(chs[0]) : ""),
+        rating: stars(m, "row"),
+        difficulty: `<span class="diff hide-sm">${esc(m.user.difficulty)}</span>`,
+        tags: tagCell(m),
+        // Clicking it opens the mod with the cursor in its note, so an empty one is how to write one.
+        note: `<span class="notecell hide-sm" data-note-cell title="${esc(m.user.note || "Click to write a note")}">${esc(m.user.note)}</span>`,
         slot: slotCell(v),
       })}
     </div>
@@ -288,7 +382,7 @@ function modBody(m, v) {
   if (!known(m)) facts.push(`<span>Not in the Mods folder: only what you opened is listed</span>`);
   // Not on the row: on most rows, and it doesn't help pick what to play (user, 2026-10-08).
   if (!v.loaded) facts.push(`<span>Everest didn't load this mod the last time the game saved</span>`);
-  return `<div class="mod-body">${guide({ kind: "mod", id: m.id, name: m.name })}<div class="facts">${facts.join("")}</div>${SHOW_EDITOR ? mineEditor(m) : ""}</div>` +
+  return `<div class="mod-body">${guide({ kind: "mod", id: m.id, name: m.name })}<div class="facts">${facts.join("")}</div>${yours(m)}</div>` +
     modRows(m);
 }
 
@@ -311,7 +405,8 @@ function treeRow(level, { attr = "", open = null, name, sub = "", strong = false
         anc.slice(1).map((a, k) => guide(a, ` style="left:${k * 20 - 2}px"`)).join("") +
         `<span class="caret">${toggle ? "▸" : ""}</span>` +
         `<span class="t">${name}${sub ? `<small>${sub}</small>` : ""}</span></span>`,
-      sides: progress(v, mark), ...numbers(v, bestTime), slot: `<span class="hide-sm"></span>`,
+      sides: progress(v, mark), ...numbers(v, bestTime), rating: `<span class="hide-sm"></span>`, difficulty: `<span class="hide-sm"></span>`, tags: `<span class="hide-sm"></span>`, note: `<span class="hide-sm"></span>`,
+      slot: `<span class="hide-sm"></span>`,
     }) + `</div>`;
 }
 
@@ -327,7 +422,7 @@ function modRows(m) {
     const id = setId(m, ls), open = state.openSet.has(id);
     // Each in a group of its own, so an opened level set's row sticks only while its chapters are on screen.
     return `<div class="tgroup">` + treeRow(1, { attr: ` data-set="${esc(id)}"`, open, name: esc(setLabel(ls)), strong: true,
-                        sub: ls.user.note ? `note: ${esc(ls.user.note)}` : "", v: viewOf(ls), mark: q(m), anc }) +
+                        v: viewOf(ls), mark: q(m), anc }) +
       (open ? chapterRows(m, ls.chapters, 2, [...anc, { kind: "set", id, name: setLabel(ls) }]) : "") + `</div>`;
   }).join("");
 }
@@ -341,7 +436,7 @@ function chapterRows(m, list, level, anc) {
       const sides = countedSides(ch), many = sides.length > 1, open = many && state.openCh.has(ch.sid);
       const title = ch.title || ch.sid.split("/").pop();
       return treeRow(level, { attr: many ? ` data-ch="${esc(ch.sid)}"` : "", open: many ? open : null,
-                              name: esc(title), sub: ch.user.note ? `note: ${esc(ch.user.note)}` : "",
+                              name: esc(title),
                               v: viewOf(ch, "not opened"), mark: q(m), bestTime: best(ch), anc }) +
         (open ? sides.map((s) => sideRow(s, level + 1, [...anc, { kind: "ch", id: ch.sid, name: title }])).join("") : "");
     }).join("");
@@ -362,24 +457,25 @@ function shownSlot(m, v) {
   return `Shown: <b>slot ${esc(v.slot)}</b>, your furthest; also played in ${list}`;
 }
 
-// The player's own fields (rating, difficulty, dropped, rename, note) are hidden on the page for now, at the
-// user's request (2026-10-05); the CLI still edits them, and a mod's second line still shows what's set.
-const SHOW_EDITOR = false;
-
-function mineEditor(m) {
-  const u = m.user;
-  const stars = [1, 2, 3, 4, 5].map((n) =>
-    `<button type="button" data-rate="${n}" class="${(u.rating || 0) >= n ? "on" : ""}" aria-label="${n} of 5">★</button>`).join("");
-  return `<div class="mine" data-key="${esc(m.id)}">
-    <label>Rating</label><div class="stars">${stars} <span class="saved" hidden>saved</span></div>
-    <label for="d-${esc(m.id)}">Difficulty</label>
-    <input id="d-${esc(m.id)}" type="text" data-field="difficulty" value="${esc(u.difficulty)}" placeholder="e.g. Expert, GM+1">
-    <label>Dropped</label><label><input type="checkbox" data-field="dropped" ${u.dropped ? "checked" : ""}> I gave up on this one</label>
-    <label for="r-${esc(m.id)}">My name for it</label>
-    <input id="r-${esc(m.id)}" type="text" data-field="rename" value="${esc(u.rename)}" placeholder="${esc(m.gamebanana_title || m.name)}">
-    <label for="n-${esc(m.id)}">Note</label>
-    <textarea id="n-${esc(m.id)}" data-field="note" placeholder="e.g. stopped at the ice part">${esc(u.note)}</textarea>
-  </div>`;
+// The Yours panel, in an opened mod: every field the player sets on it, in one place (doc/UI.md, "Your fields").
+// Dropped and the rename are still only set with the CLI.
+function yours(m) {
+  const id = `note-${cls(m.id)}`, d = m.user.difficulty || "";
+  const levels = DIFFICULTIES.includes(d) || !d ? DIFFICULTIES : [...DIFFICULTIES, d];  // an old free-text value stays
+  return `<section class="yours" data-key="${esc(m.id)}" aria-label="Yours">
+    <h3>Yours <span>Only you see these. Your save files are never changed.</span></h3>
+    <span class="lab">Rating</span>${stars(m, "panel")}
+    <label for="diff-${id}">Difficulty</label>
+    <select id="diff-${id}" data-difficulty><option value="">Not set</option>` +
+      levels.map((x) => `<option${x === d ? " selected" : ""}>${esc(x)}</option>`).join("") + `</select>
+    <span class="lab">Tags</span>
+    <span class="tags">${(m.user.tags || []).map((t) => `<span class="ptag">${esc(t)}<button type="button" data-untag="${esc(t)}"` +
+      ` aria-label="Remove the tag ${esc(t)}" title="Remove">✕</button></span>`).join("")}` +
+      `<input type="text" data-addtag list="tag-list" maxlength="${MAX_TAG}" placeholder="Add a tag" aria-label="Add a tag"></span>
+    <label class="note-lab" for="${id}">Note</label>
+    <textarea id="${id}" data-note rows="1" maxlength="${NOTE_MAX}" placeholder="Add a note: where you stopped, what to try next">${esc(m.user.note)}</textarea>
+    <span></span><span class="saved" aria-live="polite"></span>
+  </section>`;
 }
 
 function renderSessions() {
@@ -419,12 +515,35 @@ function renderSummary(rows) {
   const sides = played.reduce((a, v) => [a[0] + v.sides_done, a[1] + v.sides_total], [0, 0]);
   const fig = (label, n, of) => `<span>${label} <b>${fmtNum(n)}</b>${of === undefined ? "" : ` of ${fmtNum(of)}`}</span>`;
   $("summary").innerHTML = fig("Sides completed", sides[0], sides[1]) + fig("Mods completed", done, played.length) +
-    (state.show !== "all" || state.q.trim() ? fig("Showing", rows.length) : "");
-  // Each Show option with how many mods it has in this slot.
-  const all = state.data.mods.map((m) => ({ m, v: viewOf(m) }));
-  for (const o of $("show").options) {
-    o.textContent = `${o.dataset.label} (${all.filter(({ m, v }) => FILTERS[o.value](m, v)).length})`;
-  }
+    (filtersOn().length || state.q.trim() ? fig("Showing", rows.length) : "");
+}
+
+function renderFilters(rows) {
+  // The Filter button (how many lines are on), its panel (each choice with how many mods it has in the slot shown)
+  // and the chips under the toolbar.
+  const all = state.data.mods.map((m) => ({ m, v: viewOf(m) })), on = filtersOn();
+  $("filter-menu").classList.toggle("active", on.length > 0);
+  $("filter-count").textContent = on.length || "";
+  $("filter-count").hidden = !on.length;
+  const line = (g) => {
+    const opts = g.opts();
+    if (!opts.length) return `<span class="lab">${g.label}</span><span class="none">None yet: add tags in an opened mod.</span>`;
+    const chips = `<span class="opts">` + opts.map((o) => `<button type="button" class="opt" data-f="${g.id}" data-v="${esc(o.id)}"` +
+      ` aria-pressed="${state.f[g.id].includes(o.id)}">${esc(o.label)}<small>${all.filter(({ m, v }) => o.test(m, v)).length}</small></button>`).join("") + `</span>`;
+    const any = g.id === "tag" ? `<span class="any">A mod needs <select data-tagall><option value="">any of them</option>` +
+      `<option value="1"${state.tagAll ? " selected" : ""}>all of them</option></select></span>` : "";
+    return `<span class="lab">${g.label}</span><span>${chips}${any}</span>`;
+  };
+  $("filters").innerHTML = FILTER_GROUPS.map(line).join("") +
+    `<hr><div class="foot"><span>${on.length ? `${fmtNum(rows.length)} of ${fmtNum(all.length)} mods match` : `All ${fmtNum(all.length)} mods`}` +
+    `${state.q.trim() ? " the search" : ""}</span><button type="button" data-clear-filters${on.length ? "" : " disabled"}>Clear filters</button></div>`;
+  $("chips").hidden = !on.length;
+  $("chips").innerHTML = on.map((g) => `<span class="chip-f">${g.label} <b>` +
+    esc(g.opts().filter((o) => state.f[g.id].includes(o.id)).map((o) => o.chip || o.label)
+      .join(g.id === "tag" && state.tagAll ? " and " : ", ")) +
+    `</b><button type="button" data-unfilter="${g.id}" aria-label="Remove the ${g.label} filter" title="Remove">✕</button></span>`).join("") +
+    `<button type="button" class="clear" data-clear-filters>Clear filters</button>` +
+    `<span class="shown">${fmtNum(rows.length)} of ${fmtNum(all.length)} mods</span>`;
 }
 
 // The header row over the mods (same grid as .mod-head). Click a column name to sort by it, again to flip it.
@@ -438,7 +557,7 @@ function listHead() {
     const next = on ? (dir === "asc" ? "desc" : "asc") : dir;
     const icon = on ? (dir === "asc" ? "▲" : "▼") : "↕";
     return `<span class="th${extra}" role="columnheader"${on ? ` aria-sort="${dir}ending"` : ""}>${grip}` +
-      `<button type="button" data-sort="${c.sort}" title="Sort by ${c.what || c.id}, ${next === "asc" ? "lowest" : "highest"} first` +
+      `<button type="button" data-sort="${c.sort}" title="${c.help ? `${esc(c.help)}. ` : ""}Sort by ${c.what || c.id}, ${next === "asc" ? "lowest" : "highest"} first` +
       `${c.sort === "name" || c.sort === "author" ? (next === "asc" ? " (A to Z)" : " (Z to A)") : ""}">${c.label}` +
       `<span class="icon" aria-hidden="true">${icon}</span></button></span>`;
   };
@@ -469,6 +588,8 @@ function render() {
   if (!state.data) return;
   const rows = visibleMods();
   renderSummary(rows);
+  renderFilters(rows);
+  $("tag-list").innerHTML = allTags().map((t) => `<option value="${esc(t)}">`).join("");
   renderSessions();
   renderColumnsMenu();
   applyColumns();
@@ -476,7 +597,8 @@ function render() {
   state.page = Math.min(Math.max(1, state.page), pages);
   const shown = state.per ? rows.slice((state.page - 1) * state.per, state.page * state.per) : rows;
   $("list").innerHTML = rows.length ? listHead() + shown.map(modCard).join("") + (rows.length > 25 ? pager(rows.length, pages) : "")
-    : `<div class="empty">No mods match. Clear the search or pick "All mods" under Show.</div>`;
+    : `<div class="empty">No mods match. Clear the search${filtersOn().length ? ` or the filters` : ""}.</div>`;
+  for (const area of document.querySelectorAll("[data-note]")) fitNote(area);
   measure();
   writeHash();
 }
@@ -490,7 +612,7 @@ function measure() {
     mod.style.setProperty("--mh", `${mod.querySelector(".mod-head").offsetHeight}px`);
   }
 }
-window.addEventListener("resize", measure);
+window.addEventListener("resize", () => { if (state.data) applyColumns(); measure(); });
 
 // ------------------------------------------------------------------ loading and editing
 
@@ -518,16 +640,98 @@ function fillSlots() {
   $("slot").value = state.key;
 }
 
-async function save(key, field, value, el) {
+const NOTE_MAX = 2000; // as in server.py
+
+async function save(key, field, value) {
+  // Saves one of the player's fields and updates the page's own copy, without reloading: a reload would redraw the
+  // note field being typed in. The live reload (poll) picks up anything else that changed once the player is done.
   const r = await fetch("/api/user", {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Celeste-Tracker": "1" },
     body: JSON.stringify({ key, field, value }),
   });
-  if (!r.ok) { alert(`Couldn't save: ${(await r.json()).error || r.status}`); return; }
-  await load();
-  const saved = document.querySelector(`.mine[data-key="${CSS.escape(key)}"] .saved`);
-  if (saved) { saved.hidden = false; setTimeout(() => (saved.hidden = true), 1500); }
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || `the server answered ${r.status}`);
+  const m = state.data.mods.find((x) => x.id === key);
+  if (value === "" || value === 0 || value === false || value == null || (Array.isArray(value) && !value.length)) delete m.user[field];
+  else m.user[field] = typeof value === "string" ? value.trim() : value;
+  buildIndex(state.data);  // the search matches notes
+}
+
+async function rate(group, n) {
+  // A star clicked or chosen with the arrow keys; the same star again clears the rating. Focus stays on the stars.
+  const key = group.dataset.key, where = group.dataset.where, m = state.data.mods.find((x) => x.id === key);
+  const value = m.user.rating === n ? 0 : n;
+  try { await save(key, "rating", value); } catch (e) { return alert(`Couldn't save your rating: ${e.message}`); }
+  render();
+  const again = document.querySelector(`.rate[data-key="${CSS.escape(key)}"][data-where="${where}"]`);
+  again?.querySelector(`[data-rate="${value || n}"]`)?.focus();
+}
+
+// The first time the player sets a difficulty or adds a tag, that column turns on by itself, once, with a notice
+// that says so (doc/UI.md, "Your fields"); hiding it again from the Columns menu sticks.
+function firstUse(col) {
+  if (prefs.auto.includes(col)) return;
+  prefs.auto = [...prefs.auto, col];
+  if (prefs.hidden.includes(col)) {
+    prefs.hidden = prefs.hidden.filter((x) => x !== col);
+    const c = COLUMNS.find((x) => x.id === col);
+    $("notice").innerHTML = `<span>The <b>${c.label}</b> column is on now that you've ${col === "tags" ? "added a tag" : "set one"}.</span>` +
+      `<button type="button" data-notice-hide="${col}">Hide it</button><button type="button" data-notice-ok>OK</button>`;
+    $("notice").hidden = false;
+  }
+  savePrefs();
+}
+
+async function setDifficulty(select) {
+  const key = select.closest(".yours").dataset.key;
+  try { await save(key, "difficulty", select.value); } catch (e) { return alert(`Couldn't save the difficulty: ${e.message}`); }
+  if (select.value) firstUse("difficulty");
+  render();
+  document.querySelector(`.yours[data-key="${CSS.escape(key)}"] [data-difficulty]`)?.focus();
+}
+
+async function setTags(key, tags) {
+  // Saves a mod's tags, then puts the cursor back in its "Add a tag" field.
+  const clean = [...new Set(tags.map(cleanTag).filter(Boolean))].sort();
+  try { await save(key, "tags", clean); } catch (e) { return alert(`Couldn't save the tags: ${e.message}`); }
+  if (clean.length) firstUse("tags");
+  render();
+  document.querySelector(`.yours[data-key="${CSS.escape(key)}"] [data-addtag]`)?.focus();
+}
+
+function addTag(input) {
+  const key = input.closest(".yours").dataset.key, tag = cleanTag(input.value);
+  if (!tag) return;
+  const m = state.data.mods.find((x) => x.id === key);
+  input.value = "";
+  if (!(m.user.tags || []).includes(tag)) setTags(key, [...(m.user.tags || []), tag]);
+}
+
+// Notes save 600 ms after typing stops, and when the field is left.
+const noteTimers = {};
+async function saveNote(area) {
+  const key = area.closest(".yours").dataset.key, status = area.closest(".yours").querySelector(".saved");
+  clearTimeout(noteTimers[key]);
+  const m = state.data.mods.find((x) => x.id === key);
+  if (area.value.trim() === (m.user.note || "")) return;
+  try {
+    await save(key, "note", area.value);
+    status.textContent = "Saved";
+    status.classList.remove("error");
+    setTimeout(() => { if (status.textContent === "Saved") status.textContent = ""; }, 1500);
+    // Once the player has left the panel, redraw so the note shows under the mod's name.
+    if (!document.activeElement?.closest(".yours")) render();
+  } catch (e) {
+    status.textContent = `Not saved: ${e.message}`;
+    status.classList.add("error");
+  }
+}
+
+function fitNote(area) {
+  // The note field grows with its text, up to the max-height in style.css.
+  area.style.height = "auto";
+  area.style.height = `${area.scrollHeight + 2}px`;
 }
 
 function toggle(set, id) {
@@ -542,7 +746,7 @@ async function poll() {
     const r = await fetch("/api/status");
     const { version } = await r.json();
     $("live").classList.add("on");
-    const typing = document.activeElement && document.activeElement.closest(".mine");
+    const typing = document.activeElement && document.activeElement.closest(".yours");
     if (state.data && version !== state.data.version && !typing) await load();
   } catch {
     $("live").classList.remove("on");
@@ -552,11 +756,13 @@ async function poll() {
 // ------------------------------------------------------------------ events
 
 $("list").addEventListener("click", (e) => {
-  const rate = e.target.closest("[data-rate]");
-  if (rate) {
-    const key = rate.closest(".mine").dataset.key, n = Number(rate.dataset.rate);
-    const m = state.data.mods.find((x) => x.id === key);
-    return save(key, "rating", m.user.rating === n ? 0 : n); // clicking the current rating clears it
+  const star = e.target.closest("[data-rate]");
+  if (star) return rate(star.closest(".rate"), Number(star.dataset.rate));
+  if (e.target.closest("[data-note-cell]")) return editNote(e.target.closest(".mod").dataset.mod);
+  const untag = e.target.closest("[data-untag]");
+  if (untag) {
+    const key = untag.closest(".yours").dataset.key, m = state.data.mods.find((x) => x.id === key);
+    return setTags(key, (m.user.tags || []).filter((t) => t !== untag.dataset.untag));
   }
   const sort = e.target.closest("[data-sort]");
   if (sort) {
@@ -609,6 +815,19 @@ function openRow(target) {
   return !!(head || set || ch);
 }
 $("list").addEventListener("keydown", (e) => {
+  if (e.target.matches("[data-addtag]") && (e.key === "Enter" || e.key === ",")) {
+    e.preventDefault();
+    return addTag(e.target);
+  }
+  const star = e.target.closest("[data-rate]");
+  const step = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
+  if (star && step) {
+    e.preventDefault();
+    const m = state.data.mods.find((x) => x.id === star.closest(".rate").dataset.key);
+    const n = Math.min(5, Math.max(1, (m.user.rating || 0) + step));
+    if (n !== m.user.rating) rate(star.closest(".rate"), n);
+    return;
+  }
   if ((e.key === "Enter" || e.key === " ") && e.target.matches("[role=button]") && openRow(e.target)) e.preventDefault();
 });
 $("list").addEventListener("change", (e) => {
@@ -617,11 +836,34 @@ $("list").addEventListener("change", (e) => {
     state.page = 1;
     return render();
   }
-  const f = e.target.dataset.field;
-  if (!f) return;
-  const key = e.target.closest(".mine").dataset.key;
-  save(key, f, e.target.type === "checkbox" ? e.target.checked : e.target.value, e.target);
+  if (e.target.matches("[data-difficulty]")) return setDifficulty(e.target);
+  if (e.target.matches("[data-addtag]")) return addTag(e.target);
 });
+$("list").addEventListener("input", (e) => {
+  if (!e.target.matches("[data-note]")) return;
+  fitNote(e.target);
+  const key = e.target.closest(".yours").dataset.key;
+  clearTimeout(noteTimers[key]);
+  noteTimers[key] = setTimeout(() => saveNote(e.target), 600);
+});
+$("list").addEventListener("focusout", (e) => { if (e.target.matches("[data-note]")) saveNote(e.target); });
+// Hovering a star previews the rating up to it.
+$("list").addEventListener("mouseover", (e) => {
+  for (const b of document.querySelectorAll(".rate .preview")) b.classList.remove("preview");
+  const star = e.target.closest("[data-rate]");
+  if (!star) return;
+  for (const b of star.parentElement.children) if (Number(b.dataset.rate) <= Number(star.dataset.rate)) b.classList.add("preview");
+});
+
+function editNote(id) {
+  // A click in the Note column: open the mod, and put the cursor in its note.
+  state.open.add(id);
+  render();
+  const area = document.querySelector(`.mod[data-mod="${CSS.escape(id)}"] [data-note]`);
+  if (!area) return;
+  area.focus({ preventScroll: true });
+  area.closest(".yours").scrollIntoView({ block: "nearest" });
+}
 // Resizing a column: the grip on a column's left edge is the line between it and the column before it, and dragging
 // it moves only that line: the two columns change width in opposite directions, and every other line stays put.
 // When one of the two is the flexible column, it changes by itself, never below its minimum.
@@ -634,9 +876,9 @@ $("list").addEventListener("pointerdown", (e) => {
   if (!grip || e.button !== 0) return;
   e.preventDefault();
   const [left, right] = pairOf(grip.dataset.grip), flex = flexCol(), x0 = e.clientX;
-  const l0 = colWidth(left), r0 = colWidth(right);
+  const l0 = shownWidth(left), r0 = shownWidth(right);
   const head = grip.closest(".list-head"), pad = parseFloat(getComputedStyle(head).paddingLeft) * 2;
-  const fixed = shownCols().filter((x) => x !== flex).reduce((a, x) => a + colWidth(x), 0);
+  const fixed = shownCols().filter((x) => x !== flex).reduce((a, x) => a + shownWidth(x), 0);
   const spare = Math.max(0, head.clientWidth - pad - ARROW - GAP * shownCols().length - fixed - flex.min);
   grip.setPointerCapture(e.pointerId);
   grip.classList.add("drag");
@@ -683,16 +925,17 @@ $("cols").addEventListener("change", (e) => {
 });
 $("cols").addEventListener("click", (e) => {
   if (!e.target.closest("[data-reset-cols]")) return;
-  prefs = { hidden: DEFAULT_HIDDEN, widths: {} };
+  prefs = { hidden: DEFAULT_HIDDEN, widths: {}, auto: prefs.auto };
   savePrefs();
   render();
 });
-// The Columns menu closes on a click anywhere else, or Escape.
+// The Columns and Filter menus close on a click anywhere else, or Escape.
+const MENUS = ["cols-menu", "filter-menu"];
 document.addEventListener("click", (e) => {
-  const menu = $("cols-menu");
-  if (menu.open && !menu.contains(e.target)) menu.open = false;
+  // composedPath, not contains: a click in the Filter panel redraws it, so the clicked button is gone by now
+  for (const id of MENUS) if ($(id).open && !e.composedPath().includes($(id))) $(id).open = false;
 });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("cols-menu").open = false; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") for (const id of MENUS) $(id).open = false; });
 
 // Help: the ? button or the ? key opens it; Escape (the dialog's own), the ✕ or a click outside closes it.
 $("help-open").addEventListener("click", () => $("help").showModal());
@@ -718,7 +961,29 @@ $("q").addEventListener("input", (e) => {
   typingTimer = setTimeout(() => { state.q = e.target.value; state.page = 1; render(); }, 150);
 });
 $("slot").addEventListener("change", (e) => { state.key = e.target.value; state.page = 1; render(); });
-$("show").addEventListener("change", (e) => { state.show = e.target.value; state.page = 1; render(); });
+document.addEventListener("change", (e) => {
+  if (!e.target.matches("[data-tagall]")) return;
+  state.tagAll = e.target.value === "1";
+  state.page = 1;
+  render();
+});
+$("notice").addEventListener("click", (e) => {
+  const hide = e.target.closest("[data-notice-hide]");
+  if (hide) { prefs.hidden = [...prefs.hidden, hide.dataset.noticeHide]; savePrefs(); render(); }
+  if (hide || e.target.closest("[data-notice-ok]")) $("notice").hidden = true;
+});
+// The Filter panel: a choice toggles; in a group that takes one choice, picking one drops the other.
+document.addEventListener("click", (e) => {
+  const opt = e.target.closest("[data-f]"), un = e.target.closest("[data-unfilter]");
+  if (opt) {
+    const g = FILTER_GROUPS.find((x) => x.id === opt.dataset.f), v = opt.dataset.v, cur = state.f[g.id];
+    state.f[g.id] = cur.includes(v) ? cur.filter((x) => x !== v) : g.multi ? [...cur, v] : [v];
+  } else if (un) state.f[un.dataset.unfilter] = [];
+  else if (e.target.closest("[data-clear-filters]")) for (const g of FILTER_GROUPS) state.f[g.id] = [];
+  else return;
+  state.page = 1;
+  render();
+});
 $("refresh").addEventListener("click", () => load(true));
 // "/" jumps to the search, as on GitHub and YouTube, unless the player is typing somewhere already.
 document.addEventListener("keydown", (e) => {
@@ -734,6 +999,5 @@ document.addEventListener("keydown", (e) => {
 
 readHash();
 $("q").value = state.q;
-$("show").value = state.show;
 loadPrefs().then(() => load());
 setInterval(poll, 5000);

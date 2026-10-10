@@ -34,7 +34,7 @@ A level set can be split across mods: Glyph D side adds a chapter to Glyph's lev
 - Get back into a mod after a break: see the last checkpoint reached and the saved room.
 - Check how much of a collab is done as a whole, then per difficulty tier, down to which maps were never opened.
 - See which B and C sides are left.
-- Keep personal notes per mod or map (e.g. "stopped at the ice part").
+- Keep personal notes per mod (e.g. "stopped at the ice part"), rate how much you enjoyed it, how hard it is for you, and tag it.
 
 ## Definition of "completed"
 

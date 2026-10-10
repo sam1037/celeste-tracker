@@ -89,10 +89,24 @@ def test_json(run, mods_dir):
 
 
 def test_note(run, tmp_path):
-    out = run("--file", str(SLOTS / "1.celeste"), "--note", "Forest", "stopped at C")
-    assert "Saved note for Test/Sides/Forest" in out
-    assert Store(tmp_path / "tracker.db").user_fields() == {"Test/Sides/Forest": {"note": "stopped at C"}}
-    assert "<- stopped at C" in run("--file", str(SLOTS / "1.celeste"))
+    out = run("--file", str(SLOTS / "1.celeste"), "--note", "Test/Sides", "stopped at C")
+    assert "Saved note for Test/Sides" in out
+    assert Store(tmp_path / "tracker.db").user_fields() == {"Test/Sides": {"note": "stopped at C"}}
+    assert "note: stopped at C" in run("--file", str(SLOTS / "1.celeste"))
+
+
+def test_notes_and_ratings_are_per_mod(run, mods_dir):
+    args = ("--file", str(SLOTS / "1.celeste"), "--mods", str(mods_dir))
+    for flag, value in (("--note", "x"), ("--rate", "3"), ("--difficulty", "Expert")):
+        with pytest.raises(SystemExit, match="No mod matches"):
+            run(*args, flag, "Test/Collab/M1", value)  # a chapter, not a mod
+    with pytest.raises(SystemExit, match="No mod matches"):
+        run(*args, "--drop", "Test/Collab/M1")
+
+
+def test_old_chapter_notes_still_show(run, tmp_path):
+    Store(tmp_path / "tracker.db").set_field("Test/Sides/Forest", "note", "from before")
+    assert "<- from before" in run("--file", str(SLOTS / "1.celeste"))
 
 
 def test_note_on_a_name_shared_by_a_mod_and_its_chapter_goes_to_the_mod(run, tmp_path, mods_dir):
@@ -130,14 +144,14 @@ def test_unreadable_slot_is_skipped(run, tmp_path, capsys):
 def test_user_fields_show_in_the_overview_and_json(run, mods_dir):
     args = ("--file", str(SLOTS / "1.celeste"), "--mods", str(mods_dir))
     assert "Saved rating for Sides Mod: 4/5" in run(*args, "--rate", "The Forest", "4")
-    run(*args, "--difficulty", "Sides Mod", "GM+1")
+    run(*args, "--difficulty", "Sides Mod", "expert")
     assert "Marked Collab as dropped" in run(*args, "--drop", "Collab")
     out = run(*args)
     assert "Mine" in out.splitlines()[3]
-    assert "4/5 · GM+1" in line_of(out, "The Forest") and "dropped" in line_of(out, "Collab ")
-    assert "Mine: 4/5 · GM+1" in run(*args, "--set", "Sides Mod")
+    assert "4/5 · Expert" in line_of(out, "The Forest") and "dropped" in line_of(out, "Collab ")
+    assert "Mine: 4/5 · Expert" in run(*args, "--set", "Sides Mod")
     data = json.loads(run(*args, "--json", "-"))
-    assert next(m for m in data["mods"] if m["id"] == "Sides Mod")["user"] == {"difficulty": "GM+1", "rating": 4}
+    assert next(m for m in data["mods"] if m["id"] == "Sides Mod")["user"] == {"difficulty": "Expert", "rating": 4}
     run(*args, "--undrop", "Collab")
     run(*args, "--rate", "Sides Mod", "0")
     assert "dropped" not in line_of(run(*args), "Collab ")
@@ -145,7 +159,7 @@ def test_user_fields_show_in_the_overview_and_json(run, mods_dir):
 
 def test_rating_must_be_1_to_5(run, mods_dir):
     with pytest.raises(SystemExit, match="1 to 5"):
-        run("--file", str(SLOTS / "1.celeste"), "--rate", "Forest", "9")
+        run("--file", str(SLOTS / "1.celeste"), "--rate", "Test/Sides", "9")
 
 
 def test_rename_a_mod(run, mods_dir):
@@ -165,3 +179,16 @@ def test_import_notes(run, tmp_path):
     old.write_text(json.dumps({"Test/Sides/Forest": "from the old file"}))
     assert "Imported 1 note(s)" in run("--file", str(SLOTS / "1.celeste"), "--import-notes", str(old))
     assert "<- from the old file" in run("--file", str(SLOTS / "1.celeste"))
+
+
+def test_difficulty_is_one_of_the_tiers(run, mods_dir):
+    with pytest.raises(SystemExit, match="Beginner, Intermediate"):
+        run("--file", str(SLOTS / "1.celeste"), "--mods", str(mods_dir), "--difficulty", "Sides Mod", "GM+1")
+
+
+def test_tags(run, mods_dir):
+    args = ("--file", str(SLOTS / "1.celeste"), "--mods", str(mods_dir))
+    assert "Tags for Sides Mod: tech" in run(*args, "--tag", "Sides Mod", "  Tech ")
+    assert "Tags for Sides Mod: for golden, tech" in run(*args, "--tag", "Sides Mod", "for golden")
+    assert "for golden, tech" in line_of(run(*args), "The Forest")
+    assert "Tags for Sides Mod: for golden" in run(*args, "--untag", "Sides Mod", "TECH")
