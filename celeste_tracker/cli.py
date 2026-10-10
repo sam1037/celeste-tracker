@@ -12,7 +12,7 @@ from .paths import (config_path, find_save, find_saves_dir, list_slots, load_con
                     write_config)
 from .rules import ALL
 from .save import dump
-from .store import Store
+from .store import DIFFICULTIES, Store, clean_tag
 
 TICKS_PER_SECOND = 10_000_000
 NOT_LOADED = " [not loaded]"
@@ -169,6 +169,7 @@ def mine_cell(fields):
     parts = [f"{fields['rating']}/5"] if fields.get("rating") else []
     parts += [fields["difficulty"]] if fields.get("difficulty") else []
     parts += ["dropped"] if fields.get("dropped") else []
+    parts += [", ".join(fields["tags"])] if fields.get("tags") else []
     return " · ".join(parts)
 
 
@@ -391,8 +392,24 @@ def edit_field(store, lib, flag, key, value):
         value = int(value)
     else:
         value = value.strip()
-    store.set_field(key, field, value)
+    if field == "difficulty":  # "expert" is fine
+        value = next((d for d in DIFFICULTIES if d.lower() == value.lower()), value)
+    try:
+        store.set_field(key, field, value)
+    except ValueError as e:
+        sys.exit(f"--{flag}: {e}.")
     print(f"Saved {field} for {key}: {show(value)}" if value else f"Cleared {field} for {key}")
+
+
+def edit_tags(store, lib, key, tag, add):
+    key = resolve_key(key, lib)
+    have = store.user_fields().get(key, {}).get("tags", [])
+    tag = clean_tag(tag)
+    try:
+        tags = store.set_tags(key, have + [tag] if add else [t for t in have if t != tag])
+    except ValueError as e:
+        sys.exit(f"--tag: {e}.")
+    print(f"Tags for {key}: {', '.join(tags) or 'none'}")
 
 
 # ---------------------------------------------------------------- main
@@ -414,8 +431,10 @@ def parse_args(argv):
     ap.add_argument("--note", nargs=2, metavar=("KEY", "TEXT"),
                     help="set a note on a mod (empty TEXT removes it)")
     ap.add_argument("--rate", nargs=2, metavar=("KEY", "N"), help="rate how much you enjoyed a mod, 1 to 5; 0 clears")
-    ap.add_argument("--difficulty", nargs=2, metavar=("KEY", "TEXT"),
-                    help="your difficulty label, e.g. Expert or GM+1 (empty clears)")
+    ap.add_argument("--difficulty", nargs=2, metavar=("KEY", "LEVEL"),
+                    help=f"how hard a mod is for you: {', '.join(DIFFICULTIES)} (empty clears)")
+    ap.add_argument("--tag", nargs=2, metavar=("KEY", "TAG"), help="add a tag of your own to a mod")
+    ap.add_argument("--untag", nargs=2, metavar=("KEY", "TAG"), help="remove a tag from a mod")
     ap.add_argument("--drop", metavar="KEY", help="mark a mod as dropped")
     ap.add_argument("--undrop", metavar="KEY", help="unmark a dropped mod")
     ap.add_argument("--rename", nargs=2, metavar=("KEY", "NAME"),
@@ -497,6 +516,9 @@ def main(argv=None):
         if getattr(args, flag):
             edit_field(store, lib, flag, *getattr(args, flag))
             return
+    if args.tag or args.untag:
+        edit_tags(store, lib, *(args.tag or args.untag), add=bool(args.tag))
+        return
     if args.drop or args.undrop:
         k = resolve_key(args.drop or args.undrop, lib)
         store.set_field(k, "dropped", bool(args.drop))

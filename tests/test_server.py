@@ -104,6 +104,16 @@ def test_edits_are_saved_and_shown(server):
     assert app.store.user_fields()["Collab"]["rating"] == 4  # in the store, not just in memory
 
 
+def test_tags_are_saved_and_shown(server):
+    srv, _, _ = server
+    assert post(srv, {"key": "Collab", "field": "tags", "value": ["Tech", "for golden"]})[0] == 200
+    collab = next(m for m in library(srv)["mods"] if m["id"] == "Collab")
+    assert collab["user"] == {"tags": ["for golden", "tech"]}
+    assert post(srv, {"key": "Collab", "field": "tags", "value": "tech"})[0] == 400  # a list
+    assert post(srv, {"key": "Collab", "field": "tags", "value": [3]})[0] == 400
+    assert post(srv, {"key": "Collab", "field": "difficulty", "value": "GM+1"})[0] == 400
+
+
 def test_page_settings_are_kept_in_the_store(server):
     srv, app, _ = server
     headers = {"Content-Type": "application/json", "X-Celeste-Tracker": "1"}
