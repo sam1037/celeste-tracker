@@ -39,7 +39,7 @@ function readHash() {
   state.tagAll = p.get("tagall") === "1";
   const show = OLD_SHOW[p.get("show")] ?? p.get("show");
   if (show && !state.f.st.length && FILTER_GROUPS[0].opts().some((o) => o.id === show)) state.f.st = [show];
-  state.sort = SORTS[p.get("sort")] ? p.get("sort") : "time";
+  state.sort = SORT_COLUMN[p.get("sort")] ? p.get("sort") : "time";
   state.dir = ["asc", "desc"].includes(p.get("dir")) ? p.get("dir") : "";
   state.page = Math.max(1, parseInt(p.get("page"), 10) || 1);
   state.per = p.has("per") ? Math.max(0, parseInt(p.get("per"), 10) || 0) : PER_PAGE;  // 0 = all on one page
@@ -55,7 +55,7 @@ function writeHash() {
   for (const g of FILTER_GROUPS) if (state.f[g.id].length) p.set(g.id, state.f[g.id].join(SEP));
   if (state.tagAll && state.f.tag.length) p.set("tagall", "1");
   if (state.sort !== "time") p.set("sort", state.sort);
-  if (state.dir && state.dir !== FIRST_DIR[state.sort]) p.set("dir", state.dir);
+  if (state.dir && state.dir !== FIRST_DIR[SORT_COLUMN[state.sort]]) p.set("dir", state.dir);
   if (state.page > 1) p.set("page", state.page);
   if (state.per !== PER_PAGE) p.set("per", state.per);
   if (state.q) p.set("q", state.q);
@@ -145,38 +145,19 @@ const passes = (m, v) => filtersOn().every((g) => {
   return g.id === "tag" && state.tagAll ? picked.length === state.f.tag.length && picked.every((o) => o.test(m, v))
     : picked.some((o) => o.test(m, v));
 });
-const STATUS_RANK = { "in progress": 0, completed: 1, "not started": 2 };
-// Sort keys, each comparing in ascending order; FIRST_DIR is the direction a column starts in when clicked
-// (names A to Z, numbers high to low). Clicking the sorted column again flips it.
-const SORTS = {
-  time: (a, b) => a.v.ticks - b.v.ticks,
-  progress: (a, b) => a.v.sides_done / (a.v.sides_total || 1) - b.v.sides_done / (b.v.sides_total || 1),
-  name: (a, b) => a.m.name.localeCompare(b.m.name),
-  // A to Z; mods without an author (not on GameBanana) last, whichever way the column is sorted
-  author: (a, b) => (!a.m.author - !b.m.author) * (sortDir() === "asc" ? 1 : -1) || a.m.author.localeCompare(b.m.author),
-  deaths: (a, b) => a.v.deaths - b.v.deaths,
-  // the player's rating; mods not rated last, whichever way the column is sorted
-  rating: (a, b) => (!a.m.user.rating - !b.m.user.rating) * (sortDir() === "asc" ? 1 : -1) ||
-    (a.m.user.rating || 0) - (b.m.user.rating || 0),
-  // Beginner to Grandmaster; mods without one last, whichever way the column is sorted
-  difficulty: (a, b) => (!diffRank(a.m) - !diffRank(b.m)) * (sortDir() === "asc" ? 1 : -1) || diffRank(a.m) - diffRank(b.m),
-  // the slot shown (All slots); mods not played in any slot last, whichever way the column is sorted
-  slot: (a, b) => (!a.v.slot - !b.v.slot) * (sortDir() === "asc" ? 1 : -1) || Number(a.v.slot) - Number(b.v.slot),
-  // in progress, then completed, then not started; within one status, the most sides cleared first
-  status: (a, b) => STATUS_RANK[pageStatus(a.v.status)] - STATUS_RANK[pageStatus(b.v.status)] ||
-    (sortDir() === "asc" ? -1 : 1) * SORTS.progress(a, b),
-};
-const diffRank = (m) => DIFFICULTIES.indexOf(m.user.difficulty) + 1;  // 0: not set (or an old free-text value)
-const FIRST_DIR = { time: "desc", progress: "desc", name: "asc", author: "asc", deaths: "desc", rating: "desc", status: "asc", difficulty: "asc",
-                    slot: "asc" };
-const sortDir = () => state.dir || FIRST_DIR[state.sort];
+// The sort IDs kept in the URL (sort=…&dir=…), the column each sorts, and the direction a column starts in when
+// clicked (names A to Z, numbers high to low). "status" is an old bookmark's, sorted as sides cleared now.
+const SORT_COLUMN = { name: "mod", author: "author", progress: "sides", status: "sides", deaths: "deaths", time: "time",
+                      rating: "rating", difficulty: "difficulty", slot: "slot" };
+const FIRST_DIR = { mod: "asc", author: "asc", sides: "desc", deaths: "desc", time: "desc", rating: "desc",
+                    difficulty: "asc", slot: "asc" };
+const sortDir = () => state.dir || FIRST_DIR[SORT_COLUMN[state.sort]];
 
 function visibleMods() {
+  // The mods the filters and the search let through, in no order: the table sorts them.
   const needle = state.q.trim().toLowerCase();
-  return state.data.mods
-    .map((m) => ({ m, v: viewOf(m) }))
-    .filter(({ m, v }) => passes(m, v) && (!needle || index.search[m.id].includes(needle)))
-    .sort((a, b) => (sortDir() === "asc" ? 1 : -1) * SORTS[state.sort](a, b) || a.m.name.localeCompare(b.m.name));
+  return state.data.mods.map((m) => ({ m, v: viewOf(m) }))
+    .filter(({ m, v }) => passes(m, v) && (!needle || index.search[m.id].includes(needle)));
 }
 
 // ------------------------------------------------------------------ rendering
@@ -229,67 +210,49 @@ function stars(m, where) {
 
 // ------------------------------------------------------------------ columns
 
-// The columns after the arrow (doc/UI.md, "Columns"). Each has a width in px that the player can drag (the line
-// between two columns), except the flexible one, which takes the width that's left: Sides (a longer bar is more use
-// than room after a name), or Mod when Sides is hidden. Every column but Mod can be hidden from the Columns menu. Best and Berries start hidden (user, 2026-10-07). Slot only shows with "All slots".
+// The table's columns (doc/UI.md, "Columns"). Sides takes the width that's left; every other column has a width the
+// player can drag (Tabulator's resizing, kept in the store). Every column but Mod can be hidden from the Columns
+// menu; Best, Berries, Difficulty and Tags start hidden. Slot only shows with "All slots".
 const COLUMNS = [
-  { id: "mod", label: "Mod", sort: "name", what: "name", width: 320, min: 160 },
-  { id: "author", label: "Author", sort: "author", width: 170, min: 60 },
-  { id: "sides", label: "Sides", sort: "progress", what: "sides cleared", width: 220, min: 150 },
-  { id: "deaths", label: "Deaths", sort: "deaths", width: 64, min: 48, right: true },
-  { id: "time", label: "Time", sort: "time", what: "time played", width: 72, min: 56, right: true },
-  { id: "best", label: "Best", help: "Best time, for a single side", width: 64, min: 48, right: true },
-  { id: "berries", label: "Berries", width: 60, min: 48, right: true },
-  { id: "rating", label: "Rating", sort: "rating", what: "your rating", help: "How much you enjoyed it, 1 to 5", width: 92, min: 92, mine: true },
-  { id: "difficulty", label: "Difficulty", sort: "difficulty", what: "your difficulty", help: "How hard it is for you", width: 100, min: 72, mine: true },
-  { id: "tags", label: "Tags", help: "Your tags", width: 150, min: 70, mine: true },
-  { id: "note", label: "Note", help: "Your note: click one to write or change it", width: 200, min: 80, mine: true },
-  { id: "slot", label: "Slot", sort: "slot", what: "slot shown", help: "The slot shown: your furthest", width: 44, min: 40, right: true },
+  { id: "mod", label: "Mod", width: 320, min: 160 },
+  { id: "author", label: "Author", width: 170, min: 60 },
+  { id: "sides", label: "Sides", min: 150, help: "Sides cleared" },
+  { id: "deaths", label: "Deaths", width: 84, min: 72, right: true },
+  { id: "time", label: "Time", width: 84, min: 64, right: true, help: "Time played" },
+  { id: "best", label: "Best", width: 72, min: 56, right: true, help: "Best time, for a single side", unsorted: true },
+  { id: "berries", label: "Berries", width: 84, min: 72, right: true, unsorted: true },
+  { id: "rating", label: "Rating", width: 100, min: 100, mine: true, help: "How much you enjoyed it, 1 to 5" },
+  { id: "difficulty", label: "Difficulty", width: 108, min: 80, mine: true, help: "How hard it is for you" },
+  { id: "tags", label: "Tags", width: 150, min: 70, mine: true, help: "Your tags", unsorted: true },
+  { id: "note", label: "Note", width: 200, min: 80, mine: true, help: "Your note: click one to write or change it", unsorted: true },
+  { id: "slot", label: "Slot", width: 66, min: 60, right: true, help: "The slot shown: your furthest" },
 ];
 const DEFAULT_HIDDEN = ["best", "berries", "difficulty", "tags"];
+// When the columns shown don't fit, these give way in this order, down to their minimum, so the last column stays in
+// view (only on screen: the saved widths stay). Tabulator's own widthShrink doesn't run while Sides, the flexible
+// column, is at its minimum.
+const SHRINK = ["mod", "author", "note", "tags", "difficulty"];
+
+function fitWidths() {
+  const shown = COLUMNS.filter(shows), sides = COLUMNS.find((c) => c.id === "sides");
+  const w = Object.fromEntries(shown.filter((c) => c !== sides).map((c) => [c.id, prefs.widths[c.id] || c.width]));
+  let over = Object.values(w).reduce((a, x) => a + x, 0) + (shows(sides) ? sides.min : 0) - ($("list").clientWidth - 2);
+  for (const id of SHRINK) {
+    const c = COLUMNS.find((x) => x.id === id);
+    if (over <= 0 || !(id in w)) continue;
+    const take = Math.min(over, Math.max(0, w[id] - c.min));
+    w[id] -= take;
+    over -= take;
+  }
+  return w;
+}
 // The columns there were before the page saved which ones it knew: a column added since starts as DEFAULT_HIDDEN says,
 // even for a player whose saved settings don't mention it.
 const OLD_COLUMNS = ["mod", "author", "sides", "deaths", "time", "best", "berries", "slot"];
-const GAP = 12, ARROW = 16; // .mod-head's gap and arrow column, in style.css
 let prefs = { hidden: DEFAULT_HIDDEN, widths: {}, auto: [] };  // auto: the player's columns that turned on by themselves
 
-const colWidth = (c) => prefs.widths[c.id] || c.width;
 const canShow = (c) => c.id !== "slot" || state.key === "all";
-const shownCols = () => COLUMNS.filter((c) => c.id === "mod" || (canShow(c) && !prefs.hidden.includes(c.id)));
-const flexCol = () => shownCols().find((c) => c.id === "sides") || COLUMNS[0];
-
-// When the columns shown don't fit (every one of the player's columns on, say), the widest give way first, down to
-// their minimum, so the last column doesn't slide out of view. Only on screen: the saved widths stay.
-const SHRINK = ["mod", "author", "note", "tags", "difficulty"];
-let fitted = {};
-const shownWidth = (c) => fitted[c.id] ?? colWidth(c);
-
-function fitColumns() {
-  const cols = shownCols(), flex = flexCol();
-  const room = $("list").clientWidth - 2 * 14 - ARROW - GAP * cols.length - flex.min;  // 14: .mod-head's padding
-  let over = cols.filter((c) => c !== flex).reduce((a, c) => a + colWidth(c), 0) - room;
-  fitted = {};
-  for (const id of SHRINK) {
-    const c = cols.find((x) => x.id === id);
-    if (over <= 0 || !c || c === flex) continue;
-    const take = Math.min(over, Math.max(0, colWidth(c) - c.min));
-    fitted[id] = colWidth(c) - take;
-    over -= take;
-  }
-}
-
-function applyColumns() {
-  // The grid every row uses; rows inside an opened mod have no author, so their name takes its place too.
-  fitColumns();
-  const cols = shownCols(), flex = flexCol(), list = $("list").style;
-  list.setProperty("--mod-cols", `${ARROW}px ` + cols.map((c) => (c === flex ? `minmax(${c.min}px, 1fr)` : `${shownWidth(c)}px`)).join(" "));
-  list.setProperty("--name-span", cols.some((c) => c.id === "author") ? 2 : 1);
-}
-
-function cells(map) {
-  // One cell per shown column, in order; a column missing from map (author, on rows inside a mod) is left out.
-  return shownCols().filter((c) => c.id in map).map((c) => map[c.id]).join("");
-}
+const shows = (c) => c.id === "mod" || (canShow(c) && !prefs.hidden.includes(c.id));
 
 async function loadPrefs() {
   try {
@@ -315,8 +278,23 @@ function renderColumnsMenu() {
     `<button type="button" data-reset-cols>Reset columns</button>`;
 }
 
-// The tree table (doc/UI.md, "Layout"): mods, level sets, chapters and sides are all rows of one grid with the
-// same columns, indented by level. Only rows with something under them open.
+let shownKey = "";
+function syncColumns(force = false) {
+  // Shows and hides the table's columns as the settings and the slot say, and fits their widths: the columns are
+  // set again only when something about them changed.
+  if (!table) return;
+  const key = COLUMNS.filter(shows).map((c) => c.id).join() + "|" + $("list").clientWidth;
+  if (key === shownKey && !force) return;
+  shownKey = key;
+  restoring = true;
+  table.setColumns(columnDefs());
+  const col = SORT_COLUMN[state.sort] || "time";
+  table.setSort(col, sortDir());  // new columns lose the sort
+  restoring = false;
+}
+
+// ------------------------------------------------------------------ cells
+
 const notPlayed = (v) => v.status === "not started" || v.status === "not opened";
 const dash = (v, text) => (notPlayed(v) ? "-" : text);
 
@@ -339,40 +317,105 @@ function best(ch) {
   return v.best_ticks ? fmtTime(v.best_ticks) : "-";
 }
 
-function numbers(v, bestTime) {
-  return {
-    deaths: `<span class="num right hide-sm">${dash(v, fmtNum(v.deaths))}</span>`,
-    time: `<span class="num right hide-sm">${dash(v, fmtTime(v.ticks))}</span>`,
-    best: `<span class="num right hide-sm">${bestTime}</span>`,
-    berries: `<span class="num right hide-sm">${dash(v, fmtNum(v.berries))}</span>`,
+function setLabel(ls) {
+  return ls.title || ls.name.split("/").pop(); // under its mod, the last part of the ID is enough ("0-Gyms")
+}
+
+function nameCell(d) {
+  // The arrow (on rows that open), then the name; a mod has the dim Olympus-style line under it (doc/UI.md, "What
+  // players already know"): ID ∙ details.
+  const caret = `<span class="caret" aria-hidden="true">${d.opens ? "▸" : ""}</span>`;
+  if (d.kind !== "mod") return `<span class="tname${d.kind === "set" ? " strong" : ""}">${caret}<span class="t">${esc(d.name)}</span></span>`;
+  const m = d.m, sub = esc([m.id !== m.name ? m.id : "", m.sets.length > 1 ? `${m.sets.length} level sets` : ""]
+    .filter(Boolean).join(" ∙ ")) + ownTags(m);
+  return `<span class="mname">${caret}<span class="name">${esc(m.name)}${sub ? `<span class="sub">${sub}</span>` : ""}</span></span>`;
+}
+
+function slotText(v) {
+  // All slots: the row shows one slot, the mod's furthest (rules.py); the other slots it was played in are in the
+  // tooltip and in the opened mod's facts.
+  if (!v.slot) return "";
+  const others = v.slots.filter((k) => k !== v.slot);
+  const title = `Shown: slot ${v.slot}, your furthest` + (others.length ? `. Also played in slot${others.length > 1 ? "s" : ""} ${others.join(", ")}` : "");
+  return `<span class="num" title="${esc(title)}">${esc(v.slot)}</span>`;
+}
+
+// What each column draws, for a mod row (d.m set) and for the rows under it (level sets, chapters, sides).
+const CELL = {
+  mod: nameCell,
+  author: (d) => (d.m ? `<span class="author" title="${esc(d.m.author ? `GameBanana author: ${d.m.author}` : "Not on GameBanana's mod list")}">${esc(d.m.author)}</span>` : ""),
+  sides: (d) => progress(d.v, d.mark, d.kind === "mod" && d.mark === "?"),
+  deaths: (d) => `<span class="num">${dash(d.v, fmtNum(d.v.deaths))}</span>`,
+  time: (d) => `<span class="num">${dash(d.v, fmtTime(d.v.ticks))}</span>`,
+  best: (d) => `<span class="num">${d.best}</span>`,
+  berries: (d) => `<span class="num">${dash(d.v, fmtNum(d.v.berries))}</span>`,
+  rating: (d) => (d.m ? stars(d.m, "row") : ""),
+  difficulty: (d) => (d.m ? `<span class="diff">${esc(d.m.user.difficulty)}</span>` : ""),
+  tags: (d) => (d.m ? tagCell(d.m) : ""),
+  // Clicking it opens the mod with the cursor in its note, so an empty one is how to write one.
+  note: (d) => (d.m ? `<span class="notecell" data-note-cell title="${esc(d.m.user.note || "Click to write a note")}">${esc(d.m.user.note)}</span>` : ""),
+  slot: (d) => (d.m ? slotText(d.v) : ""),
+};
+
+// Sorting: each compares two mods in ascending order. Tabulator swaps them for a descending sort, so a sorter that
+// keeps empty values last whichever way flips its own answer for those; ties go A to Z either way.
+const diffRank = (m) => DIFFICULTIES.indexOf(m.user.difficulty) + 1;  // 0: not set (or an old free-text value)
+const SORT_VALUE = {
+  mod: null, author: (d) => d.m.author || null, sides: (d) => d.v.sides_done / (d.v.sides_total || 1),
+  deaths: (d) => d.v.deaths, time: (d) => d.v.ticks, rating: (d) => d.m.user.rating || null,
+  difficulty: (d) => diffRank(d.m) || null, slot: (d) => (d.v.slot ? Number(d.v.slot) : null),
+};
+
+function sorter(id) {
+  return (a, b, ra, rb, col, dir) => {
+    const da = ra.getData(), db = rb.getData(), byName = da.m.name.localeCompare(db.m.name) * (dir === "asc" ? 1 : -1);
+    if (id === "mod") return da.m.name.localeCompare(db.m.name);
+    const x = SORT_VALUE[id](da), y = SORT_VALUE[id](db);
+    if ((x === null) !== (y === null)) return (x === null ? 1 : -1) * (dir === "asc" ? 1 : -1);
+    if (x === null || x === y) return byName;
+    return typeof x === "string" ? x.localeCompare(y) : x - y;
   };
 }
 
-function modCard({ m, v }) {
-  const open = state.open.has(m.id);
-  // The dim second line, as Olympus shows it: ID ∙ details (doc/UI.md, "What players already know").
-  const sub = esc([m.id !== m.name ? m.id : "", m.sets.length > 1 ? `${m.sets.length} level sets` : ""]
-    .filter(Boolean).join(" ∙ ")) + ownTags(m);
-  const chs = chapters(m);
-  return `<article class="mod${open ? " open" : ""}${m.user.dropped ? " dropped" : ""}" data-mod="${esc(m.id)}">
-    <div class="mod-head" role="button" tabindex="0" aria-expanded="${open}">
-      <span class="caret">▸</span>
-      ${cells({
-        mod: `<span class="name">${esc(m.name)}${sub ? `<span class="sub">${sub}</span>` : ""}</span>`,
-        author: `<span class="author hide-sm" title="${esc(m.author ? `GameBanana author: ${m.author}` : "Not on GameBanana's mod list")}">${esc(m.author)}</span>`,
-        sides: progress(v, q(m), !known(m)),
-        ...numbers(v, chs.length === 1 ? best(chs[0]) : ""),
-        rating: stars(m, "row"),
-        difficulty: `<span class="diff hide-sm">${esc(m.user.difficulty)}</span>`,
-        tags: tagCell(m),
-        // Clicking it opens the mod with the cursor in its note, so an empty one is how to write one.
-        note: `<span class="notecell hide-sm" data-note-cell title="${esc(m.user.note || "Click to write a note")}">${esc(m.user.note)}</span>`,
-        slot: slotCell(v),
-      })}
-    </div>
-    ${open ? modBody(m, v) : ""}
-  </article>`;
+// ------------------------------------------------------------------ the rows
+
+// The tree (doc/UI.md, "Layout"): a mod opens to its level sets (a collab) or chapters, a level set to its chapters,
+// and a chapter with more than one side to its sides. A one-chapter mod opens straight to its sides. Every mod
+// opens, if only to its facts and the Yours panel.
+const RANK = { "in progress": 0, completed: 1, "not opened": 2 };
+
+function sideRows(ch, m) {
+  return countedSides(ch).map((s) => {
+    const v = sideView(s);
+    return { id: `d:${ch.sid}:${s.side}`, kind: "side", name: `${s.side} side`, v, mark: "", best: v.best_ticks ? fmtTime(v.best_ticks) : "-" };
+  });
 }
+
+function chapterRows(m, list) {
+  return [...list]
+    .sort((a, b) => (RANK[viewOf(a, "not opened").status] ?? 3) - (RANK[viewOf(b, "not opened").status] ?? 3))
+    .map((ch) => {
+      const many = countedSides(ch).length > 1;
+      return { id: `c:${ch.sid}`, kind: "ch", key: ch.sid, opens: many, name: ch.title || ch.sid.split("/").pop(),
+               v: viewOf(ch, "not opened"), mark: q(m), best: best(ch), ...(many ? { _children: sideRows(ch, m) } : {}) };
+    });
+}
+
+function modRow({ m, v }) {
+  const chs = chapters(m);
+  let kids = [];
+  if (chs.length === 1) kids = countedSides(chs[0]).length > 1 ? sideRows(chs[0], m) : [];
+  else if (m.sets.length === 1) kids = chapterRows(m, m.sets[0].chapters);
+  else kids = m.sets.map((ls) => ({ id: `s:${setId(m, ls)}`, kind: "set", key: setId(m, ls), opens: true, name: setLabel(ls),
+                                    v: viewOf(ls), mark: q(m), best: "", _children: chapterRows(m, ls.chapters) }));
+  return { id: `m:${m.id}`, kind: "mod", key: m.id, opens: true, m, v, mark: q(m), best: chs.length === 1 ? best(chs[0]) : "",
+           ...(kids.length ? { _children: kids } : {}) };
+}
+
+const OPEN = { mod: () => state.open, set: () => state.openSet, ch: () => state.openCh };
+const isOpen = (d) => !!OPEN[d.kind]?.().has(d.key);
+
+// ------------------------------------------------------------------ the opened mod
 
 function modBody(m, v) {
   const facts = [`<span>Mod ID <b>${esc(m.id)}</b></span>`];
@@ -382,69 +425,7 @@ function modBody(m, v) {
   if (!known(m)) facts.push(`<span>Not in the Mods folder: only what you opened is listed</span>`);
   // Not on the row: on most rows, and it doesn't help pick what to play (user, 2026-10-08).
   if (!v.loaded) facts.push(`<span>Everest didn't load this mod the last time the game saved</span>`);
-  return `<div class="mod-body">${guide({ kind: "mod", id: m.id, name: m.name })}<div class="facts">${facts.join("")}</div>${yours(m)}</div>` +
-    modRows(m);
-}
-
-function setLabel(ls) {
-  return ls.title || ls.name.split("/").pop(); // under its mod, the last part of the ID is enough ("0-Gyms")
-}
-
-function guide({ kind, id, name }, style = "") {
-  // A thread line (style.css): clicking it closes the mod, level set or chapter it comes from.
-  return `<span class="guide" data-close="${kind}" data-id="${esc(id)}" title="Close ${esc(name)}"${style}></span>`;
-}
-
-function treeRow(level, { attr = "", open = null, name, sub = "", strong = false, v, mark = "", bestTime = "", anc }) {
-  // open: null = nothing under this row; true/false = it opens, and is open or not. anc: the rows above this one,
-  // the mod first, each drawn as a thread line.
-  const toggle = open !== null;
-  return `<div class="trow${open ? " open" : ""}"${attr}${toggle ? ` role="button" tabindex="0" aria-expanded="${open}"` : ""}>
-    ${guide(anc[0])}` + cells({
-      mod: `<span class="tname${strong ? " strong" : ""}" style="--lvl:${level}">` +
-        anc.slice(1).map((a, k) => guide(a, ` style="left:${k * 20 - 2}px"`)).join("") +
-        `<span class="caret">${toggle ? "▸" : ""}</span>` +
-        `<span class="t">${name}${sub ? `<small>${sub}</small>` : ""}</span></span>`,
-      sides: progress(v, mark), ...numbers(v, bestTime), rating: `<span class="hide-sm"></span>`, difficulty: `<span class="hide-sm"></span>`, tags: `<span class="hide-sm"></span>`, note: `<span class="hide-sm"></span>`,
-      slot: `<span class="hide-sm"></span>`,
-    }) + `</div>`;
-}
-
-function modRows(m) {
-  const chs = chapters(m), anc = [{ kind: "mod", id: m.id, name: m.name }];
-  if (chs.length === 1) { // a one-chapter mod: straight to its sides, or nothing more when it has one
-    const sides = countedSides(chs[0]);
-    return sides.length > 1 ? sides.map((s) => sideRow(s, 1, anc)).join("") : "";
-  }
-  if (m.sets.length === 1) return chapterRows(m, m.sets[0].chapters, 1, anc);
-  return m.sets.map((ls) => {
-    // A collab opens to its level sets (difficulty tiers); each tier opens to its chapters.
-    const id = setId(m, ls), open = state.openSet.has(id);
-    // Each in a group of its own, so an opened level set's row sticks only while its chapters are on screen.
-    return `<div class="tgroup">` + treeRow(1, { attr: ` data-set="${esc(id)}"`, open, name: esc(setLabel(ls)), strong: true,
-                        v: viewOf(ls), mark: q(m), anc }) +
-      (open ? chapterRows(m, ls.chapters, 2, [...anc, { kind: "set", id, name: setLabel(ls) }]) : "") + `</div>`;
-  }).join("");
-}
-
-const RANK = { "in progress": 0, completed: 1, "not opened": 2 };
-
-function chapterRows(m, list, level, anc) {
-  return [...list]
-    .sort((a, b) => (RANK[viewOf(a, "not opened").status] ?? 3) - (RANK[viewOf(b, "not opened").status] ?? 3))
-    .map((ch) => {
-      const sides = countedSides(ch), many = sides.length > 1, open = many && state.openCh.has(ch.sid);
-      const title = ch.title || ch.sid.split("/").pop();
-      return treeRow(level, { attr: many ? ` data-ch="${esc(ch.sid)}"` : "", open: many ? open : null,
-                              name: esc(title),
-                              v: viewOf(ch, "not opened"), mark: q(m), bestTime: best(ch), anc }) +
-        (open ? sides.map((s) => sideRow(s, level + 1, [...anc, { kind: "ch", id: ch.sid, name: title }])).join("") : "");
-    }).join("");
-}
-
-function sideRow(s, level, anc) {
-  const v = sideView(s);
-  return treeRow(level, { name: `${esc(s.side)} side`, v, bestTime: v.best_ticks ? fmtTime(v.best_ticks) : "-", anc });
+  return `<div class="facts">${facts.join("")}</div>${yours(m)}`;
 }
 
 function shownSlot(m, v) {
@@ -478,36 +459,110 @@ function yours(m) {
   </section>`;
 }
 
-function renderSessions() {
-  // Where you left off: one row per slot saved inside a chapter (Save & Quit). The save has no dates, so rows
-  // are in slot order. The checkpoint is the last one the save lists for that side (the start checkpoint is
-  // empty in every real save seen); the room ID is a detail.
-  const el = $("sessions");
-  const slots = state.data.slots.filter((s) => s.session && (state.key === "all" || s.key === state.key));
-  if (!slots.length) { el.hidden = true; return; }
-  el.hidden = false;
-  const open = sessionsOpen ?? (state.key !== "all" || slots.length <= 3);
-  const rows = slots.map((s) => {
-    const x = s.session, m = index.modOfSid[x.sid];
-    const chapter = x.title && m && x.title === m.name ? "" : (x.title || x.sid);
-    const cp = x.checkpoints.length ? x.checkpoints[x.checkpoints.length - 1] : null;
-    const v = m && m.progress[s.key];
-    return `<tr${m ? ` data-goto="${esc(m.id)}" title="Open ${esc(m.name)}"` : ""}>
-      <td class="num">${esc(s.key)}</td>
-      <td>${m ? `<a data-goto="${esc(m.id)}">${esc(m.name)}</a>` : esc(x.sid)}</td>
-      <td>${esc(chapter)}</td>
-      <td><span class="chip c-in-progress">${esc(x.side)}</span></td>
-      <td>${cp ? esc(cp.title || cp.room) : '<span class="muted">start</span>'}</td>
-      <td class="muted room">${esc(x.room)}</td>
-      <td class="right num">${fmtNum(x.deaths)}</td>
-      <td class="right num">${v ? `${v.sides_done}/${v.sides_total}` : "-"}</td></tr>`;
-  }).join("");
-  el.innerHTML = `<details${open ? " open" : ""}><summary>Where you left off ` +
-    `<span class="muted">Save &amp; Quit in ${slots.length} slot${slots.length > 1 ? "s" : ""}</span></summary>
-    <table class="resume"><colgroup><col class="w-slot"><col><col><col class="w-side"><col><col><col class="w-deaths"><col class="w-n">
-    </colgroup><thead><tr><th>Slot</th><th>Mod</th><th>Chapter</th><th>Side</th><th>Last checkpoint</th><th>Room</th>
-    <th class="right">Deaths this session</th><th class="right">Sides</th></tr></thead><tbody>${rows}</tbody></table></details>`;
+function formatRow(row) {
+  // Tabulator calls this for every row it draws: the row's classes, the keyboard, and an opened mod's facts and
+  // Yours panel, inside the mod's row so they sit between it and the rows under it.
+  const d = row.getData(), el = row.getElement();
+  el.dataset.kind = d.kind;
+  el.classList.toggle("open", isOpen(d));
+  el.classList.toggle("dropped", !!d.m?.user.dropped);
+  el._row = row;
+  if (d.opens) { el.tabIndex = 0; el.setAttribute("aria-expanded", isOpen(d)); }
+  el.querySelector(":scope > .mod-body")?.remove();
+  if (d.kind === "mod" && isOpen(d)) {
+    el.insertAdjacentHTML("beforeend", `<div class="mod-body">${modBody(d.m, d.v)}</div>`);
+    for (const area of el.querySelectorAll("[data-note]")) requestAnimationFrame(() => fitNote(area));
+  }
 }
+
+// ------------------------------------------------------------------ the table
+
+let table = null, passing = new Set(), restoring = false;
+
+function columnDefs() {
+  const fit = fitWidths();
+  return COLUMNS.map((c) => ({
+    field: c.id, title: c.label, headerTooltip: c.help || false, visible: shows(c),
+    minWidth: c.min, ...(c.id === "sides" ? { widthGrow: 1 } : { width: fit[c.id] || prefs.widths[c.id] || c.width }),
+    cssClass: c.right ? "cell-right" : "", resizable: c.id !== "sides",
+    headerSort: !c.unsorted, headerSortStartingDir: FIRST_DIR[c.id] || "asc", sorter: c.unsorted ? undefined : sorter(c.id),
+    formatter: (cell) => CELL[c.id](cell.getRow().getData()),
+  }));
+}
+
+function makeTable() {
+  const col = SORT_COLUMN[state.sort] || "time";
+  table = new Tabulator("#list", {
+    index: "id", data: [], columns: columnDefs(), layout: "fitColumns", renderVertical: "basic", keybindings: false,
+    resizableColumnFit: true,  // dragging a line only moves that line: the column on its other side gives the width
+    dataTree: true, dataTreeStartExpanded: (row) => isOpen(row.getData()), dataTreeElementColumn: "mod",
+    dataTreeSort: false, dataTreeFilter: false,  // the rows under a mod keep their order, and the filters are per mod
+    dataTreeChildIndent: 20, dataTreeBranchElement: false,
+    dataTreeExpandElement: "<span></span>", dataTreeCollapseElement: "<span></span>",  // nameCell draws the arrow
+    initialSort: [{ column: col, dir: state.dir || FIRST_DIR[col] }], headerSortTristate: false,
+    // ↕ marks a column you can sort by, ▲ / ▼ the one sorted now, right after its name (doc/UI.md, "Layout").
+    headerSortElement: (column, dir) => (dir === "asc" ? "▲" : dir === "desc" ? "▼" : "↕"),
+    pagination: true, paginationMode: "local", paginationSize: state.per || 100000, paginationSizeSelector: [25, 50, 100, true],
+    paginationButtonCount: 5,
+    // Counted in mods: Tabulator's own count includes the rows under an opened mod.
+    paginationCounter: (size, row, page) => (passing.size ? `${fmtNum((page - 1) * size + 1)}–${fmtNum(Math.min(passing.size, page * size))} of ${fmtNum(passing.size)} mods` : ""),
+    langs: { default: { pagination: { page_size: "Rows per page", first: "First", first_title: "First page", last: "Last",
+      last_title: "Last page", prev: "‹ Previous", prev_title: "Previous page", next: "Next ›", next_title: "Next page", all: "All" } } },
+    placeholder: "No mods match. Clear the search or the filters.",
+    rowFormatter: formatRow,
+  });
+  table.on("dataSorted", (sorters) => {
+    if (restoring || !sorters.length) return;
+    const id = sorters[0].field;
+    state.sort = Object.keys(SORT_COLUMN).find((k) => SORT_COLUMN[k] === id);
+    state.dir = sorters[0].dir === FIRST_DIR[id] ? "" : sorters[0].dir;
+    writeHash();
+  });
+  table.on("pageLoaded", (page) => { if (!restoring) { state.page = page; writeHash(); } });
+  table.on("pageSizeChanged", (size) => { state.per = size === true || size > 1000 ? 0 : size; writeHash(); });
+  table.on("columnResized", (column) => {
+    prefs.widths = { ...prefs.widths, [column.getField()]: Math.round(column.getWidth()) };
+    savePrefs();
+  });
+  table.on("rowClick", (e, row) => {
+    if (e.target.closest("button, input, select, textarea, a, [data-note-cell], .mod-body")) return;
+    toggleRow(row);
+  });
+  return new Promise((done) => table.on("tableBuilt", done));
+}
+
+function toggleRow(row) {
+  // A mod, level set or chapter row: open or close it. A mod opens to its facts and Yours panel, and to the rows under
+  // it when it has any.
+  const d = row.getData();
+  if (!d.opens) return;
+  const set = OPEN[d.kind](), open = !set.has(d.key);
+  open ? set.add(d.key) : set.delete(d.key);
+  if (d._children) open ? row.treeExpand() : row.treeCollapse();
+  row.reformat();
+  writeHash();
+}
+
+async function fillTable() {
+  // New data or another slot: every row is built again. The sort, the filter and the page are put back.
+  restoring = true;
+  await table.setData(state.data.mods.map((m) => modRow({ m, v: viewOf(m) })));
+  refilter();
+  if (state.page > 1) await table.setPage(Math.min(state.page, table.getPageMax() || 1));
+  restoring = false;
+}
+
+function refilter() {
+  passing = new Set(visibleMods().map(({ m }) => m.id));
+  table.setFilter((d) => d.kind !== "mod" || passing.has(d.key));
+}
+
+function refreshMod(key) {
+  // Draws one mod's row again after an edit (its cells and, when open, its panel).
+  table?.getRow(`m:${key}`)?.reformat();
+}
+
+// ------------------------------------------------------------------ the rest of the page
 
 function renderSummary(rows) {
   const played = state.data.mods.map((m) => viewOf(m)).filter((v) => v.status !== "not started");
@@ -546,45 +601,39 @@ function renderFilters(rows) {
     `<span class="shown">${fmtNum(rows.length)} of ${fmtNum(all.length)} mods</span>`;
 }
 
-// The header row over the mods (same grid as .mod-head). Click a column name to sort by it, again to flip it.
-function listHead() {
-  // Each column but Mod has a grip on its left edge: drag it to resize the column, double-click it for the default.
-  const th = (c) => {
-    const extra = `${c.right ? " right" : ""}${c.id === "mod" || c.id === "sides" ? "" : " hide-sm"}`;
-    const grip = c.id !== "mod" ? `<span class="grip" data-grip="${c.id}" title="Drag to resize, double-click for the default widths"></span>` : "";
-    if (!c.sort) return `<span class="th${extra}" role="columnheader"${c.help ? ` title="${esc(c.help)}"` : ""}>${grip}${c.label}</span>`;
-    const on = state.sort === c.sort, dir = on ? sortDir() : FIRST_DIR[c.sort];
-    const next = on ? (dir === "asc" ? "desc" : "asc") : dir;
-    const icon = on ? (dir === "asc" ? "▲" : "▼") : "↕";
-    return `<span class="th${extra}" role="columnheader"${on ? ` aria-sort="${dir}ending"` : ""}>${grip}` +
-      `<button type="button" data-sort="${c.sort}" title="${c.help ? `${esc(c.help)}. ` : ""}Sort by ${c.what || c.id}, ${next === "asc" ? "lowest" : "highest"} first` +
-      `${c.sort === "name" || c.sort === "author" ? (next === "asc" ? " (A to Z)" : " (Z to A)") : ""}">${c.label}` +
-      `<span class="icon" aria-hidden="true">${icon}</span></button></span>`;
-  };
-  return `<div class="list-head" role="row"><span></span>${shownCols().map(th).join("")}</div>`;
-}
-
-// Pagination under the table: rows per page, the range shown, and the pages (first, last, and the ones around
-// the current one).
-function pager(total, pages) {
-  const from = state.per ? (state.page - 1) * state.per + 1 : 1, to = state.per ? Math.min(total, state.page * state.per) : total;
-  const per = [25, 50, 100, 0].map((n) => `<option value="${n}"${n === state.per ? " selected" : ""}>${n || "All"}</option>`).join("");
-  const nums = [];
-  for (let n = 1; n <= pages; n++) {
-    if (n === 1 || n === pages || Math.abs(n - state.page) <= 1) nums.push(n);
-    else if (nums[nums.length - 1] !== "…") nums.push("…");
-  }
-  const btn = (n, text, label, disabled = false) => `<button type="button" data-page="${n}" aria-label="${label}"` +
-    `${n === state.page && text === String(n) ? ' aria-current="page"' : ""}${disabled ? " disabled" : ""}>${text}</button>`;
-  return `<nav class="pager" aria-label="Pages">
-    <label>Rows per page <select data-per>${per}</select></label>
-    <span class="num">${fmtNum(from)}–${fmtNum(to)} of ${fmtNum(total)} mods</span>
-    <span class="pages">${btn(state.page - 1, "‹ Previous", "Previous page", state.page <= 1)}` +
-      nums.map((n) => (n === "…" ? `<span class="gap">…</span>` : btn(n, String(n), `Page ${n}`))).join("") +
-      `${btn(state.page + 1, "Next ›", "Next page", state.page >= pages)}</span></nav>`;
+function renderSessions() {
+  // Where you left off: one row per slot saved inside a chapter (Save & Quit). The save has no dates, so rows
+  // are in slot order. The checkpoint is the last one the save lists for that side (the start checkpoint is
+  // empty in every real save seen); the room ID is a detail.
+  const el = $("sessions");
+  const slots = state.data.slots.filter((s) => s.session && (state.key === "all" || s.key === state.key));
+  if (!slots.length) { el.hidden = true; return; }
+  el.hidden = false;
+  const open = sessionsOpen ?? (state.key !== "all" || slots.length <= 3);
+  const rows = slots.map((s) => {
+    const x = s.session, m = index.modOfSid[x.sid];
+    const chapter = x.title && m && x.title === m.name ? "" : (x.title || x.sid);
+    const cp = x.checkpoints.length ? x.checkpoints[x.checkpoints.length - 1] : null;
+    const v = m && m.progress[s.key];
+    return `<tr${m ? ` data-goto="${esc(m.id)}" title="Open ${esc(m.name)}"` : ""}>
+      <td class="num">${esc(s.key)}</td>
+      <td>${m ? `<a data-goto="${esc(m.id)}">${esc(m.name)}</a>` : esc(x.sid)}</td>
+      <td>${esc(chapter)}</td>
+      <td><span class="chip c-in-progress">${esc(x.side)}</span></td>
+      <td>${cp ? esc(cp.title || cp.room) : '<span class="muted">start</span>'}</td>
+      <td class="muted room">${esc(x.room)}</td>
+      <td class="right num">${fmtNum(x.deaths)}</td>
+      <td class="right num">${v ? `${v.sides_done}/${v.sides_total}` : "-"}</td></tr>`;
+  }).join("");
+  el.innerHTML = `<details${open ? " open" : ""}><summary>Where you left off ` +
+    `<span class="muted">Save &amp; Quit in ${slots.length} slot${slots.length > 1 ? "s" : ""}</span></summary>
+    <table class="resume"><colgroup><col class="w-slot"><col><col><col class="w-side"><col><col><col class="w-deaths"><col class="w-n">
+    </colgroup><thead><tr><th>Slot</th><th>Mod</th><th>Chapter</th><th>Side</th><th>Last checkpoint</th><th>Room</th>
+    <th class="right">Deaths this session</th><th class="right">Sides</th></tr></thead><tbody>${rows}</tbody></table></details>`;
 }
 
 function render() {
+  // Everything around the table, then the table's filter. The table's rows are rebuilt only by fillTable.
   if (!state.data) return;
   const rows = visibleMods();
   renderSummary(rows);
@@ -592,27 +641,17 @@ function render() {
   $("tag-list").innerHTML = allTags().map((t) => `<option value="${esc(t)}">`).join("");
   renderSessions();
   renderColumnsMenu();
-  applyColumns();
-  const pages = state.per ? Math.max(1, Math.ceil(rows.length / state.per)) : 1;
-  state.page = Math.min(Math.max(1, state.page), pages);
-  const shown = state.per ? rows.slice((state.page - 1) * state.per, state.page * state.per) : rows;
-  $("list").innerHTML = rows.length ? listHead() + shown.map(modCard).join("") + (rows.length > 25 ? pager(rows.length, pages) : "")
-    : `<div class="empty">No mods match. Clear the search${filtersOn().length ? ` or the filters` : ""}.</div>`;
-  for (const area of document.querySelectorAll("[data-note]")) fitNote(area);
-  measure();
+  syncColumns();
+  if (table) refilter();
   writeHash();
 }
 
 function measure() {
-  // Where the sticky rows stop (style.css): under the top bar, then the header row, then an opened mod's row.
-  const root = document.documentElement.style;
-  root.setProperty("--top-h", `${document.querySelector(".top").offsetHeight}px`);
-  root.setProperty("--head-h", `${document.querySelector(".list-head")?.offsetHeight || 0}px`);
-  for (const mod of document.querySelectorAll(".mod.open")) {
-    mod.style.setProperty("--mh", `${mod.querySelector(".mod-head").offsetHeight}px`);
-  }
+  // Where the sticky header stops (style.css): under the top bar.
+  document.documentElement.style.setProperty("--top-h", `${document.querySelector(".top").offsetHeight}px`);
 }
-window.addEventListener("resize", () => { if (state.data) applyColumns(); measure(); });
+let resizeTimer;
+window.addEventListener("resize", () => { measure(); clearTimeout(resizeTimer); resizeTimer = setTimeout(syncColumns, 150); });
 
 // ------------------------------------------------------------------ loading and editing
 
@@ -624,7 +663,10 @@ async function load(refresh = false) {
     buildIndex(state.data);
     fillSlots();
     $("error").hidden = true;
+    if (!table) await makeTable();
     render();
+    await fillTable();
+    measure();
   } catch (e) {
     $("error").hidden = false;
     $("error").textContent = `Couldn't load your progress: ${e.message}. Is the tracker still running?`;
@@ -655,7 +697,7 @@ async function save(key, field, value) {
   const m = state.data.mods.find((x) => x.id === key);
   if (value === "" || value === 0 || value === false || value == null || (Array.isArray(value) && !value.length)) delete m.user[field];
   else m.user[field] = typeof value === "string" ? value.trim() : value;
-  buildIndex(state.data);  // the search matches notes
+  buildIndex(state.data);  // the search matches notes and tags
 }
 
 async function rate(group, n) {
@@ -663,6 +705,7 @@ async function rate(group, n) {
   const key = group.dataset.key, where = group.dataset.where, m = state.data.mods.find((x) => x.id === key);
   const value = m.user.rating === n ? 0 : n;
   try { await save(key, "rating", value); } catch (e) { return alert(`Couldn't save your rating: ${e.message}`); }
+  refreshMod(key);
   render();
   const again = document.querySelector(`.rate[data-key="${CSS.escape(key)}"][data-where="${where}"]`);
   again?.querySelector(`[data-rate="${value || n}"]`)?.focus();
@@ -687,6 +730,7 @@ async function setDifficulty(select) {
   const key = select.closest(".yours").dataset.key;
   try { await save(key, "difficulty", select.value); } catch (e) { return alert(`Couldn't save the difficulty: ${e.message}`); }
   if (select.value) firstUse("difficulty");
+  refreshMod(key);
   render();
   document.querySelector(`.yours[data-key="${CSS.escape(key)}"] [data-difficulty]`)?.focus();
 }
@@ -696,6 +740,7 @@ async function setTags(key, tags) {
   const clean = [...new Set(tags.map(cleanTag).filter(Boolean))].sort();
   try { await save(key, "tags", clean); } catch (e) { return alert(`Couldn't save the tags: ${e.message}`); }
   if (clean.length) firstUse("tags");
+  refreshMod(key);
   render();
   document.querySelector(`.yours[data-key="${CSS.escape(key)}"] [data-addtag]`)?.focus();
 }
@@ -720,8 +765,8 @@ async function saveNote(area) {
     status.textContent = "Saved";
     status.classList.remove("error");
     setTimeout(() => { if (status.textContent === "Saved") status.textContent = ""; }, 1500);
-    // Once the player has left the panel, redraw so the note shows under the mod's name.
-    if (!document.activeElement?.closest(".yours")) render();
+    // Once the player has left the panel, redraw the row so the Note column shows it.
+    if (!document.activeElement?.closest(".yours")) { refreshMod(key); render(); }
   } catch (e) {
     status.textContent = `Not saved: ${e.message}`;
     status.classList.add("error");
@@ -732,11 +777,6 @@ function fitNote(area) {
   // The note field grows with its text, up to the max-height in style.css.
   area.style.height = "auto";
   area.style.height = `${area.scrollHeight + 2}px`;
-}
-
-function toggle(set, id) {
-  set.has(id) ? set.delete(id) : set.add(id);
-  render();
 }
 
 async function poll() {
@@ -753,67 +793,32 @@ async function poll() {
   }
 }
 
+function openMod(id, { focusNote = false } = {}) {
+  // Opens a mod (the Note column, "Where you left off"): goes to the page that has it and brings it into view.
+  const row = table.getRow(`m:${id}`);
+  if (!row) return;
+  if (!state.open.has(id)) toggleRow(row);
+  table.setPageToRow(row).then(() => {
+    const area = row.getElement().querySelector("[data-note]");
+    if (focusNote && area) {
+      area.focus({ preventScroll: true });
+      area.closest(".yours").scrollIntoView({ block: "nearest" });
+    } else row.getElement().scrollIntoView({ block: "start" });
+  });
+}
+
 // ------------------------------------------------------------------ events
 
 $("list").addEventListener("click", (e) => {
   const star = e.target.closest("[data-rate]");
   if (star) return rate(star.closest(".rate"), Number(star.dataset.rate));
-  if (e.target.closest("[data-note-cell]")) return editNote(e.target.closest(".mod").dataset.mod);
+  if (e.target.closest("[data-note-cell]")) return openMod(e.target.closest(".tabulator-row")._row.getData().key, { focusNote: true });
   const untag = e.target.closest("[data-untag]");
   if (untag) {
     const key = untag.closest(".yours").dataset.key, m = state.data.mods.find((x) => x.id === key);
     return setTags(key, (m.user.tags || []).filter((t) => t !== untag.dataset.untag));
   }
-  const sort = e.target.closest("[data-sort]");
-  if (sort) {
-    const key = sort.dataset.sort;
-    state.dir = key === state.sort ? (sortDir() === "asc" ? "desc" : "asc") : "";
-    state.sort = key;
-    state.page = 1;
-    return render();
-  }
-  const page = e.target.closest("[data-page]");
-  if (page) {
-    state.page = Number(page.dataset.page);
-    render();
-    return $("list").scrollIntoView({ block: "start" });
-  }
-  const line = e.target.closest(".guide");
-  if (line) return closeFromLine(line);
-  if (!e.target.closest("button, input, select, textarea, a")) openRow(e.target);
 });
-
-const SETS = { mod: () => state.open, set: () => state.openSet, ch: () => state.openCh };
-const ROW = { mod: (id) => `.mod[data-mod="${id}"]`, set: (id) => `.trow[data-set="${id}"]`, ch: (id) => `.trow[data-ch="${id}"]` };
-
-function closeFromLine(line) {
-  // Clicking a thread line closes the row it comes from and, as on Reddit, brings that row back into view when
-  // it was scrolled away.
-  const { close: kind, id } = line.dataset;
-  SETS[kind]().delete(id);
-  render();
-  const row = document.querySelector(ROW[kind](CSS.escape(id)));
-  const top = document.querySelector(".top").offsetHeight + (document.querySelector(".list-head")?.offsetHeight || 0);
-  if (row && row.getBoundingClientRect().top < top) row.scrollIntoView({ block: "start" });
-}
-
-// Hovering a thread line lights up all of it, across the rows it runs through.
-$("list").addEventListener("mouseover", (e) => {
-  const line = e.target.closest(".guide");
-  for (const g of document.querySelectorAll(".guide.hot")) g.classList.remove("hot");
-  if (!line) return;
-  const same = `.guide[data-close="${line.dataset.close}"][data-id="${CSS.escape(line.dataset.id)}"]`;
-  for (const g of document.querySelectorAll(same)) g.classList.add("hot");
-});
-
-function openRow(target) {
-  // A mod, level set or chapter row: open or close it. Returns false when the target isn't one.
-  const head = target.closest(".mod-head"), set = target.closest(".trow[data-set]"), ch = target.closest(".trow[data-ch]");
-  if (head) toggle(state.open, head.closest(".mod").dataset.mod);
-  else if (set) toggle(state.openSet, set.dataset.set);
-  else if (ch) toggle(state.openCh, ch.dataset.ch);
-  return !!(head || set || ch);
-}
 $("list").addEventListener("keydown", (e) => {
   if (e.target.matches("[data-addtag]") && (e.key === "Enter" || e.key === ",")) {
     e.preventDefault();
@@ -828,14 +833,15 @@ $("list").addEventListener("keydown", (e) => {
     if (n !== m.user.rating) rate(star.closest(".rate"), n);
     return;
   }
-  if ((e.key === "Enter" || e.key === " ") && e.target.matches("[role=button]") && openRow(e.target)) e.preventDefault();
+  // Enter or Space on a focused row opens or closes it.
+  if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("tabulator-row") && e.target._row) {
+    e.preventDefault();
+    const row = e.target._row;
+    toggleRow(row);
+    row.getElement().focus({ preventScroll: true });  // redrawing the row drops the focus
+  }
 });
 $("list").addEventListener("change", (e) => {
-  if (e.target.matches("[data-per]")) {
-    state.per = Number(e.target.value);
-    state.page = 1;
-    return render();
-  }
   if (e.target.matches("[data-difficulty]")) return setDifficulty(e.target);
   if (e.target.matches("[data-addtag]")) return addTag(e.target);
 });
@@ -854,68 +860,6 @@ $("list").addEventListener("mouseover", (e) => {
   if (!star) return;
   for (const b of star.parentElement.children) if (Number(b.dataset.rate) <= Number(star.dataset.rate)) b.classList.add("preview");
 });
-
-function editNote(id) {
-  // A click in the Note column: open the mod, and put the cursor in its note.
-  state.open.add(id);
-  render();
-  const area = document.querySelector(`.mod[data-mod="${CSS.escape(id)}"] [data-note]`);
-  if (!area) return;
-  area.focus({ preventScroll: true });
-  area.closest(".yours").scrollIntoView({ block: "nearest" });
-}
-// Resizing a column: the grip on a column's left edge is the line between it and the column before it, and dragging
-// it moves only that line: the two columns change width in opposite directions, and every other line stays put.
-// When one of the two is the flexible column, it changes by itself, never below its minimum.
-const pairOf = (id) => {
-  const cols = shownCols(), i = cols.findIndex((x) => x.id === id);
-  return [cols[i - 1], cols[i]];
-};
-$("list").addEventListener("pointerdown", (e) => {
-  const grip = e.target.closest("[data-grip]");
-  if (!grip || e.button !== 0) return;
-  e.preventDefault();
-  const [left, right] = pairOf(grip.dataset.grip), flex = flexCol(), x0 = e.clientX;
-  const l0 = shownWidth(left), r0 = shownWidth(right);
-  const head = grip.closest(".list-head"), pad = parseFloat(getComputedStyle(head).paddingLeft) * 2;
-  const fixed = shownCols().filter((x) => x !== flex).reduce((a, x) => a + shownWidth(x), 0);
-  const spare = Math.max(0, head.clientWidth - pad - ARROW - GAP * shownCols().length - fixed - flex.min);
-  grip.setPointerCapture(e.pointerId);
-  grip.classList.add("drag");
-  document.body.classList.add("resizing");
-  const move = (ev) => {
-    // d > 0: the line moves right, the left column widens and the right one narrows
-    let d = ev.clientX - x0;
-    if (left === flex) d = Math.min(Math.max(d, -spare), r0 - right.min);
-    else if (right === flex) d = Math.min(Math.max(d, left.min - l0), spare);
-    else d = Math.min(Math.max(d, left.min - l0), r0 - right.min);
-    const w = { ...prefs.widths };
-    if (left !== flex) w[left.id] = Math.round(l0 + d);
-    if (right !== flex) w[right.id] = Math.round(r0 - d);
-    prefs.widths = w;
-    applyColumns();
-  };
-  const up = () => {
-    grip.removeEventListener("pointermove", move);
-    grip.classList.remove("drag");
-    document.body.classList.remove("resizing");
-    measure();
-    savePrefs();
-  };
-  grip.addEventListener("pointermove", move);
-  grip.addEventListener("pointerup", up, { once: true });
-  grip.addEventListener("pointercancel", up, { once: true });
-});
-// Double-clicking a line gives the columns on both sides of it their default widths.
-$("list").addEventListener("dblclick", (e) => {
-  const grip = e.target.closest("[data-grip]");
-  if (!grip) return;
-  const widths = { ...prefs.widths };
-  for (const c of pairOf(grip.dataset.grip)) delete widths[c.id];
-  prefs.widths = widths;
-  applyColumns();
-  savePrefs();
-});
 $("cols").addEventListener("change", (e) => {
   const id = e.target.dataset.col;
   if (!id) return;
@@ -927,6 +871,7 @@ $("cols").addEventListener("click", (e) => {
   if (!e.target.closest("[data-reset-cols]")) return;
   prefs = { hidden: DEFAULT_HIDDEN, widths: {}, auto: prefs.auto };
   savePrefs();
+  syncColumns(true);
   render();
 });
 // The Columns and Filter menus close on a click anywhere else, or Escape.
@@ -946,25 +891,21 @@ $("sessions").addEventListener("toggle", (e) => { sessionsOpen = e.target.open; 
 $("sessions").addEventListener("click", (e) => {
   const a = e.target.closest("[data-goto]");
   if (!a) return;
-  state.open.add(a.dataset.goto);
   state.q = "";
   $("q").value = "";
-  const i = visibleMods().findIndex(({ m }) => m.id === a.dataset.goto);  // go to the page that has it
-  if (i >= 0 && state.per) state.page = Math.floor(i / state.per) + 1;
   render();
-  document.querySelector(`.mod[data-mod="${CSS.escape(a.dataset.goto)}"]`)?.scrollIntoView({ block: "start" });
+  openMod(a.dataset.goto);
 });
 
 let typingTimer;
 $("q").addEventListener("input", (e) => {
   clearTimeout(typingTimer);
-  typingTimer = setTimeout(() => { state.q = e.target.value; state.page = 1; render(); }, 150);
+  typingTimer = setTimeout(() => { state.q = e.target.value; render(); }, 150);
 });
-$("slot").addEventListener("change", (e) => { state.key = e.target.value; state.page = 1; render(); });
+$("slot").addEventListener("change", (e) => { state.key = e.target.value; render(); fillTable(); });
 document.addEventListener("change", (e) => {
   if (!e.target.matches("[data-tagall]")) return;
   state.tagAll = e.target.value === "1";
-  state.page = 1;
   render();
 });
 $("notice").addEventListener("click", (e) => {
@@ -981,7 +922,6 @@ document.addEventListener("click", (e) => {
   } else if (un) state.f[un.dataset.unfilter] = [];
   else if (e.target.closest("[data-clear-filters]")) for (const g of FILTER_GROUPS) state.f[g.id] = [];
   else return;
-  state.page = 1;
   render();
 });
 $("refresh").addEventListener("click", () => load(true));

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Celeste Tracker</title>
   <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="stylesheet" href="/vendor/tabulator/tabulator.min.css">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -48,12 +49,12 @@
         <h3>The table</h3>
         <ul>
           <li>Click a row to open it: a mod opens to its level sets, a level set to its chapters, a chapter to its
-            sides. Click the thin line down the left side to close it again.</li>
+            sides. Click it again to close it.</li>
           <li>Click a column name to sort by it; click it again to flip the order.</li>
           <li><b>Filter</b> narrows the list by status, or by your rating, difficulty, tags or note. Choices on one line add up
             (in progress <i>or</i> not started); lines narrow it down. The filters on show under the search.</li>
           <li><b>Columns</b> shows or hides columns (Best and Berries are hidden at first).</li>
-          <li>Drag the line between two column names to resize them; double-click it to reset them.</li>
+          <li>Drag the line at the right of a column name to resize the column; <b>Columns</b> → Reset columns undoes it.</li>
           <li>The search matches mod names, authors, mod IDs, level sets, chapters, and your notes and tags.</li>
         </ul>
       </section>
@@ -105,9 +106,10 @@
   <datalist id="tag-list"></datalist>
 
   <section id="sessions" class="sessions" hidden></section>
-  <main id="list" class="list" aria-live="polite"></main>
+  <main class="list-wrap"><div id="list" class="list"></div></main>
   <p id="error" class="error" hidden></p>
 
+  <script src="/vendor/tabulator/tabulator.min.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

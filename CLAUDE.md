@@ -76,7 +76,7 @@ The CI workflow (`.github/workflows/release.yml`) is the only place the macOS ap
 - **Read-only:** never write to save files or the Mods folder.
 - **No personal data in git:** `local/`, `*.celeste`, `Saves/`, `celeste_notes.json`, `tracker.db*` and `moddb.json` are gitignored, and must stay out of git.
 - **Commit as you go:** make a commit after each finished change, push when needed.
-- **Dependencies:** runtime code uses only the standard library, except `pywebview` in `desktop.py` (the optional `desktop` extra). Dev: `pytest`; build: `pyinstaller`, `pillow`. Ask before adding anything else.
+- **Dependencies:** runtime code uses only the standard library, except `pywebview` in `desktop.py` (the optional `desktop` extra). The page ships Tabulator (MIT) in `web/static/vendor/tabulator`, a pinned copy (update it by replacing the files, never from a CDN: the page works offline). Dev: `pytest`; build: `pyinstaller`, `pillow`. Ask before adding anything else.
 - **Follow the layers in `doc/DESIGN.md`:** front ends (CLI, web, desktop) never parse files themselves, and the completion rules live in one module.
 - **Don't assume WSL:** other players will run this on Windows, so no hardcoded `/mnt/c` paths in the code.
 - **Be honest about the data:** the save only stores internal IDs and opened maps, and has no dates. Say what is verified on real saves and what is inferred.

@@ -203,111 +203,71 @@ button:hover { border-color: var(--summit); }
 .sessions a { color: var(--ink); text-decoration: none; cursor: pointer; }
 .sessions a:hover { color: var(--summit); }
 
-.list {
-  margin: 0 var(--gutter) 40px; display: grid; grid-template-columns: minmax(0, 1fr);
-  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
-  overflow: clip; /* not hidden: that would stop the header and the opened rows from sticking */
-  scroll-margin-top: var(--top-h, 0px);
-}
-.mod { min-width: 0; }
+/* The table (doc/UI.md, "Table"): Tabulator draws it (static/vendor/tabulator); these rules dress its default theme in
+   the page's tokens, so dark mode works too. Its own CSS comes first, so plain selectors here win when they're as
+   specific as its own. */
+.list-wrap { margin: 0 var(--gutter) 40px; }
 .empty { padding: 30px; text-align: center; color: var(--muted); }
 .error { margin: 20px var(--gutter); color: #c0392b; }
+#list.tabulator {
+  font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  overflow: visible; /* not hidden: the header sticks under the top bar while the page scrolls */
+}
+/* The header row: column names left, next to the line before them; ↕ / ▲ / ▼ is Tabulator's arrow. */
+#list .tabulator-header {
+  position: sticky; top: var(--top-h, 0px); z-index: 3; background: var(--surface); color: var(--muted);
+  border-bottom: 1px solid var(--line); border-radius: 8px 8px 0 0; font-weight: 600; font-size: 12px;
+}
+#list .tabulator-header .tabulator-col { background: var(--surface); border-right: 1px solid var(--guide); }
+#list .tabulator-header .tabulator-col:last-child { border-right: 0; }
+#list .tabulator-header .tabulator-col .tabulator-col-content { padding: 8px 12px; }
+#list .tabulator-header .tabulator-col.tabulator-sortable:hover { background: var(--snow); color: var(--ink); }
+#list .tabulator-header .tabulator-col[aria-sort=ascending], #list .tabulator-header .tabulator-col[aria-sort=descending] { color: var(--ink); }
+/* The sort mark right after the name, not at the far end of the column. */
+#list .tabulator-col .tabulator-col-title-holder { display: flex; align-items: center; gap: 4px; }
+#list .tabulator-col.tabulator-sortable .tabulator-col-title, #list .tabulator-col .tabulator-col-title { padding-right: 0; width: auto; flex: 0 1 auto; }
+#list .tabulator-col .tabulator-col-sorter { position: static; font-size: 10px; color: var(--faint); }
+#list .tabulator-col[aria-sort=ascending] .tabulator-col-sorter, #list .tabulator-col[aria-sort=descending] .tabulator-col-sorter { color: var(--summit); }
+/* Resizing: the line between two column names. ew-resize, not col-resize: Chrome on Windows draws col-resize as a
+   white bar, hard to see on the white header. */
+#list .tabulator-col-resize-handle { cursor: ew-resize; }
+#list .tabulator-col-resize-handle:hover { background: var(--summit); opacity: .6; }
+/* Rows: one per mod, with the rows under an opened mod after it. */
+#list .tabulator-tableholder { background: var(--surface); }
+#list .tabulator-table { background: var(--surface); color: var(--ink); }
+#list .tabulator-row { background: var(--surface); border-bottom: 0; min-height: 0; }
+#list .tabulator-row[data-kind=mod] { border-top: 1px solid var(--line); }
+#list .tabulator-row[data-kind=mod]:first-child { border-top: 0; }
+#list .tabulator-row:hover { background: var(--hover); }
+#list .tabulator-row .tabulator-cell { border-right: 0; padding: 9px 12px; vertical-align: middle; }
+#list .tabulator-row[data-kind=mod] > .tabulator-cell { min-height: 58px; display: inline-flex; align-items: center; }
+#list .tabulator-row:not([data-kind=mod]) > .tabulator-cell { padding-top: 5px; padding-bottom: 5px; display: inline-flex; align-items: center; }
+#list .tabulator-row .tabulator-cell[tabulator-field=sides] > * { flex: 1; }
+#list .tabulator-row[tabindex] { cursor: pointer; }
+#list .tabulator-row { scroll-margin-top: calc(var(--top-h, 0px) + 40px); }  /* below the sticky header */
+#list .tabulator-row:focus-visible { outline: 2px solid var(--summit); outline-offset: -2px; }
+#list .tabulator-row.dropped > .tabulator-cell { opacity: .6; }
+#list .tabulator-placeholder span { color: var(--muted); font-size: 13px; font-weight: 400; }
+/* The rows under a mod: indented by Tabulator, one step per level (its empty branch element); no line between them. */
+#list .tabulator-data-tree-branch-empty { display: inline-block; height: 1px; flex: none; }
+/* Pages, at the bottom of the table. */
+#list .tabulator-footer { background: var(--surface); border-top: 1px solid var(--line); color: var(--muted); border-radius: 0 0 8px 8px; font-weight: 400; }
+#list .tabulator-footer .tabulator-page { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); padding: 3px 9px; }
+#list .tabulator-footer .tabulator-page:not(:disabled):hover { border-color: var(--summit); background: var(--surface); color: var(--ink); }
+#list .tabulator-footer .tabulator-page.active { background: var(--summit); border-color: var(--summit); color: var(--chip-ink); }
+#list .tabulator-footer .tabulator-page-size { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); }
 
-/* One table (doc/UI.md, Layout): a header row, then one row per mod, every second one shaded. */
-/* The columns: --mod-cols is set by app.js (applyColumns) from the columns shown and their widths; this is only the
-   default before the page has loaded. The status is under the bar, next to "x/y sides" (doc/UI.md, "Progress bar"). */
-.list { --mod-cols: 16px 320px 170px minmax(150px, 1fr) 64px 72px 92px 200px 44px; }
-/* The GameBanana author, after the mod's name. Rows inside an opened mod have none, so their name takes both columns
-   (--name-span, 1 when the Author column is hidden). */
 .author { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tname { grid-column: span var(--name-span, 2); }
-.list-head {
-  display: grid; grid-template-columns: var(--mod-cols); gap: 12px; align-items: center;
-  padding: 7px 14px; border-bottom: 1px solid var(--line);
-  font-size: 12px; font-weight: 600; color: var(--muted);
-  /* The header row, an opened mod's row and an opened level set's row stay on screen while scrolling under them,
-     each below the one above (the heights are measured in app.js). A row leaving the screen slides under the
-     ones above it, hence the z-index steps 3, 2, 1. */
-  position: sticky; top: var(--top-h, 0px); z-index: 3; background: var(--surface);
-}
-/* Sortable column headers (after the WAI-ARIA sortable table example): the whole label is a button; ↕ marks a
-   column you can sort by, ▲ / ▼ the one sorted now. Click it again to flip the direction. */
-.list-head .th { display: flex; min-width: 0; position: relative; }
-/* The resize grip, on the gap left of a column: drag it to move the line between the two columns (app.js).
-   ew-resize, not col-resize: Chrome on Windows draws col-resize as a white bar, hard to see on the white header;
-   ew-resize is the system's black arrow. The line always shows, faint, so it's clear the columns can be resized (as
-   in AG Grid and Excel); it turns blue and thicker under the mouse and while dragged. It's a border, not a filled
-   box: browsers round border widths to whole screen pixels, so every line is as thick as the others on a scaled
-   screen (at 125%, a 2px box came out 2 or 3 pixels wide depending on where it fell). */
-.grip { position: absolute; top: -7px; bottom: -7px; left: -12px; width: 12px; cursor: ew-resize; z-index: 1; touch-action: none; }
-.grip::after { content: ""; position: absolute; top: 9px; bottom: 9px; left: 5px; border-left: 1px solid var(--guide); }
-.grip:hover::after, .grip.drag::after { border-left: 2px solid var(--summit); }
-body.resizing { cursor: ew-resize; user-select: none; }
-.list-head button {
-  display: inline-flex; align-items: center; gap: 4px; margin: -3px -6px; padding: 3px 6px; border: 0;
-  background: none; font-weight: 600; color: inherit; border-radius: 4px; cursor: pointer;
-}
-.list-head button:hover { background: var(--snow); color: var(--ink); }
-.list-head [aria-sort] button { color: var(--ink); }
-.list-head .icon { font-size: 10px; color: var(--faint); }
-.list-head [aria-sort] .icon { color: var(--summit); }
-.list-head button:focus-visible { outline: 2px solid var(--summit); outline-offset: 0; }
-
-/* Pagination, at the bottom of the table (as in Carbon's data table). */
-.pager {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 20px;
-  padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted);
-}
-.pager label { display: flex; align-items: center; gap: 6px; }
-.pager select { padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
-.pages { display: flex; align-items: center; gap: 4px; }
-.pages button { min-width: 32px; padding: 4px 9px; }
-.pages button[aria-current] { background: var(--summit); border-color: var(--summit); color: var(--chip-ink); }
-.pages button:disabled { opacity: .45; cursor: default; }
-.pages button:disabled:hover { border-color: var(--line); }
-.pages .gap { padding: 0 4px; }
-.mod { border-bottom: 1px solid var(--line); --row-bg: var(--surface); background: var(--row-bg);
-       scroll-margin-top: calc(var(--top-h, 0px) + var(--head-h, 0px)); }
-.mod:last-child { border-bottom: 0; }
-.mod:nth-of-type(even) { --row-bg: var(--surface-alt); }
-.mod.open > .mod-head {
-  position: sticky; top: calc(var(--top-h, 0px) + var(--head-h, 0px)); z-index: 2; background: var(--row-bg);
-}
-.tgroup > .trow.open {
-  position: sticky; top: calc(var(--top-h, 0px) + var(--head-h, 0px) + var(--mh, 0px)); z-index: 1;
-  background: var(--row-bg);
-}
-.trow { scroll-margin-top: calc(var(--top-h, 0px) + var(--head-h, 0px) + var(--mh, 0px)); }
-/* Thread lines, as in Reddit's comments: a thin line drops from each opened row's arrow down its rows, one per
-   level, so you can see where a mod or a level set ends. Clicking a line closes the row it comes from; hovering
-   one lights up the whole line (app.js). There are no row lines inside an opened mod: the thread lines group the rows. */
-.guide { position: relative; cursor: pointer; }
-.guide::before {
-  content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; transform: translateX(-50%);
-  background: var(--guide);
-}
-.guide.hot::before { width: 2px; background: var(--summit); }
-.trow > .guide { align-self: stretch; margin: -5px 0; }                     /* the mod's line, in the arrow column */
-.tname > .guide { position: absolute; top: 0; bottom: 0; width: 16px; }    /* the lines of a level set or chapter */
-.mod-body > .guide { position: absolute; top: 0; bottom: 0; left: 14px; width: 16px; }
-.mod.dropped { opacity: .6; }
-/* Every mod row has the same height, with room for the dim second line whether it has one or not. */
-.mod-head {
-  display: grid; grid-template-columns: var(--mod-cols);
-  gap: 12px; min-height: 58px;
-  align-items: center; padding: 9px 14px; cursor: pointer; user-select: none;
-}
-/* Every row gets the same background on hover, to follow it across to its numbers; only rows that open have the
-   pointer cursor. The selectors are long enough to beat the stuck rows' own background. */
-.mod > .mod-head:hover, .list .trow:hover { background: var(--hover); }
-.caret { color: var(--muted); transition: transform .15s; }
-.mod.open > .mod-head .caret { transform: rotate(90deg); }
-.name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.caret { display: inline-block; width: 12px; flex: none; color: var(--muted); transition: transform .15s; }
+#list .tabulator-row.open .caret { transform: rotate(90deg); }
+.mname { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.name { display: block; font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .sub { display: block; font-weight: 400; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .sub .tag { margin-left: 6px; }
 .sub .tag:first-child { margin-left: 0; }
 .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .right { text-align: right; }
+#list .tabulator-row .tabulator-cell.cell-right { justify-content: flex-end; }  /* numbers stay right-aligned */
 
 .progress { display: grid; gap: 3px; min-width: 0; }
 .bar { height: 8px; border-radius: 2px; overflow: hidden; background: var(--track); }
@@ -320,33 +280,24 @@ body.resizing { cursor: ew-resize; user-select: none; }
 .s-completed::before { content: "✓ "; }
 .s-not-started { color: var(--faint); }
 
-/* The player's own marks (rating, difficulty, dropped), on a mod's second line. */
+/* "dropped", set with the CLI, on a mod's second line. */
 .tag {
   font-size: 11px; padding: 0 6px; border-radius: 10px; border: 1px solid var(--line); color: var(--muted);
   white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
 }
 .tag.own { border-color: var(--summit); color: var(--summit); }
 
-.mod-body { position: relative; padding: 6px 14px 6px 42px; display: grid; gap: 14px; }
+/* An opened mod's facts and Yours panel, inside its row (app.js formatRow), before the rows under it. */
+.mod-body { padding: 4px 14px 12px 42px; display: grid; gap: 14px; white-space: normal; cursor: default; }
 .facts { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .facts b { color: var(--ink); font-weight: 600; }
 
-/* The rows under an opened mod: level sets, chapters and sides, on the mod row's columns, indented by level. */
-.trow {
-  display: grid; grid-template-columns: var(--mod-cols); gap: 12px; align-items: center;
-  padding: 5px 14px; font-size: 13px;
-}
-.trow[role=button] { cursor: pointer; user-select: none; }
-.trow[role=button]:focus-visible, .mod-head:focus-visible { outline: 2px solid var(--summit); outline-offset: -2px; }
-.trow.open > .tname .caret { transform: rotate(90deg); }
-.tname { position: relative; align-self: stretch; margin: -5px 0; align-items: center;
-  display: flex; gap: 6px; min-width: 0; padding-left: calc((var(--lvl) - 1) * 20px); }
-.tname .caret { width: 12px; flex: none; }
-.tname .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The rows under an opened mod: level sets, chapters and sides. */
+.tname { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.tname .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tname.strong .t { font-weight: 600; }
-.tname small { display: block; font-size: 12px; color: var(--muted); }
-.trow .progress small { font-size: 11px; }
-.trow .bar { height: 6px; }
+#list .tabulator-row:not([data-kind=mod]) .progress small { font-size: 11px; }
+#list .tabulator-row:not([data-kind=mod]) .bar { height: 6px; }
 
 table { border-collapse: collapse; width: 100%; font-size: 13px; table-layout: fixed; }
 col.w-n { width: 80px; } col.w-side { width: 52px; }
@@ -383,6 +334,7 @@ tr:last-child td { border-bottom: 0; }
    at its note, so the cell gets a text cursor. */
 .notecell {
   font-size: 12px; line-height: 1.35; color: var(--ink); opacity: .85; cursor: text; min-width: 0; min-height: 2.7em;
+  width: 100%; white-space: normal;  /* Tabulator's cells don't wrap */
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
 }
 
@@ -428,12 +380,7 @@ tr:last-child td { border-bottom: 0; }
   .toolbar { padding: 10px 16px; }
   .toolbar input[type=search] { flex-basis: 100%; min-width: 0; }
   .sessions { margin: 0 16px 10px; }
-  .list { margin: 0 16px 32px; }
-  /* name and status on top, the progress bar across underneath */
-  .mod-head, .trow { grid-template-columns: 16px minmax(0, 1fr) auto; gap: 4px 10px; }
-  .mod-head .progress, .trow .progress { grid-column: 2 / -1; grid-row: 2; }
-  .mod-head .hide-sm, .trow .hide-sm { display: none; }
-  .list-head { display: none; } /* rows stack on phones, so the columns no longer line up */
+  .list-wrap { margin: 0 16px 32px; }
   .mod-body { padding: 10px 12px 12px; }
   table { table-layout: auto; }
   col.w-n, col.w-side { width: auto; }

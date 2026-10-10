@@ -62,6 +62,10 @@ def test_page_and_static_files(server):
     assert status == 200 and ctype == "font/woff2" and body.startswith(b"wOF2")
     status, ctype, body = request(srv, "GET", "/icon.png")
     assert status == 200 and ctype == "image/png" and body.startswith(b"\x89PNG")
+    status, ctype, body = request(srv, "GET", "/vendor/tabulator/tabulator.min.js")
+    assert status == 200 and ctype.startswith("text/javascript") and b"Tabulator" in body
+    assert request(srv, "GET", "/vendor/tabulator/tabulator.min.css")[1].startswith("text/css")
+    assert request(srv, "GET", "/vendor/tabulator/LICENSE.txt")[0] == 404
     assert request(srv, "GET", "/../store.py")[0] == 404  # only the listed files are served
     assert request(srv, "GET", "/fonts/OFL.txt")[0] == 404
 
