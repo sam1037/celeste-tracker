@@ -137,6 +137,8 @@ button:hover { border-color: var(--summit); }
 .cols-menu .menu label.muted { color: var(--faint); cursor: default; }
 .cols-menu .menu label.muted:hover { background: none; }
 .cols-menu .menu button { margin-top: 4px; font-size: 12px; color: var(--muted); }
+.cols-menu .menu h4 { margin: 4px 6px 0; font-size: 11px; font-weight: 700; color: var(--muted); }
+.cols-menu .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0 0; }
 
 /* The Filter menu (doc/UI.md, "Filters"): a line per group of choices, each a toggle chip with its count. The
    button says how many lines are on. */
@@ -161,6 +163,9 @@ button:hover { border-color: var(--summit); }
 .fpanel .foot { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; }
 .fpanel .foot button { font-size: 12px; padding: 3px 10px; }
 .fpanel .foot button:disabled { opacity: .45; cursor: default; }
+.fpanel .any { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.fpanel select { padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 12px; }
+.fpanel .none { font-size: 12px; color: var(--faint); padding-top: 3px; }
 .opt { font-size: 12px; padding: 2px 10px; border-radius: 12px; }
 .opt small { color: var(--muted); margin-left: 4px; font-size: 11px; }
 .opt[aria-pressed=true] { border-color: var(--summit); background: var(--hover); color: var(--summit); font-weight: 600; }
@@ -177,6 +182,14 @@ button:hover { border-color: var(--summit); }
 .chip-f button:hover { color: var(--ink); }
 .chips .clear { border: 0; background: none; color: var(--summit); font-size: 12px; padding: 2px 6px; }
 .chips .shown { margin-left: auto; color: var(--muted); }
+/* Said once, when one of the player's columns turns on by itself. */
+.notice {
+  margin: -2px var(--gutter) 10px; padding: 7px 12px; display: flex; gap: 10px; align-items: center; font-size: 13px;
+  background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--summit); border-radius: 6px;
+}
+.notice[hidden] { display: none; }
+.notice button { font-size: 12px; padding: 2px 10px; }
+.notice button:first-of-type { margin-left: auto; }
 
 .sessions { margin: 0 var(--gutter) 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .sessions summary { font-size: 13px; color: var(--muted); font-weight: 600; cursor: pointer; }
@@ -399,6 +412,23 @@ tr:last-child td { border-bottom: 0; }
   background: var(--surface); font-size: 13px; resize: none; overflow-y: auto;
 }
 .yours textarea:focus { outline: 2px solid var(--summit); outline-offset: -1px; border-color: transparent; }
+.yours select { justify-self: start; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 13px; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.tags input {
+  width: 130px; padding: 2px 9px; border: 1px dashed var(--guide); border-radius: 12px; background: none; font-size: 12px;
+}
+.tags input:focus { outline: 2px solid var(--summit); outline-offset: -1px; border-color: transparent; }
+/* A tag, in the Tags column and the Yours panel. */
+.ptag {
+  font-size: 12px; padding: 0 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--snow);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.ptag button { border: 0; background: none; padding: 0 0 0 5px; font-size: 10px; color: var(--muted); }
+.ptag button:hover { color: var(--ink); }
+.tagcell { display: flex; gap: 4px; align-items: center; overflow: hidden; min-width: 0; }
+.tagcell .ptag { font-size: 11px; padding: 0 6px; flex: 0 1 auto; }
+.tagcell .more { font-size: 11px; color: var(--muted); flex: none; }
+.diff { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .saved { font-size: 12px; color: var(--ok); min-height: 1em; }
 .saved:empty { display: none; }
 .saved.error { color: #c0392b; }
