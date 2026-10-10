@@ -138,6 +138,46 @@ button:hover { border-color: var(--summit); }
 .cols-menu .menu label.muted:hover { background: none; }
 .cols-menu .menu button { margin-top: 4px; font-size: 12px; color: var(--muted); }
 
+/* The Filter menu (doc/UI.md, "Filters"): a line per group of choices, each a toggle chip with its count. The
+   button says how many lines are on. */
+.filter-menu { position: relative; }
+.filter-menu summary {
+  list-style: none; cursor: pointer; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); color: var(--muted); display: flex; gap: 6px; align-items: center;
+}
+.filter-menu summary::-webkit-details-marker { display: none; }
+.filter-menu summary::after { content: "▾"; font-size: 11px; }
+.filter-menu summary:hover, .filter-menu[open] summary, .filter-menu.active summary { border-color: var(--summit); color: var(--ink); }
+.filter-menu .count { background: var(--summit); color: var(--chip-ink); border-radius: 9px; font-size: 11px; font-weight: 700; padding: 0 6px; }
+.fpanel {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; width: min(470px, calc(100vw - 32px));
+  padding: 10px 16px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / .12);
+  display: grid; grid-template-columns: 76px 1fr; gap: 10px 12px; align-items: start; font-size: 13px;
+}
+.fpanel .lab { color: var(--muted); font-size: 12px; padding-top: 3px; }
+.fpanel .opts { display: flex; flex-wrap: wrap; gap: 5px; }
+.fpanel hr { grid-column: 1 / -1; border: 0; border-top: 1px solid var(--line); margin: 0; }
+.fpanel .foot { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; }
+.fpanel .foot button { font-size: 12px; padding: 3px 10px; }
+.fpanel .foot button:disabled { opacity: .45; cursor: default; }
+.opt { font-size: 12px; padding: 2px 10px; border-radius: 12px; }
+.opt small { color: var(--muted); margin-left: 4px; font-size: 11px; }
+.opt[aria-pressed=true] { border-color: var(--summit); background: var(--hover); color: var(--summit); font-weight: 600; }
+.opt[aria-pressed=true] small { color: var(--summit); }
+/* The filters on, as chips under the toolbar. */
+.chips { margin: -2px var(--gutter) 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
+.chips[hidden] { display: none; }
+.chip-f {
+  display: inline-flex; gap: 4px; align-items: center; padding: 2px 4px 2px 10px; border-radius: 12px;
+  border: 1px solid var(--summit); background: var(--hover);
+}
+.chip-f b { font-weight: 600; color: var(--summit); }
+.chip-f button { border: 0; background: none; padding: 0 5px; font-size: 11px; color: var(--muted); }
+.chip-f button:hover { color: var(--ink); }
+.chips .clear { border: 0; background: none; color: var(--summit); font-size: 12px; padding: 2px 6px; }
+.chips .shown { margin-left: auto; color: var(--muted); }
+
 .sessions { margin: 0 var(--gutter) 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .sessions summary { font-size: 13px; color: var(--muted); font-weight: 600; cursor: pointer; }
 .sessions summary .muted { font-weight: 400; margin-left: 8px; }

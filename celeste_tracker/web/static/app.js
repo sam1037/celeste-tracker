@@ -17,7 +17,7 @@ function fmtTime(ticks) {
 }
 
 const PER_PAGE = 50;
-const state = { data: null, key: "all", show: "all", sort: "time", dir: "", page: 1, per: PER_PAGE, q: "", open: new Set(), openSet: new Set(),
+const state = { data: null, key: "all", f: {}, sort: "time", dir: "", page: 1, per: PER_PAGE, q: "", open: new Set(), openSet: new Set(),
                 openCh: new Set() };
 const setId = (m, ls) => `${m.id}/${ls.name}`; // a level set can be split across mods (Glyph + Glyph D side)
 let index = { modOfSid: {}, search: {} };
@@ -28,7 +28,13 @@ let sessionsOpen = null; // the player's choice once they open or close the pane
 function readHash() {
   const p = new URLSearchParams(location.hash.slice(1));
   state.key = p.get("slot") || "all";
-  state.show = FILTERS[p.get("show")] ? p.get("show") : (OLD_SHOW[p.get("show")] || "all");
+  // The filters, one list per line of the Filter panel; show= is the Show menu's, from before the panel.
+  for (const g of FILTER_GROUPS) {
+    const ok = new Set(g.opts.map((o) => o.id));
+    state.f[g.id] = (p.get(g.id) || "").split(SEP).filter((x) => ok.has(x)).slice(0, g.multi ? undefined : 1);
+  }
+  const show = OLD_SHOW[p.get("show")] ?? p.get("show");
+  if (show && !state.f.st.length && FILTER_GROUPS[0].opts.some((o) => o.id === show)) state.f.st = [show];
   state.sort = SORTS[p.get("sort")] ? p.get("sort") : "time";
   state.dir = ["asc", "desc"].includes(p.get("dir")) ? p.get("dir") : "";
   state.page = Math.max(1, parseInt(p.get("page"), 10) || 1);
@@ -42,7 +48,7 @@ function readHash() {
 function writeHash() {
   const p = new URLSearchParams();
   if (state.key !== "all") p.set("slot", state.key);
-  if (state.show !== "all") p.set("show", state.show);
+  for (const g of FILTER_GROUPS) if (state.f[g.id].length) p.set(g.id, state.f[g.id].join(SEP));
   if (state.sort !== "time") p.set("sort", state.sort);
   if (state.dir && state.dir !== FIRST_DIR[state.sort]) p.set("dir", state.dir);
   if (state.page > 1) p.set("page", state.page);
@@ -99,15 +105,29 @@ const STATUS_HELP = {
   completed: "Every side cleared",
   "not started": "Never opened",
 };
-// Show filters by those statuses, so the menu and the Status column use the same words. The values (playing,
-// complete) are older names, kept so bookmarks still work.
-const FILTERS = {
-  all: () => true,
-  playing: (m, v) => pageStatus(v.status) === "in progress",
-  complete: (m, v) => pageStatus(v.status) === "completed",
-  notstarted: (m, v) => v.status === "not started",
-};
-const OLD_SHOW = { played: "all", unfinished: "playing", dropped: "all" };  // bookmarks from before
+// The Filter panel (doc/UI.md, "Filters"): one line per group. Choices in one line widen the list (a mod needs one of
+// them), lines narrow it (a mod needs every line). A group that isn't multi takes one choice at a time. The status
+// IDs (playing, complete) are the old Show menu's, so bookmarks still work.
+const FILTER_GROUPS = [
+  { id: "st", label: "Status", multi: true, opts: [
+    { id: "playing", label: "In progress", chip: "in progress", test: (m, v) => pageStatus(v.status) === "in progress" },
+    { id: "complete", label: "Completed", chip: "completed", test: (m, v) => pageStatus(v.status) === "completed" },
+    { id: "notstarted", label: "Not started", chip: "not started", test: (m, v) => v.status === "not started" },
+  ] },
+  { id: "rate", label: "Rating", opts: [
+    { id: "5", label: "★ 5", test: (m) => m.user.rating === 5 },
+    { id: "4", label: "★ 4 or more", test: (m) => m.user.rating >= 4 },
+    { id: "3", label: "★ 3 or more", test: (m) => m.user.rating >= 3 },
+    { id: "none", label: "Not rated", test: (m) => !m.user.rating },
+  ] },
+  { id: "note", label: "Note", opts: [
+    { id: "yes", label: "Has a note", test: (m) => !!m.user.note },
+    { id: "no", label: "No note", test: (m) => !m.user.note },
+  ] },
+];
+const OLD_SHOW = { all: "", played: "", dropped: "", unfinished: "playing" };  // Show menu values from before
+const filtersOn = () => FILTER_GROUPS.filter((g) => state.f[g.id].length);
+const passes = (m, v) => filtersOn().every((g) => g.opts.some((o) => state.f[g.id].includes(o.id) && o.test(m, v)));
 const STATUS_RANK = { "in progress": 0, completed: 1, "not started": 2 };
 // Sort keys, each comparing in ascending order; FIRST_DIR is the direction a column starts in when clicked
 // (names A to Z, numbers high to low). Clicking the sorted column again flips it.
@@ -135,7 +155,7 @@ function visibleMods() {
   const needle = state.q.trim().toLowerCase();
   return state.data.mods
     .map((m) => ({ m, v: viewOf(m) }))
-    .filter(({ m, v }) => FILTERS[state.show](m, v) && (!needle || index.search[m.id].includes(needle)))
+    .filter(({ m, v }) => passes(m, v) && (!needle || index.search[m.id].includes(needle)))
     .sort((a, b) => (sortDir() === "asc" ? 1 : -1) * SORTS[state.sort](a, b) || a.m.name.localeCompare(b.m.name));
 }
 
@@ -430,12 +450,27 @@ function renderSummary(rows) {
   const sides = played.reduce((a, v) => [a[0] + v.sides_done, a[1] + v.sides_total], [0, 0]);
   const fig = (label, n, of) => `<span>${label} <b>${fmtNum(n)}</b>${of === undefined ? "" : ` of ${fmtNum(of)}`}</span>`;
   $("summary").innerHTML = fig("Sides completed", sides[0], sides[1]) + fig("Mods completed", done, played.length) +
-    (state.show !== "all" || state.q.trim() ? fig("Showing", rows.length) : "");
-  // Each Show option with how many mods it has in this slot.
-  const all = state.data.mods.map((m) => ({ m, v: viewOf(m) }));
-  for (const o of $("show").options) {
-    o.textContent = `${o.dataset.label} (${all.filter(({ m, v }) => FILTERS[o.value](m, v)).length})`;
-  }
+    (filtersOn().length || state.q.trim() ? fig("Showing", rows.length) : "");
+}
+
+function renderFilters(rows) {
+  // The Filter button (how many lines are on), its panel (each choice with how many mods it has in the slot shown)
+  // and the chips under the toolbar.
+  const all = state.data.mods.map((m) => ({ m, v: viewOf(m) })), on = filtersOn();
+  $("filter-menu").classList.toggle("active", on.length > 0);
+  $("filter-count").textContent = on.length || "";
+  $("filter-count").hidden = !on.length;
+  $("filters").innerHTML = FILTER_GROUPS.map((g) => `<span class="lab">${g.label}</span><span class="opts">` +
+    g.opts.map((o) => `<button type="button" class="opt" data-f="${g.id}" data-v="${o.id}" aria-pressed="${state.f[g.id].includes(o.id)}">` +
+      `${esc(o.label)}<small>${all.filter(({ m, v }) => o.test(m, v)).length}</small></button>`).join("") + `</span>`).join("") +
+    `<hr><div class="foot"><span>${on.length ? `${fmtNum(rows.length)} of ${fmtNum(all.length)} mods match` : `All ${fmtNum(all.length)} mods`}` +
+    `${state.q.trim() ? " the search" : ""}</span><button type="button" data-clear-filters${on.length ? "" : " disabled"}>Clear filters</button></div>`;
+  $("chips").hidden = !on.length;
+  $("chips").innerHTML = on.map((g) => `<span class="chip-f">${g.label} <b>` +
+    esc(g.opts.filter((o) => state.f[g.id].includes(o.id)).map((o) => o.chip || o.label).join(", ")) +
+    `</b><button type="button" data-unfilter="${g.id}" aria-label="Remove the ${g.label} filter" title="Remove">✕</button></span>`).join("") +
+    `<button type="button" class="clear" data-clear-filters>Clear filters</button>` +
+    `<span class="shown">${fmtNum(rows.length)} of ${fmtNum(all.length)} mods</span>`;
 }
 
 // The header row over the mods (same grid as .mod-head). Click a column name to sort by it, again to flip it.
@@ -480,6 +515,7 @@ function render() {
   if (!state.data) return;
   const rows = visibleMods();
   renderSummary(rows);
+  renderFilters(rows);
   renderSessions();
   renderColumnsMenu();
   applyColumns();
@@ -487,7 +523,7 @@ function render() {
   state.page = Math.min(Math.max(1, state.page), pages);
   const shown = state.per ? rows.slice((state.page - 1) * state.per, state.page * state.per) : rows;
   $("list").innerHTML = rows.length ? listHead() + shown.map(modCard).join("") + (rows.length > 25 ? pager(rows.length, pages) : "")
-    : `<div class="empty">No mods match. Clear the search or pick "All mods" under Show.</div>`;
+    : `<div class="empty">No mods match. Clear the search${filtersOn().length ? ` or the filters` : ""}.</div>`;
   for (const area of document.querySelectorAll("[data-note]")) fitNote(area);
   measure();
   writeHash();
@@ -768,12 +804,13 @@ $("cols").addEventListener("click", (e) => {
   savePrefs();
   render();
 });
-// The Columns menu closes on a click anywhere else, or Escape.
+// The Columns and Filter menus close on a click anywhere else, or Escape.
+const MENUS = ["cols-menu", "filter-menu"];
 document.addEventListener("click", (e) => {
-  const menu = $("cols-menu");
-  if (menu.open && !menu.contains(e.target)) menu.open = false;
+  // composedPath, not contains: a click in the Filter panel redraws it, so the clicked button is gone by now
+  for (const id of MENUS) if ($(id).open && !e.composedPath().includes($(id))) $(id).open = false;
 });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("cols-menu").open = false; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") for (const id of MENUS) $(id).open = false; });
 
 // Help: the ? button or the ? key opens it; Escape (the dialog's own), the ✕ or a click outside closes it.
 $("help-open").addEventListener("click", () => $("help").showModal());
@@ -799,7 +836,18 @@ $("q").addEventListener("input", (e) => {
   typingTimer = setTimeout(() => { state.q = e.target.value; state.page = 1; render(); }, 150);
 });
 $("slot").addEventListener("change", (e) => { state.key = e.target.value; state.page = 1; render(); });
-$("show").addEventListener("change", (e) => { state.show = e.target.value; state.page = 1; render(); });
+// The Filter panel: a choice toggles; in a group that takes one choice, picking one drops the other.
+document.addEventListener("click", (e) => {
+  const opt = e.target.closest("[data-f]"), un = e.target.closest("[data-unfilter]");
+  if (opt) {
+    const g = FILTER_GROUPS.find((x) => x.id === opt.dataset.f), v = opt.dataset.v, cur = state.f[g.id];
+    state.f[g.id] = cur.includes(v) ? cur.filter((x) => x !== v) : g.multi ? [...cur, v] : [v];
+  } else if (un) state.f[un.dataset.unfilter] = [];
+  else if (e.target.closest("[data-clear-filters]")) for (const g of FILTER_GROUPS) state.f[g.id] = [];
+  else return;
+  state.page = 1;
+  render();
+});
 $("refresh").addEventListener("click", () => load(true));
 // "/" jumps to the search, as on GitHub and YouTube, unless the player is typing somewhere already.
 document.addEventListener("keydown", (e) => {
@@ -815,6 +863,5 @@ document.addEventListener("keydown", (e) => {
 
 readHash();
 $("q").value = state.q;
-$("show").value = state.show;
 loadPrefs().then(() => load());
 setInterval(poll, 5000);

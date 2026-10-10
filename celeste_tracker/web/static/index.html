@@ -50,6 +50,8 @@
           <li>Click a row to open it: a mod opens to its level sets, a level set to its chapters, a chapter to its
             sides. Click the thin line down the left side to close it again.</li>
           <li>Click a column name to sort by it; click it again to flip the order.</li>
+          <li><b>Filter</b> narrows the list by status, your rating or your note. Choices on one line add up
+            (in progress <i>or</i> not started); lines narrow it down. The filters on show under the search.</li>
           <li><b>Columns</b> shows or hides columns (Best and Berries are hidden at first).</li>
           <li>Drag the line between two column names to resize them; double-click it to reset them.</li>
           <li>The search matches mod names, authors, mod IDs, level sets, chapters and your notes.</li>
@@ -86,17 +88,16 @@
   <section class="toolbar" aria-label="Filters">
     <input id="q" type="search" placeholder="Search by mod name, author, ID, level set, chapter or your note (press /)" autocomplete="off">
     <label>Slot <select id="slot"></select></label>
-    <label>Show <select id="show">
-      <option value="all" data-label="All mods">All mods</option>
-      <option value="playing" data-label="In progress">In progress</option>
-      <option value="complete" data-label="Completed">Completed</option>
-      <option value="notstarted" data-label="Not started">Not started</option>
-    </select></label>
+    <details id="filter-menu" class="filter-menu">
+      <summary title="Filter by status, your rating or your note">Filter <span id="filter-count" class="count" hidden></span></summary>
+      <div id="filters" class="menu fpanel"></div>
+    </details>
     <details id="cols-menu" class="cols-menu">
       <summary title="Show or hide columns">Columns</summary>
       <div id="cols" class="menu"></div>
     </details>
   </section>
+  <div id="chips" class="chips" hidden></div>
 
   <section id="sessions" class="sessions" hidden></section>
   <main id="list" class="list" aria-live="polite"></main>
