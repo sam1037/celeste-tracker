@@ -216,7 +216,7 @@ button:hover { border-color: var(--summit); }
 /* One table (doc/UI.md, Layout): a header row, then one row per mod, every second one shaded. */
 /* The columns: --mod-cols is set by app.js (applyColumns) from the columns shown and their widths; this is only the
    default before the page has loaded. The status is under the bar, next to "x/y sides" (doc/UI.md, "Progress bar"). */
-.list { --mod-cols: 16px 320px 170px minmax(120px, 1fr) 64px 72px 92px 44px; }
+.list { --mod-cols: 16px 320px 170px minmax(150px, 1fr) 64px 72px 92px 200px 44px; }
 /* The GameBanana author, after the mod's name. Rows inside an opened mod have none, so their name takes both columns
    (--name-span, 1 when the Author column is hidden). */
 .author { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -243,7 +243,6 @@ button:hover { border-color: var(--summit); }
 .grip::after { content: ""; position: absolute; top: 9px; bottom: 9px; left: 5px; border-left: 1px solid var(--guide); }
 .grip:hover::after, .grip.drag::after { border-left: 2px solid var(--summit); }
 body.resizing { cursor: ew-resize; user-select: none; }
-.list-head .th.right { justify-content: flex-end; }
 .list-head button {
   display: inline-flex; align-items: center; gap: 4px; margin: -3px -6px; padding: 3px 6px; border: 0;
   background: none; font-weight: 600; color: inherit; border-radius: 4px; cursor: pointer;
@@ -310,10 +309,10 @@ body.resizing { cursor: ew-resize; user-select: none; }
 .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .right { text-align: right; }
 
-.progress { display: grid; gap: 3px; }
+.progress { display: grid; gap: 3px; min-width: 0; }
 .bar { height: 8px; border-radius: 2px; overflow: hidden; background: var(--track); }
 .bar i { display: block; height: 100%; background: var(--progress); }
-.progress small { color: var(--muted); font-size: 12px; display: flex; gap: 14px; }
+.progress small { color: var(--muted); font-size: 12px; display: flex; gap: 14px; overflow: hidden; white-space: nowrap; }
 .progress small .status { margin-left: auto; }
 
 .status { font-size: 12px; white-space: nowrap; }
@@ -380,21 +379,12 @@ tr:last-child td { border-bottom: 0; }
 .rate button.on.preview { opacity: 1; }
 .rate button:focus-visible { outline: 2px solid var(--summit); outline-offset: 0; }
 
-/* The player's note, on the mod's second line in place of the ID line. */
-.sub.note { color: var(--ink); opacity: .8; white-space: nowrap; }
-.sub.note::before { content: "✎ "; color: var(--summit); }
-
-/* ✎ Edit, on the row under the mouse only, at the right end of the name and over a fade, as Gmail shows its
-   actions on the hovered row. It opens the mod at its Yours panel. */
-.namecell { position: relative; min-width: 0; }
-.edit {
-  display: none; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-  padding: 2px 0 2px 24px; border: 0; border-radius: 0; font-size: 12px; color: var(--summit);
-  background: linear-gradient(to right, transparent, var(--hover) 18px);
+/* The player's note, in its column: two lines at most, then cut off; all of it on hover. Clicking it opens the mod
+   at its note, so the cell gets a text cursor. */
+.notecell {
+  font-size: 12px; line-height: 1.35; color: var(--ink); opacity: .85; cursor: text; min-width: 0; min-height: 2.7em;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
 }
-.edit span { display: block; border: 1px solid var(--summit); border-radius: 12px; padding: 0 9px; background: var(--surface); }
-.edit:hover span { background: var(--hover); }
-.mod > .mod-head:hover .edit { display: block; }
 
 /* The Yours panel, in an opened mod: everything the player sets on it. */
 .yours {

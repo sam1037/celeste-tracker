@@ -1,6 +1,6 @@
 # Plan: your own notes, rating, difficulty and tags per mod, and one Filter panel
 
-Branch `mod-notes-rating` (2026-10-10). Agreed with the user from three mockups, made-up mods on the page's real `style.css` (serve the repo root, e.g. `python3 -m http.server 8767`, and open `/doc/mockups/…`):
+Branch `mod-notes-rating` (2026-10-10). Revised after the user tried it (2026-10-11): the note is a Note column, not the second line, and the Edit button is gone (UI.md "Your fields" has the current design). Agreed with the user from three mockups, made-up mods on the page's real `style.css` (serve the repo root, e.g. `python3 -m http.server 8767`, and open `/doc/mockups/…`):
 
 1. [notes-rating.html](mockups/notes-rating.html): the Rating column and the note on the mod's second line (A), against a Note column (B, rejected).
 2. [your-fields.html](mockups/your-fields.html): the Yours panel, the grouped Columns menu, Difficulty and Tags columns.

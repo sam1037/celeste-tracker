@@ -235,7 +235,7 @@ function stars(m, where) {
 const COLUMNS = [
   { id: "mod", label: "Mod", sort: "name", what: "name", width: 320, min: 160 },
   { id: "author", label: "Author", sort: "author", width: 170, min: 60 },
-  { id: "sides", label: "Sides", sort: "progress", what: "sides cleared", width: 220, min: 120 },
+  { id: "sides", label: "Sides", sort: "progress", what: "sides cleared", width: 220, min: 150 },
   { id: "deaths", label: "Deaths", sort: "deaths", width: 64, min: 48, right: true },
   { id: "time", label: "Time", sort: "time", what: "time played", width: 72, min: 56, right: true },
   { id: "best", label: "Best", help: "Best time, for a single side", width: 64, min: 48, right: true },
@@ -243,6 +243,7 @@ const COLUMNS = [
   { id: "rating", label: "Rating", sort: "rating", what: "your rating", help: "How much you enjoyed it, 1 to 5", width: 92, min: 92, mine: true },
   { id: "difficulty", label: "Difficulty", sort: "difficulty", what: "your difficulty", help: "How hard it is for you", width: 100, min: 72, mine: true },
   { id: "tags", label: "Tags", help: "Your tags", width: 150, min: 70, mine: true },
+  { id: "note", label: "Note", help: "Your note: click one to write or change it", width: 200, min: 80, mine: true },
   { id: "slot", label: "Slot", sort: "slot", what: "slot shown", help: "The slot shown: your furthest", width: 44, min: 40, right: true },
 ];
 const DEFAULT_HIDDEN = ["best", "berries", "difficulty", "tags"];
@@ -259,7 +260,7 @@ const flexCol = () => shownCols().find((c) => c.id === "sides") || COLUMNS[0];
 
 // When the columns shown don't fit (every one of the player's columns on, say), the widest give way first, down to
 // their minimum, so the last column doesn't slide out of view. Only on screen: the saved widths stay.
-const SHRINK = ["mod", "author", "tags", "difficulty"];
+const SHRINK = ["mod", "author", "note", "tags", "difficulty"];
 let fitted = {};
 const shownWidth = (c) => fitted[c.id] ?? colWidth(c);
 
@@ -349,25 +350,23 @@ function numbers(v, bestTime) {
 
 function modCard({ m, v }) {
   const open = state.open.has(m.id);
-  // The dim second line, as Olympus shows it: ID ∙ details (doc/UI.md, "What players already know"); the
-  // player's note takes its place when there is one.
-  const note = m.user.note;
-  const sub = note ? `<span class="sub note" title="${esc(note)}">${esc(note)}</span>`
-    : `<span class="sub">` + esc([m.id !== m.name ? m.id : "", m.sets.length > 1 ? `${m.sets.length} level sets` : ""]
-      .filter(Boolean).join(" ∙ ")) + ownTags(m) + `</span>`;
+  // The dim second line, as Olympus shows it: ID ∙ details (doc/UI.md, "What players already know").
+  const sub = esc([m.id !== m.name ? m.id : "", m.sets.length > 1 ? `${m.sets.length} level sets` : ""]
+    .filter(Boolean).join(" ∙ ")) + ownTags(m);
   const chs = chapters(m);
   return `<article class="mod${open ? " open" : ""}${m.user.dropped ? " dropped" : ""}" data-mod="${esc(m.id)}">
     <div class="mod-head" role="button" tabindex="0" aria-expanded="${open}">
       <span class="caret">▸</span>
       ${cells({
-        mod: `<span class="namecell"><span class="name">${esc(m.name)}${sub}</span>` +
-          `<button type="button" class="edit" data-edit tabindex="-1" title="Open to rate it, set a difficulty, tag it or write a note"><span>✎ Edit</span></button></span>`,
+        mod: `<span class="name">${esc(m.name)}${sub ? `<span class="sub">${sub}</span>` : ""}</span>`,
         author: `<span class="author hide-sm" title="${esc(m.author ? `GameBanana author: ${m.author}` : "Not on GameBanana's mod list")}">${esc(m.author)}</span>`,
         sides: progress(v, q(m), !known(m)),
         ...numbers(v, chs.length === 1 ? best(chs[0]) : ""),
         rating: stars(m, "row"),
         difficulty: `<span class="diff hide-sm">${esc(m.user.difficulty)}</span>`,
         tags: tagCell(m),
+        // Clicking it opens the mod with the cursor in its note, so an empty one is how to write one.
+        note: `<span class="notecell hide-sm" data-note-cell title="${esc(m.user.note || "Click to write a note")}">${esc(m.user.note)}</span>`,
         slot: slotCell(v),
       })}
     </div>
@@ -406,7 +405,7 @@ function treeRow(level, { attr = "", open = null, name, sub = "", strong = false
         anc.slice(1).map((a, k) => guide(a, ` style="left:${k * 20 - 2}px"`)).join("") +
         `<span class="caret">${toggle ? "▸" : ""}</span>` +
         `<span class="t">${name}${sub ? `<small>${sub}</small>` : ""}</span></span>`,
-      sides: progress(v, mark), ...numbers(v, bestTime), rating: `<span class="hide-sm"></span>`, difficulty: `<span class="hide-sm"></span>`, tags: `<span class="hide-sm"></span>`,
+      sides: progress(v, mark), ...numbers(v, bestTime), rating: `<span class="hide-sm"></span>`, difficulty: `<span class="hide-sm"></span>`, tags: `<span class="hide-sm"></span>`, note: `<span class="hide-sm"></span>`,
       slot: `<span class="hide-sm"></span>`,
     }) + `</div>`;
 }
@@ -759,7 +758,7 @@ async function poll() {
 $("list").addEventListener("click", (e) => {
   const star = e.target.closest("[data-rate]");
   if (star) return rate(star.closest(".rate"), Number(star.dataset.rate));
-  if (e.target.closest("[data-edit]")) return editMod(e.target.closest(".mod").dataset.mod);
+  if (e.target.closest("[data-note-cell]")) return editNote(e.target.closest(".mod").dataset.mod);
   const untag = e.target.closest("[data-untag]");
   if (untag) {
     const key = untag.closest(".yours").dataset.key, m = state.data.mods.find((x) => x.id === key);
@@ -856,8 +855,8 @@ $("list").addEventListener("mouseover", (e) => {
   for (const b of star.parentElement.children) if (Number(b.dataset.rate) <= Number(star.dataset.rate)) b.classList.add("preview");
 });
 
-function editMod(id) {
-  // The Edit button: open the mod, and put the cursor in its note.
+function editNote(id) {
+  // A click in the Note column: open the mod, and put the cursor in its note.
   state.open.add(id);
   render();
   const area = document.querySelector(`.mod[data-mod="${CSS.escape(id)}"] [data-note]`);
