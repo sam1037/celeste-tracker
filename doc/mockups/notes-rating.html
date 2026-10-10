@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Notes and rating mockup</title>
+  <!-- A mockup for doc/PLAN-notes-rating.md, on the page's real style.css with made-up mods. Open it straight
+       from disk; nothing is saved. -->
+  <link rel="stylesheet" href="../../celeste_tracker/web/static/style.css">
+  <style>
+    /* style.css loads the font from /fonts, which a file:// page can't reach. */
+    @font-face {
+      font-family: "Atkinson Hyperlegible Next"; font-style: normal; font-weight: 200 800;
+      src: url("../../celeste_tracker/web/static/fonts/atkinson-next-latin.woff2") format("woff2");
+    }
+
+    /* ---- mockup-only chrome ---- */
+    .mock-note { margin: 18px var(--gutter) 6px; font-size: 13px; color: var(--muted); max-width: 760px; }
+    .mock-note h2 { font-size: 15px; color: var(--ink); margin: 0 0 4px; }
+    .mock-note p { margin: 0 0 4px; }
+    .mock-sep { margin: 30px var(--gutter) 0; border: 0; border-top: 2px dashed var(--line); }
+
+    /* ---- proposed additions to style.css ---- */
+
+    /* Rating column: five stars, the player's own mark, on the right like Olympus's favorite heart.
+       Rated: the stars given in the accent, the rest as faint outlines of the scale. Not rated: empty until the row
+       is hovered or focused, then faint stars to click. Clicking the star you gave clears it. */
+    .rate { display: flex; justify-content: flex-start; gap: 1px; }
+    .rate button {
+      border: 0; background: none; padding: 0 1px; margin: 0; font-size: 15px; line-height: 1; cursor: pointer;
+      color: var(--guide);
+    }
+    .rate button.on { color: var(--summit); }
+    .rate:not(.rated) button { color: transparent; }
+    .mod-head:hover .rate:not(.rated) button, .rate:focus-within:not(.rated) button { color: var(--guide); }
+    .rate button.preview { color: var(--summit) !important; opacity: .55; }
+    .rate button:focus-visible { outline: 2px solid var(--summit); outline-offset: 0; border-radius: 3px; }
+
+    /* The note on the mod's second line, in place of the ID line: the player's own words matter more than the ID,
+       which stays in the opened mod's facts. */
+    .sub.note { color: var(--ink); opacity: .8; white-space: nowrap; }
+    .sub.note::before { content: "✎ "; color: var(--summit); opacity: 1; }
+
+    /* The note editor, in an opened mod under its facts: one field that grows, saved as you type. */
+    .note-edit { display: grid; grid-template-columns: max-content minmax(0, 640px) max-content; justify-content: start; gap: 10px; align-items: start; }
+    .note-edit label { font-size: 12px; color: var(--muted); padding-top: 6px; }
+    .note-edit textarea {
+      width: 100%; min-height: 32px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px;
+      background: var(--surface); font-size: 13px; resize: none; field-sizing: content; max-height: 140px;
+    }
+    .note-edit textarea:focus { outline: 2px solid var(--summit); outline-offset: -1px; border-color: transparent; }
+    .note-edit .saved { padding-top: 6px; }
+
+    /* Variant B only: the note as a column. */
+    .notecell { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1>Celeste Tracker</h1>
+      <span class="figures"><span>Sides completed <b>486</b> of 1,318</span><span>Mods completed <b>113</b> of 253</span></span>
+    </div>
+    <div class="actions">
+      <span id="live" class="muted on">● live</span>
+      <button type="button">Refresh</button>
+      <button class="help-btn" type="button" aria-label="Help">?</button>
+    </div>
+  </header>
+
+  <div class="mock-note">
+    <h2>A. Recommended: notes on the second line, a Rating column</h2>
+    <p>Hover a row to see the stars to click on an unrated mod. "Glacier Pass" is open: its note is edited under the
+      facts. Mods with no note keep the dim ID line as today.</p>
+  </div>
+
+  <section class="toolbar" aria-label="Filters">
+    <input type="search" placeholder="Search by mod name, author, ID, level set, chapter or your note (press /)">
+    <label>Slot <select><option>All slots</option></select></label>
+    <label>Show <select><option>All mods</option></select></label>
+    <details class="cols-menu"><summary>Columns</summary></details>
+  </section>
+  <main id="listA" class="list"></main>
+
+  <hr class="mock-sep">
+  <div class="mock-note">
+    <h2>B. For comparison: the note as a column of its own</h2>
+    <p>Notes are short and most mods have none, so the column is empty on most rows, and the 180 px it needs (Mod and Author narrowed here to fit) comes
+      out of the Sides bar. Not recommended.</p>
+  </div>
+  <main id="listB" class="list"></main>
+
+<script>
+// Made-up mods. rating: 0 = not rated.
+const MODS = [
+  { name: "Glacier Pass", id: "GlacierPass", author: "frostbyte", done: 3, total: 5, st: "in progress", deaths: "2,431", time: "6:12:08", slot: 1, rating: 5,
+    note: "Stopped at the ice part in C-side. Try the upper route next time, it skips the long wind room.", open: true },
+  { name: "Midnight Spire Collab", id: "MidnightSpire", author: "Spire Collab Team", done: 41, total: 88, st: "in progress", deaths: "9,870", time: "31:04:51", slot: 2, rating: 4,
+    note: "Beginner and Intermediate lobbies done; Expert heartside is the next goal", sets: 4 },
+  { name: "Heartwood", id: "Heartwood", author: "mossy_m", done: 2, total: 2, st: "completed", deaths: "312", time: "1:48:20", slot: 1, rating: 3 },
+  { name: "Cloudline", id: "Cloudline", author: "Pellucid", done: 0, total: 3, st: "in progress", deaths: "57", time: "18:44", slot: 5, rating: 0 },
+  { name: "Ember Archive", id: "EmberArchive_Remake", author: "kiln", done: 1, total: 1, st: "completed", deaths: "640", time: "2:02:13", slot: 1, rating: 2,
+    note: "Too much backtracking" },
+  { name: "Lantern Hollow", id: "LanternHollow", author: "Tsubame", done: 0, total: 4, st: "not started", deaths: "-", time: "-", slot: "", rating: 0 },
+  { name: "The Salt Flats", id: "SaltFlats", author: "brine", done: 1, total: 3, st: "in progress", deaths: "1,104", time: "3:30:00", slot: 3, rating: 0 },
+];
+
+const cols = (variant) => variant === "A"
+  ? "16px 320px 170px minmax(120px, 1fr) 64px 72px 84px 44px"
+  : "16px 260px 140px minmax(120px, 1fr) 180px 64px 72px 84px 44px";
+
+function stars(r, label) {
+  return `<span class="rate hide-sm${r ? " rated" : ""}" role="group" aria-label="Rating for ${label}">` +
+    [1, 2, 3, 4, 5].map((n) => `<button type="button" data-n="${n}" class="${n <= r ? "on" : ""}" ` +
+      `title="${n === r ? "Clear your rating" : `${n} of 5`}" aria-label="${n} of 5" aria-pressed="${n <= r}">${n <= r ? "★" : "☆"}</button>`).join("") +
+    `</span>`;
+}
+
+function head(variant) {
+  const th = (label, right, sorted) => `<span class="th${right ? " right" : ""}" role="columnheader"${sorted ? ' aria-sort="descending"' : ""}>` +
+    `${label === "Mod" ? "" : '<span class="grip"></span>'}<button type="button">${label}<span class="icon">${sorted ? "▼" : "↕"}</span></button></span>`;
+  return `<div class="list-head" role="row"><span></span>` + th("Mod") + th("Author") + th("Sides") +
+    (variant === "B" ? th("Note") : "") + th("Deaths", 1) + th("Time", 1, 1) +
+    `<span class="th" role="columnheader" title="How much you enjoyed it, 1 to 5"><span class="grip"></span><button type="button">Rating<span class="icon">↕</span></button></span>` +
+    th("Slot", 1) + `</div>`;
+}
+
+function row(m, variant) {
+  const cls = m.st === "completed" ? "s-completed" : m.st === "not started" ? "s-not-started" : "s-in-progress";
+  const idLine = [m.id !== m.name ? m.id : "", m.sets ? `${m.sets} level sets` : ""].filter(Boolean).join(" ∙ ");
+  const sub = variant === "A" && m.note ? `<span class="sub note" title="${m.note}">${m.note}</span>`
+    : idLine ? `<span class="sub">${idLine}</span>` : "";
+  const open = variant === "A" && m.open;
+  return `<article class="mod${open ? " open" : ""}">
+    <div class="mod-head" role="button" tabindex="0" aria-expanded="${open}">
+      <span class="caret">▸</span>
+      <span class="name">${m.name}${sub}</span>
+      <span class="author hide-sm">${m.author}</span>
+      <span class="progress"><div class="bar"><i style="width:${(100 * m.done) / m.total}%"></i></div>
+        <small><span class="num">${m.done}/${m.total} sides</span><span class="status ${cls}">${m.st}</span></small></span>
+      ${variant === "B" ? `<span class="notecell hide-sm" title="${m.note || ""}">${m.note || ""}</span>` : ""}
+      <span class="num right hide-sm">${m.deaths}</span>
+      <span class="num right hide-sm">${m.time}</span>
+      ${stars(m.rating, m.name)}
+      <span class="num right hide-sm">${m.slot}</span>
+    </div>
+    ${open ? body(m) : ""}
+  </article>`;
+}
+
+function body(m) {
+  return `<div class="mod-body"><span class="guide"></span>
+    <div class="facts"><span>Mod ID <b>${m.id}</b></span><span>Hearts collected <b>3</b></span>
+      <span>Shown: <b>slot 1</b>, your furthest; also played in slot 4 (1/5 sides)</span></div>
+    <div class="note-edit"><label for="note-${m.id}">Note</label>
+      <textarea id="note-${m.id}" rows="1" placeholder="Add a note: where you stopped, what to try next">${m.note || ""}</textarea>
+      <span class="saved">Saved</span></div>
+  </div>
+  ${["A side", "B side", "C side", "D side", "E side"].map((s, k) => `<div class="trow"><span class="guide"></span>
+    <span class="tname" style="--lvl:1"><span class="caret"></span><span class="t">${s}</span></span>
+    <span class="progress"><div class="bar"><i style="width:${k < 3 ? 100 : 0}%"></i></div>
+      <small><span class="num">${k < 3 ? 1 : 0}/1 sides</span><span class="status ${k < 3 ? "s-completed" : "s-in-progress"}">${k < 3 ? "completed" : "in progress"}</span></small></span>
+    <span class="num right hide-sm">${[287, 640, 1201, 303, 0][k]}</span><span class="num right hide-sm">${["1:01:07", "1:44:10", "2:30:41", "56:10", "-"][k]}</span>
+    <span class="hide-sm"></span><span class="hide-sm"></span></div>`).join("")}`;
+}
+
+for (const v of ["A", "B"]) {
+  const el = document.getElementById("list" + v);
+  el.style.setProperty("--mod-cols", cols(v));
+  el.innerHTML = head(v) + MODS.map((m) => row(m, v)).join("");
+}
+
+// Stars: hovering previews, clicking sets, clicking the given star clears.
+document.addEventListener("mouseover", (e) => {
+  const b = e.target.closest(".rate button");
+  document.querySelectorAll(".rate button.preview").forEach((x) => x.classList.remove("preview"));
+  if (!b) return;
+  for (const x of b.parentElement.children) if (Number(x.dataset.n) <= Number(b.dataset.n) && !x.classList.contains("on")) x.classList.add("preview");
+});
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".rate button");
+  if (!b) return;
+  e.stopPropagation();
+  const group = b.parentElement, cur = group.querySelectorAll(".on").length, n = Number(b.dataset.n);
+  const r = n === cur ? 0 : n;
+  group.outerHTML = stars(r, group.getAttribute("aria-label").replace("Rating for ", ""));
+});
+</script>
+</body>
+</html>
