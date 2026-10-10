@@ -31,6 +31,7 @@ FILES = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascrip
          "/fonts/atkinson-next-latin-ext.woff2": ("fonts/atkinson-next-latin-ext.woff2", "font/woff2")}
 HEADER = "X-Celeste-Tracker"
 MAX_PREFS = 4096
+MAX_TEXT = 2000  # a note, as app.js limits it
 
 
 class App:
@@ -89,6 +90,8 @@ class App:
             value = bool(value)
         else:
             value = str(value or "").strip()
+            if len(value) > MAX_TEXT:
+                raise ValueError(f"at most {MAX_TEXT} characters")
         self.store.set_field(key, field, value)
         self.rebuild()
 
