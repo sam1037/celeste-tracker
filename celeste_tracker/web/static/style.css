@@ -218,7 +218,7 @@ button:hover { border-color: var(--summit); }
 /* One table (doc/UI.md, Layout): a header row, then one row per mod, every second one shaded. */
 /* The columns: --mod-cols is set by app.js (applyColumns) from the columns shown and their widths; this is only the
    default before the page has loaded. The status is under the bar, next to "x/y sides" (doc/UI.md, "Progress bar"). */
-.list { --mod-cols: 16px 270px 140px 200px 64px 72px 92px 150px 44px; }
+.list { --mod-cols: 16px 230px 115px 180px 64px 72px 130px 92px 100px 44px; }
 /* The GameBanana author, after the mod's name. Rows inside an opened mod have none, so their name takes both columns
    (--name-span, 1 when the Author column is hidden). */
 .author { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -382,6 +382,7 @@ tr:last-child td { border-bottom: 0; }
 
 /* The player's note, in its column: two lines at most, then cut off; all of it on hover. Clicking it opens the mod
    at its note, so the cell gets a text cursor. */
+.cpcell { font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notecell {
   font-size: 12px; line-height: 1.35; color: var(--ink); opacity: .85; cursor: text; min-width: 0; min-height: 2.7em;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;

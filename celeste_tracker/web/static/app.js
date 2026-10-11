@@ -85,13 +85,14 @@ const chapters = (m) => m.sets.flatMap((s) => s.chapters);
 const countedSides = (ch) => Object.values(ch.sides).filter((s) => s.exists || s.progress[state.key]);
 
 function buildIndex(data) {
-  index = { modOfSid: {}, search: {} };
+  index = { modOfSid: {}, chapterOfSid: {}, search: {} };
   for (const m of data.mods) {
     const words = [m.name, m.id, m.gamebanana_title, m.author, m.user.note, ...(m.user.tags || [])];
     for (const ls of m.sets) {
       words.push(ls.name, ls.title);
       for (const ch of ls.chapters) {
         index.modOfSid[ch.sid] = m;
+        index.chapterOfSid[ch.sid] = ch;
         words.push(ch.sid, ch.title);
       }
     }
@@ -234,17 +235,18 @@ function stars(m, where) {
 // wider than the window. The defaults fit the 1200px page with the columns shown at first. Every column but Mod can be
 // hidden from the Columns menu. Best and Berries start hidden (user, 2026-10-07). Slot only shows with "All slots".
 const COLUMNS = [
-  { id: "mod", label: "Mod", sort: "name", what: "name", width: 270, min: 120 },
-  { id: "author", label: "Author", sort: "author", width: 140, min: 60 },
-  { id: "sides", label: "Sides", sort: "progress", what: "sides cleared", width: 200, min: 120 },
+  { id: "mod", label: "Mod", sort: "name", what: "name", width: 230, min: 120 },
+  { id: "author", label: "Author", sort: "author", width: 115, min: 60 },
+  { id: "sides", label: "Sides", sort: "progress", what: "sides cleared", width: 180, min: 120 },
   { id: "deaths", label: "Deaths", sort: "deaths", width: 64, min: 48 },
   { id: "time", label: "Time", sort: "time", what: "time played", width: 72, min: 56 },
   { id: "best", label: "Best", help: "Best time, for a single side", width: 64, min: 48 },
   { id: "berries", label: "Berries", width: 60, min: 48 },
+  { id: "checkpoint", label: "Checkpoint", help: "The last checkpoint reached, in a side not cleared yet", width: 130, min: 80 },
   { id: "rating", label: "Rating", sort: "rating", what: "your rating", help: "How much you enjoyed it, 1 to 5", width: 92, min: 92, mine: true },
   { id: "difficulty", label: "Difficulty", sort: "difficulty", what: "your difficulty", help: "How hard it is for you", width: 100, min: 72, mine: true },
   { id: "tags", label: "Tags", help: "Your tags", width: 150, min: 70, mine: true },
-  { id: "note", label: "Note", help: "Your note: click one to write or change it", width: 150, min: 80, mine: true },
+  { id: "note", label: "Note", help: "Your note: click one to write or change it", width: 100, min: 80, mine: true },
   { id: "slot", label: "Slot", sort: "slot", what: "slot shown", help: "The slot shown: your furthest", width: 44, min: 40 },
 ];
 const DEFAULT_HIDDEN = ["best", "berries", "difficulty", "tags"];
@@ -296,6 +298,20 @@ function renderColumnsMenu() {
     `<button type="button" data-reset-cols>Reset columns</button>`;
 }
 
+function checkpointCell(v, where = "") {
+  // The last checkpoint the save lists for the unfinished side played longest (rules.py); a side row has its own
+  // list. Nothing once every side is cleared. The save lists checkpoints by room ID; the name comes from the mod.
+  // where: under it, say which "chapter" and side, or only which "side", on rows with several of them.
+  const lc = v.latest_checkpoint
+    || (v.status === "in progress" && v.checkpoints?.length ? v.checkpoints[v.checkpoints.length - 1] : null);
+  if (!lc) return `<span class="hide-sm"></span>`;
+  const ch = lc.sid && index.chapterOfSid[lc.sid], chapter = ch ? ch.title || ch.sid.split("/").pop() : "";
+  const at = [chapter, lc.side ? `${lc.side} side` : ""].filter(Boolean).join(", "), side = lc.side ? `${lc.side} side` : "";
+  const tip = `${at ? `${at}: ` : ""}${lc.title || lc.room}${lc.title ? ` (room ${lc.room})` : ""}`;
+  return `<span class="cpcell hide-sm" title="${esc(tip)}">${esc(lc.title || lc.room)}` +
+    `${where === "chapter" && at ? `<span class="sub">${esc(at)}</span>` : where === "side" && side ? `<span class="sub">${esc(side)}</span>` : ""}</span>`;
+}
+
 // The tree table (doc/UI.md, "Layout"): mods, level sets, chapters and sides are all rows of one grid with the
 // same columns, indented by level. Only rows with something under them open.
 const notPlayed = (v) => v.status === "not started" || v.status === "not opened";
@@ -343,6 +359,7 @@ function modCard({ m, v }) {
         author: `<span class="author hide-sm" title="${esc(m.author ? `GameBanana author: ${m.author}` : "Not on GameBanana's mod list")}">${esc(m.author)}</span>`,
         sides: progress(v, q(m), !known(m)),
         ...numbers(v, chs.length === 1 ? best(chs[0]) : ""),
+        checkpoint: checkpointCell(v, chs.length > 1 ? "chapter" : chs.length && countedSides(chs[0]).length > 1 ? "side" : ""),
         rating: stars(m, "row"),
         difficulty: `<span class="diff hide-sm">${esc(m.user.difficulty)}</span>`,
         tags: tagCell(m),
@@ -376,7 +393,7 @@ function guide({ kind, id, name }, style = "") {
   return `<span class="guide" data-close="${kind}" data-id="${esc(id)}" title="Close ${esc(name)}"${style}></span>`;
 }
 
-function treeRow(level, { attr = "", open = null, name, sub = "", strong = false, v, mark = "", bestTime = "", anc }) {
+function treeRow(level, { attr = "", open = null, name, sub = "", strong = false, v, mark = "", bestTime = "", cpWhere = "", anc }) {
   // open: null = nothing under this row; true/false = it opens, and is open or not. anc: the rows above this one,
   // the mod first, each drawn as a thread line.
   const toggle = open !== null;
@@ -386,7 +403,7 @@ function treeRow(level, { attr = "", open = null, name, sub = "", strong = false
         anc.slice(1).map((a, k) => guide(a, ` style="left:${k * 20 - 2}px"`)).join("") +
         `<span class="caret">${toggle ? "▸" : ""}</span>` +
         `<span class="t">${name}${sub ? `<small>${sub}</small>` : ""}</span></span>`,
-      sides: progress(v, mark), ...numbers(v, bestTime), rating: `<span class="hide-sm"></span>`, difficulty: `<span class="hide-sm"></span>`, tags: `<span class="hide-sm"></span>`, note: `<span class="hide-sm"></span>`,
+      sides: progress(v, mark), ...numbers(v, bestTime), checkpoint: checkpointCell(v, cpWhere), rating: `<span class="hide-sm"></span>`, difficulty: `<span class="hide-sm"></span>`, tags: `<span class="hide-sm"></span>`, note: `<span class="hide-sm"></span>`,
       slot: `<span class="hide-sm"></span>`,
     }) + `</div>`;
 }
@@ -403,7 +420,7 @@ function modRows(m) {
     const id = setId(m, ls), open = state.openSet.has(id);
     // Each in a group of its own, so an opened level set's row sticks only while its chapters are on screen.
     return `<div class="tgroup">` + treeRow(1, { attr: ` data-set="${esc(id)}"`, open, name: esc(setLabel(ls)), strong: true,
-                        v: viewOf(ls), mark: q(m), anc }) +
+                        v: viewOf(ls), mark: q(m), cpWhere: ls.chapters.length > 1 ? "chapter" : "", anc }) +
       (open ? chapterRows(m, ls.chapters, 2, [...anc, { kind: "set", id, name: setLabel(ls) }]) : "") + `</div>`;
   }).join("");
 }
@@ -418,7 +435,7 @@ function chapterRows(m, list, level, anc) {
       const title = ch.title || ch.sid.split("/").pop();
       return treeRow(level, { attr: many ? ` data-ch="${esc(ch.sid)}"` : "", open: many ? open : null,
                               name: esc(title),
-                              v: viewOf(ch, "not opened"), mark: q(m), bestTime: best(ch), anc }) +
+                              v: viewOf(ch, "not opened"), mark: q(m), bestTime: best(ch), cpWhere: many ? "side" : "", anc }) +
         (open ? sides.map((s) => sideRow(s, level + 1, [...anc, { kind: "ch", id: ch.sid, name: title }])).join("") : "");
     }).join("");
 }
