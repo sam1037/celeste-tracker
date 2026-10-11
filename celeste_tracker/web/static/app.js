@@ -309,6 +309,7 @@ function checkpointCell(v, where = "") {
   const at = [chapter, lc.side ? `${lc.side} side` : ""].filter(Boolean).join(", "), side = lc.side ? `${lc.side} side` : "";
   const tip = `${at ? `${at}: ` : ""}${lc.title || lc.room}${lc.title ? ` (room ${lc.room})` : ""}`;
   return `<span class="cpcell hide-sm" title="${esc(tip)}">${esc(lc.title || lc.room)}` +
+    `${lc.title ? ` <span class="room">(${esc(lc.room)})</span>` : ""}` +
     `${where === "chapter" && at ? `<span class="sub">${esc(at)}</span>` : where === "side" && side ? `<span class="sub">${esc(side)}</span>` : ""}</span>`;
 }
 

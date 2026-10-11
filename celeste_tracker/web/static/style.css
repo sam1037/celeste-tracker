@@ -383,6 +383,7 @@ tr:last-child td { border-bottom: 0; }
 /* The player's note, in its column: two lines at most, then cut off; all of it on hover. Clicking it opens the mod
    at its note, so the cell gets a text cursor. */
 .cpcell { font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cpcell .room { font-size: 12px; color: var(--muted); }
 .notecell {
   font-size: 12px; line-height: 1.35; color: var(--ink); opacity: .85; cursor: text; min-width: 0; min-height: 2.7em;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
