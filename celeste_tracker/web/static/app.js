@@ -85,13 +85,14 @@ const chapters = (m) => m.sets.flatMap((s) => s.chapters);
 const countedSides = (ch) => Object.values(ch.sides).filter((s) => s.exists || s.progress[state.key]);
 
 function buildIndex(data) {
-  index = { modOfSid: {}, search: {} };
+  index = { modOfSid: {}, chapterOfSid: {}, search: {} };
   for (const m of data.mods) {
     const words = [m.name, m.id, m.gamebanana_title, m.author, m.user.note, ...(m.user.tags || [])];
     for (const ls of m.sets) {
       words.push(ls.name, ls.title);
       for (const ch of ls.chapters) {
         index.modOfSid[ch.sid] = m;
+        index.chapterOfSid[ch.sid] = ch;
         words.push(ch.sid, ch.title);
       }
     }
@@ -197,10 +198,10 @@ function status(s, unsure = false) {
 function slotCell(v) {
   // All slots: the row shows one slot, the mod's furthest (rules.py); the other slots it was played in are in the
   // tooltip and in the opened mod's facts.
-  if (!v.slot) return `<span class="num right hide-sm"></span>`;
+  if (!v.slot) return `<span class="num hide-sm"></span>`;
   const others = v.slots.filter((k) => k !== v.slot);
   const title = `Shown: slot ${v.slot}, your furthest` + (others.length ? `. Also played in slot${others.length > 1 ? "s" : ""} ${others.join(", ")}` : "");
-  return `<span class="num right hide-sm" title="${esc(title)}">${esc(v.slot)}</span>`;
+  return `<span class="num hide-sm" title="${esc(title)}">${esc(v.slot)}</span>`;
 }
 
 function ownTags(m) {
@@ -230,21 +231,23 @@ function stars(m, where) {
 // ------------------------------------------------------------------ columns
 
 // The columns after the arrow (doc/UI.md, "Columns"). Each has a width in px that the player can drag (the line
-// between two columns), except the flexible one, which takes the width that's left: Sides (a longer bar is more use
-// than room after a name), or Mod when Sides is hidden. Every column but Mod can be hidden from the Columns menu. Best and Berries start hidden (user, 2026-10-07). Slot only shows with "All slots".
+// at its right edge), as in Excel: the columns to its right move along, and the table scrolls sideways when it's
+// wider than the window. The defaults fit the 1200px page with the columns shown at first. Every column but Mod can be
+// hidden from the Columns menu. Best and Berries start hidden (user, 2026-10-07). Slot only shows with "All slots".
 const COLUMNS = [
-  { id: "mod", label: "Mod", sort: "name", what: "name", width: 320, min: 160 },
-  { id: "author", label: "Author", sort: "author", width: 170, min: 60 },
-  { id: "sides", label: "Sides", sort: "progress", what: "sides cleared", width: 220, min: 150 },
-  { id: "deaths", label: "Deaths", sort: "deaths", width: 64, min: 48, right: true },
-  { id: "time", label: "Time", sort: "time", what: "time played", width: 72, min: 56, right: true },
-  { id: "best", label: "Best", help: "Best time, for a single side", width: 64, min: 48, right: true },
-  { id: "berries", label: "Berries", width: 60, min: 48, right: true },
+  { id: "mod", label: "Mod", sort: "name", what: "name", width: 230, min: 120 },
+  { id: "author", label: "Author", sort: "author", width: 115, min: 60 },
+  { id: "sides", label: "Sides", sort: "progress", what: "sides cleared", width: 180, min: 120 },
+  { id: "deaths", label: "Deaths", sort: "deaths", width: 64, min: 48 },
+  { id: "time", label: "Time", sort: "time", what: "time played", width: 72, min: 56 },
+  { id: "best", label: "Best", help: "Best time, for a single side", width: 64, min: 48 },
+  { id: "berries", label: "Berries", width: 60, min: 48 },
+  { id: "checkpoint", label: "Checkpoint", help: "The last checkpoint reached, in a side not cleared yet", width: 130, min: 80 },
   { id: "rating", label: "Rating", sort: "rating", what: "your rating", help: "How much you enjoyed it, 1 to 5", width: 92, min: 92, mine: true },
   { id: "difficulty", label: "Difficulty", sort: "difficulty", what: "your difficulty", help: "How hard it is for you", width: 100, min: 72, mine: true },
   { id: "tags", label: "Tags", help: "Your tags", width: 150, min: 70, mine: true },
-  { id: "note", label: "Note", help: "Your note: click one to write or change it", width: 200, min: 80, mine: true },
-  { id: "slot", label: "Slot", sort: "slot", what: "slot shown", help: "The slot shown: your furthest", width: 44, min: 40, right: true },
+  { id: "note", label: "Note", help: "Your note: click one to write or change it", width: 100, min: 80, mine: true },
+  { id: "slot", label: "Slot", sort: "slot", what: "slot shown", help: "The slot shown: your furthest", width: 44, min: 40 },
 ];
 const DEFAULT_HIDDEN = ["best", "berries", "difficulty", "tags"];
 // The columns there were before the page saved which ones it knew: a column added since starts as DEFAULT_HIDDEN says,
@@ -256,33 +259,13 @@ let prefs = { hidden: DEFAULT_HIDDEN, widths: {}, auto: [] };  // auto: the play
 const colWidth = (c) => prefs.widths[c.id] || c.width;
 const canShow = (c) => c.id !== "slot" || state.key === "all";
 const shownCols = () => COLUMNS.filter((c) => c.id === "mod" || (canShow(c) && !prefs.hidden.includes(c.id)));
-const flexCol = () => shownCols().find((c) => c.id === "sides") || COLUMNS[0];
-
-// When the columns shown don't fit (every one of the player's columns on, say), the widest give way first, down to
-// their minimum, so the last column doesn't slide out of view. Only on screen: the saved widths stay.
-const SHRINK = ["mod", "author", "note", "tags", "difficulty"];
-let fitted = {};
-const shownWidth = (c) => fitted[c.id] ?? colWidth(c);
-
-function fitColumns() {
-  const cols = shownCols(), flex = flexCol();
-  const room = $("list").clientWidth - 2 * 14 - ARROW - GAP * cols.length - flex.min;  // 14: .mod-head's padding
-  let over = cols.filter((c) => c !== flex).reduce((a, c) => a + colWidth(c), 0) - room;
-  fitted = {};
-  for (const id of SHRINK) {
-    const c = cols.find((x) => x.id === id);
-    if (over <= 0 || !c || c === flex) continue;
-    const take = Math.min(over, Math.max(0, colWidth(c) - c.min));
-    fitted[id] = colWidth(c) - take;
-    over -= take;
-  }
-}
 
 function applyColumns() {
-  // The grid every row uses; rows inside an opened mod have no author, so their name takes its place too.
-  fitColumns();
-  const cols = shownCols(), flex = flexCol(), list = $("list").style;
-  list.setProperty("--mod-cols", `${ARROW}px ` + cols.map((c) => (c === flex ? `minmax(${c.min}px, 1fr)` : `${shownWidth(c)}px`)).join(" "));
+  // The grid every row uses; rows inside an opened mod have no author, so their name takes its place too. The rows
+  // are as wide as their columns (--row-w), so the table scrolls sideways when they don't fit.
+  const cols = shownCols(), list = $("list").style;
+  list.setProperty("--mod-cols", `${ARROW}px ` + cols.map((c) => `${colWidth(c)}px`).join(" "));
+  list.setProperty("--row-w", `${2 * 14 + ARROW + GAP * cols.length + cols.reduce((a, c) => a + colWidth(c), 0)}px`);  // 14: .mod-head's padding
   list.setProperty("--name-span", cols.some((c) => c.id === "author") ? 2 : 1);
 }
 
@@ -315,6 +298,21 @@ function renderColumnsMenu() {
     `<button type="button" data-reset-cols>Reset columns</button>`;
 }
 
+function checkpointCell(v, where = "") {
+  // The last checkpoint the save lists for the unfinished side played longest (rules.py); a side row has its own
+  // list. Nothing once every side is cleared. The save lists checkpoints by room ID; the name comes from the mod.
+  // where: under it, say which "chapter" and side, or only which "side", on rows with several of them.
+  const lc = v.latest_checkpoint
+    || (v.status === "in progress" && v.checkpoints?.length ? v.checkpoints[v.checkpoints.length - 1] : null);
+  if (!lc) return `<span class="hide-sm"></span>`;
+  const ch = lc.sid && index.chapterOfSid[lc.sid], chapter = ch ? ch.title || ch.sid.split("/").pop() : "";
+  const at = [chapter, lc.side ? `${lc.side} side` : ""].filter(Boolean).join(", "), side = lc.side ? `${lc.side} side` : "";
+  const tip = `${at ? `${at}: ` : ""}${lc.title || lc.room}${lc.title ? ` (room ${lc.room})` : ""}`;
+  return `<span class="cpcell hide-sm" title="${esc(tip)}">${esc(lc.title || lc.room)}` +
+    `${lc.title ? ` <span class="room">(${esc(lc.room)})</span>` : ""}` +
+    `${where === "chapter" && at ? `<span class="sub">${esc(at)}</span>` : where === "side" && side ? `<span class="sub">${esc(side)}</span>` : ""}</span>`;
+}
+
 // The tree table (doc/UI.md, "Layout"): mods, level sets, chapters and sides are all rows of one grid with the
 // same columns, indented by level. Only rows with something under them open.
 const notPlayed = (v) => v.status === "not started" || v.status === "not opened";
@@ -341,10 +339,10 @@ function best(ch) {
 
 function numbers(v, bestTime) {
   return {
-    deaths: `<span class="num right hide-sm">${dash(v, fmtNum(v.deaths))}</span>`,
-    time: `<span class="num right hide-sm">${dash(v, fmtTime(v.ticks))}</span>`,
-    best: `<span class="num right hide-sm">${bestTime}</span>`,
-    berries: `<span class="num right hide-sm">${dash(v, fmtNum(v.berries))}</span>`,
+    deaths: `<span class="num hide-sm">${dash(v, fmtNum(v.deaths))}</span>`,
+    time: `<span class="num hide-sm">${dash(v, fmtTime(v.ticks))}</span>`,
+    best: `<span class="num hide-sm">${bestTime}</span>`,
+    berries: `<span class="num hide-sm">${dash(v, fmtNum(v.berries))}</span>`,
   };
 }
 
@@ -362,6 +360,7 @@ function modCard({ m, v }) {
         author: `<span class="author hide-sm" title="${esc(m.author ? `GameBanana author: ${m.author}` : "Not on GameBanana's mod list")}">${esc(m.author)}</span>`,
         sides: progress(v, q(m), !known(m)),
         ...numbers(v, chs.length === 1 ? best(chs[0]) : ""),
+        checkpoint: checkpointCell(v, chs.length > 1 ? "chapter" : chs.length && countedSides(chs[0]).length > 1 ? "side" : ""),
         rating: stars(m, "row"),
         difficulty: `<span class="diff hide-sm">${esc(m.user.difficulty)}</span>`,
         tags: tagCell(m),
@@ -395,7 +394,7 @@ function guide({ kind, id, name }, style = "") {
   return `<span class="guide" data-close="${kind}" data-id="${esc(id)}" title="Close ${esc(name)}"${style}></span>`;
 }
 
-function treeRow(level, { attr = "", open = null, name, sub = "", strong = false, v, mark = "", bestTime = "", anc }) {
+function treeRow(level, { attr = "", open = null, name, sub = "", strong = false, v, mark = "", bestTime = "", cpWhere = "", anc }) {
   // open: null = nothing under this row; true/false = it opens, and is open or not. anc: the rows above this one,
   // the mod first, each drawn as a thread line.
   const toggle = open !== null;
@@ -405,7 +404,7 @@ function treeRow(level, { attr = "", open = null, name, sub = "", strong = false
         anc.slice(1).map((a, k) => guide(a, ` style="left:${k * 20 - 2}px"`)).join("") +
         `<span class="caret">${toggle ? "▸" : ""}</span>` +
         `<span class="t">${name}${sub ? `<small>${sub}</small>` : ""}</span></span>`,
-      sides: progress(v, mark), ...numbers(v, bestTime), rating: `<span class="hide-sm"></span>`, difficulty: `<span class="hide-sm"></span>`, tags: `<span class="hide-sm"></span>`, note: `<span class="hide-sm"></span>`,
+      sides: progress(v, mark), ...numbers(v, bestTime), checkpoint: checkpointCell(v, cpWhere), rating: `<span class="hide-sm"></span>`, difficulty: `<span class="hide-sm"></span>`, tags: `<span class="hide-sm"></span>`, note: `<span class="hide-sm"></span>`,
       slot: `<span class="hide-sm"></span>`,
     }) + `</div>`;
 }
@@ -422,7 +421,7 @@ function modRows(m) {
     const id = setId(m, ls), open = state.openSet.has(id);
     // Each in a group of its own, so an opened level set's row sticks only while its chapters are on screen.
     return `<div class="tgroup">` + treeRow(1, { attr: ` data-set="${esc(id)}"`, open, name: esc(setLabel(ls)), strong: true,
-                        v: viewOf(ls), mark: q(m), anc }) +
+                        v: viewOf(ls), mark: q(m), cpWhere: ls.chapters.length > 1 ? "chapter" : "", anc }) +
       (open ? chapterRows(m, ls.chapters, 2, [...anc, { kind: "set", id, name: setLabel(ls) }]) : "") + `</div>`;
   }).join("");
 }
@@ -437,7 +436,7 @@ function chapterRows(m, list, level, anc) {
       const title = ch.title || ch.sid.split("/").pop();
       return treeRow(level, { attr: many ? ` data-ch="${esc(ch.sid)}"` : "", open: many ? open : null,
                               name: esc(title),
-                              v: viewOf(ch, "not opened"), mark: q(m), bestTime: best(ch), anc }) +
+                              v: viewOf(ch, "not opened"), mark: q(m), bestTime: best(ch), cpWhere: many ? "side" : "", anc }) +
         (open ? sides.map((s) => sideRow(s, level + 1, [...anc, { kind: "ch", id: ch.sid, name: title }])).join("") : "");
     }).join("");
 }
@@ -499,14 +498,14 @@ function renderSessions() {
       <td><span class="chip c-in-progress">${esc(x.side)}</span></td>
       <td>${cp ? esc(cp.title || cp.room) : '<span class="muted">start</span>'}</td>
       <td class="muted room">${esc(x.room)}</td>
-      <td class="right num">${fmtNum(x.deaths)}</td>
-      <td class="right num">${v ? `${v.sides_done}/${v.sides_total}` : "-"}</td></tr>`;
+      <td class="num">${fmtNum(x.deaths)}</td>
+      <td class="num">${v ? `${v.sides_done}/${v.sides_total}` : "-"}</td></tr>`;
   }).join("");
   el.innerHTML = `<details${open ? " open" : ""}><summary>Where you left off ` +
     `<span class="muted">Save &amp; Quit in ${slots.length} slot${slots.length > 1 ? "s" : ""}</span></summary>
     <table class="resume"><colgroup><col class="w-slot"><col><col><col class="w-side"><col><col><col class="w-deaths"><col class="w-n">
     </colgroup><thead><tr><th>Slot</th><th>Mod</th><th>Chapter</th><th>Side</th><th>Last checkpoint</th><th>Room</th>
-    <th class="right">Deaths this session</th><th class="right">Sides</th></tr></thead><tbody>${rows}</tbody></table></details>`;
+    <th>Deaths this session</th><th>Sides</th></tr></thead><tbody>${rows}</tbody></table></details>`;
 }
 
 function renderSummary(rows) {
@@ -548,10 +547,10 @@ function renderFilters(rows) {
 
 // The header row over the mods (same grid as .mod-head). Click a column name to sort by it, again to flip it.
 function listHead() {
-  // Each column but Mod has a grip on its left edge: drag it to resize the column, double-click it for the default.
+  // Each column has a grip on its right edge: drag it to resize the column, double-click it for the default.
   const th = (c) => {
-    const extra = `${c.right ? " right" : ""}${c.id === "mod" || c.id === "sides" ? "" : " hide-sm"}`;
-    const grip = c.id !== "mod" ? `<span class="grip" data-grip="${c.id}" title="Drag to resize, double-click for the default widths"></span>` : "";
+    const extra = c.id === "mod" || c.id === "sides" ? "" : " hide-sm";
+    const grip = `<span class="grip" data-grip="${c.id}" title="Drag to resize, double-click for the default width"></span>`;
     if (!c.sort) return `<span class="th${extra}" role="columnheader"${c.help ? ` title="${esc(c.help)}"` : ""}>${grip}${c.label}</span>`;
     const on = state.sort === c.sort, dir = on ? sortDir() : FIRST_DIR[c.sort];
     const next = on ? (dir === "asc" ? "desc" : "asc") : dir;
@@ -604,9 +603,8 @@ function render() {
 }
 
 function measure() {
-  // Where the sticky rows stop (style.css): under the top bar, then the header row, then an opened mod's row.
+  // Where the sticky rows stop (style.css): under the header row, then under an opened mod's row.
   const root = document.documentElement.style;
-  root.setProperty("--top-h", `${document.querySelector(".top").offsetHeight}px`);
   root.setProperty("--head-h", `${document.querySelector(".list-head")?.offsetHeight || 0}px`);
   for (const mod of document.querySelectorAll(".mod.open")) {
     mod.style.setProperty("--mh", `${mod.querySelector(".mod-head").offsetHeight}px`);
@@ -776,7 +774,7 @@ $("list").addEventListener("click", (e) => {
   if (page) {
     state.page = Number(page.dataset.page);
     render();
-    return $("list").scrollIntoView({ block: "start" });
+    return $("list").scrollTo({ top: 0 });
   }
   const line = e.target.closest(".guide");
   if (line) return closeFromLine(line);
@@ -793,7 +791,7 @@ function closeFromLine(line) {
   SETS[kind]().delete(id);
   render();
   const row = document.querySelector(ROW[kind](CSS.escape(id)));
-  const top = document.querySelector(".top").offsetHeight + (document.querySelector(".list-head")?.offsetHeight || 0);
+  const top = $("list").getBoundingClientRect().top + (document.querySelector(".list-head")?.offsetHeight || 0);
   if (row && row.getBoundingClientRect().top < top) row.scrollIntoView({ block: "start" });
 }
 
@@ -864,35 +862,19 @@ function editNote(id) {
   area.focus({ preventScroll: true });
   area.closest(".yours").scrollIntoView({ block: "nearest" });
 }
-// Resizing a column: the grip on a column's left edge is the line between it and the column before it, and dragging
-// it moves only that line: the two columns change width in opposite directions, and every other line stays put.
-// When one of the two is the flexible column, it changes by itself, never below its minimum.
-const pairOf = (id) => {
-  const cols = shownCols(), i = cols.findIndex((x) => x.id === id);
-  return [cols[i - 1], cols[i]];
-};
+// Resizing a column, as in Excel: the grip on a column's right edge changes only that column's width, never below its
+// minimum; the columns to its right move along.
+const colOf = (id) => COLUMNS.find((c) => c.id === id);
 $("list").addEventListener("pointerdown", (e) => {
   const grip = e.target.closest("[data-grip]");
   if (!grip || e.button !== 0) return;
   e.preventDefault();
-  const [left, right] = pairOf(grip.dataset.grip), flex = flexCol(), x0 = e.clientX;
-  const l0 = shownWidth(left), r0 = shownWidth(right);
-  const head = grip.closest(".list-head"), pad = parseFloat(getComputedStyle(head).paddingLeft) * 2;
-  const fixed = shownCols().filter((x) => x !== flex).reduce((a, x) => a + shownWidth(x), 0);
-  const spare = Math.max(0, head.clientWidth - pad - ARROW - GAP * shownCols().length - fixed - flex.min);
+  const c = colOf(grip.dataset.grip), x0 = e.clientX, w0 = colWidth(c);
   grip.setPointerCapture(e.pointerId);
   grip.classList.add("drag");
   document.body.classList.add("resizing");
   const move = (ev) => {
-    // d > 0: the line moves right, the left column widens and the right one narrows
-    let d = ev.clientX - x0;
-    if (left === flex) d = Math.min(Math.max(d, -spare), r0 - right.min);
-    else if (right === flex) d = Math.min(Math.max(d, left.min - l0), spare);
-    else d = Math.min(Math.max(d, left.min - l0), r0 - right.min);
-    const w = { ...prefs.widths };
-    if (left !== flex) w[left.id] = Math.round(l0 + d);
-    if (right !== flex) w[right.id] = Math.round(r0 - d);
-    prefs.widths = w;
+    prefs.widths = { ...prefs.widths, [c.id]: Math.round(Math.max(c.min, w0 + ev.clientX - x0)) };
     applyColumns();
   };
   const up = () => {
@@ -906,12 +888,12 @@ $("list").addEventListener("pointerdown", (e) => {
   grip.addEventListener("pointerup", up, { once: true });
   grip.addEventListener("pointercancel", up, { once: true });
 });
-// Double-clicking a line gives the columns on both sides of it their default widths.
+// Double-clicking a grip gives its column the default width.
 $("list").addEventListener("dblclick", (e) => {
   const grip = e.target.closest("[data-grip]");
   if (!grip) return;
   const widths = { ...prefs.widths };
-  for (const c of pairOf(grip.dataset.grip)) delete widths[c.id];
+  delete widths[grip.dataset.grip];
   prefs.widths = widths;
   applyColumns();
   savePrefs();

@@ -49,13 +49,12 @@
 }
 
 * { box-sizing: border-box; }
-/* Always keep room for the scrollbar: otherwise opening a mod in a short list adds one (17px on Windows) and the
-   whole table narrows and shifts. */
-html { scrollbar-gutter: stable; }
 /* The content is at most 1200px wide and centered; the side gutter grows on wide screens. */
 body { --gutter: max(20px, calc((100% - 1200px) / 2)); }
+/* The page doesn't scroll: the top bar, the toolbar and Where you left off stay put, and the table under them scrolls
+   in its own box, both ways (a box that scrolls sideways can't have a header sticking to the window). */
 body {
-  margin: 0;
+  margin: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column;
   background: var(--snow);
   color: var(--ink);
   font: 14px/1.45 "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -65,8 +64,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .top {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 14px var(--gutter); background: var(--surface); border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; z-index: 4;
+  padding: 14px var(--gutter); background: var(--surface); border-bottom: 1px solid var(--line); flex: none;
 }
 .brand { display: flex; align-items: baseline; gap: 4px 14px; flex-wrap: wrap; min-width: 0; }
 h1 { font-size: 20px; margin: 0; color: var(--summit); }
@@ -191,7 +189,8 @@ button:hover { border-color: var(--summit); }
 .notice button { font-size: 12px; padding: 2px 10px; }
 .notice button:first-of-type { margin-left: auto; }
 
-.sessions { margin: 0 var(--gutter) 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+/* Opened, it scrolls by itself past a third of the window, so the table keeps most of it. */
+.sessions { flex: none; max-height: 34vh; overflow: auto; margin: 0 var(--gutter) 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .sessions summary { font-size: 13px; color: var(--muted); font-weight: 600; cursor: pointer; }
 .sessions summary .muted { font-weight: 400; margin-left: 8px; }
 .resume { margin-top: 8px; }
@@ -204,19 +203,22 @@ button:hover { border-color: var(--summit); }
 .sessions a:hover { color: var(--summit); }
 
 .list {
-  margin: 0 var(--gutter) 40px; display: grid; grid-template-columns: minmax(0, 1fr);
+  flex: 0 1 auto; min-height: 0; overflow: auto;  /* as tall as its rows, shrunk to scroll when they don't fit */
+  margin: 0 var(--gutter) 16px; display: grid; grid-template-columns: minmax(0, 1fr);
   background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
-  overflow: clip; /* not hidden: that would stop the header and the opened rows from sticking */
-  scroll-margin-top: var(--top-h, 0px);
+  /* Always keep room for the scrollbar: otherwise opening a mod in a short list adds one (17px on Windows) and the
+     whole table narrows and shifts. */
+  scrollbar-gutter: stable;
 }
-.mod { min-width: 0; }
+/* Rows are as wide as their columns (--row-w, from app.js), wider than the box when they don't fit. */
+.list-head, .mod { min-width: var(--row-w, 0); }
 .empty { padding: 30px; text-align: center; color: var(--muted); }
 .error { margin: 20px var(--gutter); color: #c0392b; }
 
 /* One table (doc/UI.md, Layout): a header row, then one row per mod, every second one shaded. */
 /* The columns: --mod-cols is set by app.js (applyColumns) from the columns shown and their widths; this is only the
    default before the page has loaded. The status is under the bar, next to "x/y sides" (doc/UI.md, "Progress bar"). */
-.list { --mod-cols: 16px 320px 170px minmax(150px, 1fr) 64px 72px 92px 200px 44px; }
+.list { --mod-cols: 16px 230px 115px 180px 64px 72px 130px 92px 100px 44px; }
 /* The GameBanana author, after the mod's name. Rows inside an opened mod have none, so their name takes both columns
    (--name-span, 1 when the Author column is hidden). */
 .author { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -228,18 +230,18 @@ button:hover { border-color: var(--summit); }
   /* The header row, an opened mod's row and an opened level set's row stay on screen while scrolling under them,
      each below the one above (the heights are measured in app.js). A row leaving the screen slides under the
      ones above it, hence the z-index steps 3, 2, 1. */
-  position: sticky; top: var(--top-h, 0px); z-index: 3; background: var(--surface);
+  position: sticky; top: 0; z-index: 3; background: var(--surface);
 }
 /* Sortable column headers (after the WAI-ARIA sortable table example): the whole label is a button; ↕ marks a
    column you can sort by, ▲ / ▼ the one sorted now. Click it again to flip the direction. */
 .list-head .th { display: flex; min-width: 0; position: relative; }
-/* The resize grip, on the gap left of a column: drag it to move the line between the two columns (app.js).
+/* The resize grip, on the gap right of a column: drag it to resize the column, the ones right of it move along (app.js).
    ew-resize, not col-resize: Chrome on Windows draws col-resize as a white bar, hard to see on the white header;
    ew-resize is the system's black arrow. The line always shows, faint, so it's clear the columns can be resized (as
    in AG Grid and Excel); it turns blue and thicker under the mouse and while dragged. It's a border, not a filled
    box: browsers round border widths to whole screen pixels, so every line is as thick as the others on a scaled
    screen (at 125%, a 2px box came out 2 or 3 pixels wide depending on where it fell). */
-.grip { position: absolute; top: -7px; bottom: -7px; left: -12px; width: 12px; cursor: ew-resize; z-index: 1; touch-action: none; }
+.grip { position: absolute; top: -7px; bottom: -7px; right: -12px; width: 12px; cursor: ew-resize; z-index: 1; touch-action: none; }
 .grip::after { content: ""; position: absolute; top: 9px; bottom: 9px; left: 5px; border-left: 1px solid var(--guide); }
 .grip:hover::after, .grip.drag::after { border-left: 2px solid var(--summit); }
 body.resizing { cursor: ew-resize; user-select: none; }
@@ -267,17 +269,17 @@ body.resizing { cursor: ew-resize; user-select: none; }
 .pages button:disabled:hover { border-color: var(--line); }
 .pages .gap { padding: 0 4px; }
 .mod { border-bottom: 1px solid var(--line); --row-bg: var(--surface); background: var(--row-bg);
-       scroll-margin-top: calc(var(--top-h, 0px) + var(--head-h, 0px)); }
+       scroll-margin-top: var(--head-h, 0px); }
 .mod:last-child { border-bottom: 0; }
 .mod:nth-of-type(even) { --row-bg: var(--surface-alt); }
 .mod.open > .mod-head {
-  position: sticky; top: calc(var(--top-h, 0px) + var(--head-h, 0px)); z-index: 2; background: var(--row-bg);
+  position: sticky; top: var(--head-h, 0px); z-index: 2; background: var(--row-bg);
 }
 .tgroup > .trow.open {
-  position: sticky; top: calc(var(--top-h, 0px) + var(--head-h, 0px) + var(--mh, 0px)); z-index: 1;
+  position: sticky; top: calc(var(--head-h, 0px) + var(--mh, 0px)); z-index: 1;
   background: var(--row-bg);
 }
-.trow { scroll-margin-top: calc(var(--top-h, 0px) + var(--head-h, 0px) + var(--mh, 0px)); }
+.trow { scroll-margin-top: calc(var(--head-h, 0px) + var(--mh, 0px)); }
 /* Thread lines, as in Reddit's comments: a thin line drops from each opened row's arrow down its rows, one per
    level, so you can see where a mod or a level set ends. Clicking a line closes the row it comes from; hovering
    one lights up the whole line (app.js). There are no row lines inside an opened mod: the thread lines group the rows. */
@@ -307,7 +309,6 @@ body.resizing { cursor: ew-resize; user-select: none; }
 .sub .tag { margin-left: 6px; }
 .sub .tag:first-child { margin-left: 0; }
 .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.right { text-align: right; }
 
 .progress { display: grid; gap: 3px; min-width: 0; }
 .bar { height: 8px; border-radius: 2px; overflow: hidden; background: var(--track); }
@@ -381,6 +382,8 @@ tr:last-child td { border-bottom: 0; }
 
 /* The player's note, in its column: two lines at most, then cut off; all of it on hover. Clicking it opens the mod
    at its note, so the cell gets a text cursor. */
+.cpcell { font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cpcell .room { font-size: 12px; color: var(--muted); }
 .notecell {
   font-size: 12px; line-height: 1.35; color: var(--ink); opacity: .85; cursor: text; min-width: 0; min-height: 2.7em;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
@@ -424,12 +427,17 @@ tr:last-child td { border-bottom: 0; }
 .saved.error { color: #c0392b; }
 
 @media (max-width: 760px) {
+  /* Too little height to pin the top: the page scrolls as a whole, and the rows stack, so nothing scrolls sideways. */
+  body { display: block; height: auto; }
+  .sessions { max-height: none; }
+  .list { overflow: clip; }
   .top { flex-wrap: wrap; padding: 12px 16px; }
   .toolbar { padding: 10px 16px; }
   .toolbar input[type=search] { flex-basis: 100%; min-width: 0; }
   .sessions { margin: 0 16px 10px; }
-  .list { margin: 0 16px 32px; }
+  .list { margin: 0 16px 16px; }
   /* name and status on top, the progress bar across underneath */
+  .list-head, .mod { min-width: 0; }
   .mod-head, .trow { grid-template-columns: 16px minmax(0, 1fr) auto; gap: 4px 10px; }
   .mod-head .progress, .trow .progress { grid-column: 2 / -1; grid-row: 2; }
   .mod-head .hide-sm, .trow .hide-sm { display: none; }
