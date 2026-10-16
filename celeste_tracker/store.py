@@ -1,7 +1,8 @@
 """The tracker's own data (doc/DESIGN.md, "Store"): one SQLite file next to the config, never in the repo.
 
-- user_fields: what the player adds, per mod ID, level set or chapter SID: note, difficulty, rating, dropped,
-  and a rename (mods only).
+- user_fields: what the player adds, per mod ID: note, difficulty, rating, dropped and a rename. Keys made before
+  the fields were per mod can be a level set or chapter SID.
+- user_tags: the player's tags, per mod ID.
 - mod_cache: what was read from each mod zip, keyed by path, size and mtime, so unchanged zips aren't reopened.
 - meta: the schema version, and the page's own settings (which columns are shown, their widths).
 The save files and the Mods folder are never written (PRD #11); only this file is.
@@ -14,6 +15,8 @@ from pathlib import Path
 
 SCHEMA = 1
 FIELDS = ("note", "difficulty", "rating", "dropped", "rename")
+DIFFICULTIES = ("Beginner", "Intermediate", "Advanced", "Expert", "Grandmaster")  # the collab tiers; as in app.js
+MAX_TAG, MAX_TAGS = 30, 20  # characters in a tag, tags on a mod
 OLD_NOTES = Path(__file__).resolve().parent.parent / "celeste_notes.json"  # before the store, notes lived here
 
 TABLES = """
@@ -21,11 +24,16 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS user_fields (
     key        TEXT PRIMARY KEY,   -- mod ID, level set name or chapter SID
     note       TEXT,
-    difficulty TEXT,               -- free text: "Expert", "GM+1", ...
+    difficulty TEXT,               -- one of DIFFICULTIES (free text before 2026-10, still shown)
     rating     INTEGER,            -- 1 to 5
     dropped    INTEGER NOT NULL DEFAULT 0,
     rename     TEXT,               -- mods only: shown instead of the GameBanana title
     updated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS user_tags (
+    key TEXT NOT NULL,              -- mod ID
+    tag TEXT NOT NULL,              -- clean_tag()
+    PRIMARY KEY (key, tag)
 );
 CREATE TABLE IF NOT EXISTS mod_cache (
     path     TEXT PRIMARY KEY,
@@ -70,7 +78,8 @@ class Store:
     # ------------------------------------------------------------ user fields
 
     def user_fields(self):
-        """{key: {'note', 'difficulty', 'rating', 'dropped', 'rename'}}, only the fields that are set."""
+        """{key: {'note', 'difficulty', 'rating', 'dropped', 'rename', 'tags'}}, only the fields that are set; tags
+        sorted."""
         out = {}
         for row in self.db.execute("SELECT * FROM user_fields"):
             f = {k: row[k] for k in FIELDS if row[k] not in (None, "", 0)}
@@ -78,6 +87,8 @@ class Store:
                 f["dropped"] = True
             if f:
                 out[row["key"]] = f
+        for row in self.db.execute("SELECT key, tag FROM user_tags ORDER BY key, tag"):
+            out.setdefault(row["key"], {}).setdefault("tags", []).append(row["tag"])
         return out
 
     def set_field(self, key, field, value):
@@ -86,6 +97,8 @@ class Store:
             raise ValueError(f"unknown field {field!r}")
         if field == "rating" and value and not 1 <= int(value) <= 5:
             raise ValueError("rating must be 1 to 5 (0 clears it)")
+        if field == "difficulty" and value and value not in DIFFICULTIES:
+            raise ValueError(f"difficulty must be one of {', '.join(DIFFICULTIES)}")
         if field == "dropped":
             value = 1 if value else 0
         elif value in ("", 0):
@@ -97,6 +110,16 @@ class Store:
                             f"updated_at = excluded.updated_at", (key, value, now))
             self.db.execute("DELETE FROM user_fields WHERE key = ? AND note IS NULL AND difficulty IS NULL "
                             "AND rating IS NULL AND dropped = 0 AND rename IS NULL", (key,))
+
+    def set_tags(self, key, tags):
+        """Replace a mod's tags. Each is cleaned (clean_tag); empty and repeated ones are dropped."""
+        clean = list(dict.fromkeys(t for t in map(clean_tag, tags) if t))
+        if len(clean) > MAX_TAGS:
+            raise ValueError(f"at most {MAX_TAGS} tags on a mod")
+        with self.db:
+            self.db.execute("DELETE FROM user_tags WHERE key = ?", (key,))
+            self.db.executemany("INSERT INTO user_tags (key, tag) VALUES (?, ?)", [(key, t) for t in clean])
+        return sorted(clean)
 
     def import_notes(self, path):
         """Notes from a celeste_notes.json ({key: note}); notes already in the store win. Returns how many."""
@@ -140,6 +163,13 @@ class Store:
 
     def mod_cache(self):
         return ModCache(self.db)
+
+
+def clean_tag(tag):
+    """A tag as stored: lowercase, spaces trimmed and collapsed, at most MAX_TAG characters (as app.js does)."""
+    if not isinstance(tag, str):
+        raise ValueError("a tag must be text")
+    return " ".join(tag.lower().split())[:MAX_TAG]
 
 
 class ModCache:

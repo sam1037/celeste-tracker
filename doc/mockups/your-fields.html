@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your fields mockup</title>
+  <!-- Mockup 2 for doc/PLAN-notes-rating.md: how notes are found, the Yours panel, and room for difficulty and
+       tags later. The page's real style.css, made-up mods; nothing is saved. Serve the repo root to open it. -->
+  <link rel="stylesheet" href="../../celeste_tracker/web/static/style.css">
+  <style>
+    /* ---- mockup-only chrome ---- */
+    .mock-note { margin: 18px var(--gutter) 6px; font-size: 13px; color: var(--muted); max-width: 820px; }
+    .mock-note h2 { font-size: 15px; color: var(--ink); margin: 0 0 4px; }
+    .mock-note p { margin: 0 0 4px; }
+    .mock-note ol { margin: 4px 0 0; padding-left: 18px; }
+    .mock-sep { margin: 34px var(--gutter) 0; border: 0; border-top: 2px dashed var(--line); }
+    .callout { display: inline-block; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #e2554f;
+      color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; vertical-align: middle; }
+    .pin { position: absolute; z-index: 6; }
+
+    /* ---- proposed additions to style.css ---- */
+
+    /* Rating stars (as in mockup 1). */
+    .rate { display: flex; gap: 1px; }
+    .rate button { border: 0; background: none; padding: 0 1px; font-size: 15px; line-height: 1; cursor: pointer; color: var(--guide); }
+    .rate button.on { color: var(--summit); }
+    .rate:not(.rated) button { color: transparent; }
+    .mod-head:hover .rate:not(.rated) button, .mod-head.demo-hover .rate:not(.rated) button { color: var(--guide); }
+
+    /* The note on the second line; on hover, a mod with no note offers one in the same place. */
+    .sub.note { color: var(--ink); opacity: .8; white-space: nowrap; }
+    .sub.note::before { content: "✎ "; color: var(--summit); }
+    .sub.add-note { display: none; color: var(--summit); cursor: pointer; }
+    .mod-head:hover .sub.add-note, .mod-head.demo-hover .sub.add-note { display: block; }
+    .mod-head:hover .sub.add-note ~ .sub, .mod-head.demo-hover .sub.add-note ~ .sub { display: none; }
+    .mod-head.demo-hover { background: var(--hover); }
+
+    /* The Yours panel, in an opened mod: every field the player sets, in one place. */
+    .yours {
+      display: grid; grid-template-columns: 76px minmax(0, 560px); gap: 8px 16px; align-items: center;
+      justify-content: start; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+      max-width: 720px;
+    }
+    .yours h3 { grid-column: 1 / -1; margin: 0; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .yours h3 span { font-weight: 400; margin-left: 10px; }
+    .yours > label, .yours > .lab { font-size: 12px; color: var(--muted); }
+    .yours select { padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 13px; justify-self: start; }
+    .yours textarea {
+      width: 100%; min-height: 32px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px;
+      background: var(--surface); font-size: 13px; resize: none; field-sizing: content; max-height: 140px;
+    }
+    .yours .note-lab { align-self: start; padding-top: 6px; }
+    .yours .rate button { font-size: 18px; }
+    .yours .rate:not(.rated) button { color: var(--guide); }
+    .tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .ptag { font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--line); color: var(--ink); background: var(--snow); white-space: nowrap; }
+    .ptag button { border: 0; background: none; padding: 0 0 0 4px; color: var(--muted); font-size: 11px; }
+    .add-tag { font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px dashed var(--guide); background: none; color: var(--muted); }
+    .yours .saved { font-size: 12px; color: var(--ok); }
+
+    /* Difficulty and Tags cells. */
+    .diff { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tagcell { display: flex; gap: 4px; overflow: hidden; align-items: center; }
+    .tagcell .ptag { font-size: 11px; padding: 0 6px; }
+    .tagcell .more { font-size: 11px; color: var(--muted); }
+
+    /* The Columns menu, in two groups. */
+    .cols-menu .menu h4 { margin: 6px 6px 2px; font-size: 11px; font-weight: 700; color: var(--muted); }
+    .cols-menu .menu h4:first-child { margin-top: 2px; }
+    .cols-menu .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+    .cols-menu .menu label { display: flex; gap: 8px; align-items: center; }
+
+    /* One-time notice when a column turns on by itself. */
+    .notice { margin: -2px var(--gutter) 10px; padding: 7px 12px; border: 1px solid var(--line); border-left: 3px solid var(--summit);
+      border-radius: 6px; background: var(--surface); font-size: 13px; display: flex; gap: 12px; align-items: center; }
+    .notice button { margin-left: auto; font-size: 12px; padding: 2px 10px; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1>Celeste Tracker</h1>
+      <span class="figures"><span>Sides completed <b>486</b> of 1,318</span><span>Mods completed <b>113</b> of 253</span></span>
+    </div>
+    <div class="actions">
+      <span class="muted on" id="live">● live</span>
+      <button type="button">Refresh</button>
+      <button class="help-btn" type="button" aria-label="Help">?</button>
+    </div>
+  </header>
+
+  <div class="mock-note">
+    <h2>A. Before you set anything: Rating is the only one of your columns</h2>
+    <ol>
+      <li><span class="callout">1</span> Hovering a mod with no note shows "✎ Add a note" where a note would go, and faint stars to rate it.
+        Clicking "Add a note" opens the mod with the note field focused.</li>
+      <li><span class="callout">2</span> An opened mod always has a <b>Yours</b> panel with every field you can set, so it's where you find them.</li>
+      <li><span class="callout">3</span> The Columns menu has two groups. Difficulty and Tags start hidden.</li>
+    </ol>
+  </div>
+  <section class="toolbar" aria-label="Filters" style="position:relative">
+    <input type="search" placeholder="Search by mod name, author, ID, level set, chapter or your note (press /)">
+    <label>Slot <select><option>All slots</option></select></label>
+    <label>Show <select><option>All mods</option></select></label>
+    <details class="cols-menu" open>
+      <summary>Columns</summary>
+      <div class="menu" style="min-width:190px">
+        <h4>From your saves</h4>
+        <label class="muted"><input type="checkbox" checked disabled> Mod</label>
+        <label><input type="checkbox" checked> Author</label>
+        <label><input type="checkbox" checked> Sides</label>
+        <label><input type="checkbox" checked> Deaths</label>
+        <label><input type="checkbox" checked> Time</label>
+        <label><input type="checkbox"> Best</label>
+        <label><input type="checkbox"> Berries</label>
+        <label><input type="checkbox" checked> Slot</label>
+        <hr>
+        <h4>Yours</h4>
+        <label><input type="checkbox" checked> Rating</label>
+        <label><input type="checkbox"> Difficulty</label>
+        <label><input type="checkbox"> Tags</label>
+        <button type="button">Reset columns</button>
+      </div>
+    </details>
+    <span class="callout pin" style="right:calc(var(--gutter) - 8px); top:2px">3</span>
+  </section>
+  <main id="listA" class="list" style="position:relative"></main>
+
+  <hr class="mock-sep">
+  <div class="mock-note">
+    <h2>B. After you've set a difficulty and some tags</h2>
+    <ol>
+      <li><span class="callout">4</span> The first time you set a difficulty (or a tag), its column turns on by itself, with a one-time notice.</li>
+      <li><span class="callout">5</span> Once any exist, the toolbar gets a <b>Tag</b> filter. A Difficulty filter would come the same way.</li>
+      <li>With every column on, the table is full: here Mod is 260 px and Author 120 px, and the Sides bar is down to ~170 px.
+        Players can hide Deaths or Author to make room.</li>
+    </ol>
+  </div>
+  <section class="toolbar" aria-label="Filters">
+    <input type="search" placeholder="Search by mod name, author, ID, level set, chapter or your note (press /)">
+    <label>Slot <select><option>All slots</option></select></label>
+    <label>Show <select><option>All mods</option></select></label>
+    <label><span class="callout">5</span> Tag <select><option>Any tag</option><option>favorite</option><option>tech</option><option>for golden</option></select></label>
+    <details class="cols-menu"><summary>Columns</summary></details>
+  </section>
+  <div class="notice"><span class="callout">4</span><span>The <b>Difficulty</b> column is on now that you've set one.</span>
+    <button type="button">Hide it</button><button type="button" style="margin-left:0">OK</button></div>
+  <main id="listB" class="list"></main>
+
+<script>
+const MODS = [
+  { name: "Glacier Pass", id: "GlacierPass", author: "frostbyte", done: 3, total: 5, st: "in progress", deaths: "2,431", time: "6:12:08", slot: 1, rating: 5,
+    note: "Stopped at the ice part in C-side. Try the upper route next time, it skips the long wind room.", diff: "Advanced", tags: ["favorite", "for golden"], open: true },
+  { name: "Midnight Spire Collab", id: "MidnightSpire", author: "Spire Collab Team", done: 41, total: 88, st: "in progress", deaths: "9,870", time: "31:04:51", slot: 2, rating: 4,
+    note: "Beginner and Intermediate lobbies done; Expert heartside is the next goal", sets: 4, diff: "Expert", tags: ["collab", "tech", "long"] },
+  { name: "Heartwood", id: "Heartwood", author: "mossy_m", done: 2, total: 2, st: "completed", deaths: "312", time: "1:48:20", slot: 1, rating: 3, diff: "Intermediate", tags: ["chill"] },
+  { name: "Cloudline", id: "Cloudline", author: "Pellucid", done: 0, total: 3, st: "in progress", deaths: "57", time: "18:44", slot: 5, rating: 0, hover: true },
+  { name: "Ember Archive", id: "EmberArchive_Remake", author: "kiln", done: 1, total: 1, st: "completed", deaths: "640", time: "2:02:13", slot: 1, rating: 2,
+    note: "Too much backtracking", diff: "Advanced" },
+  { name: "Lantern Hollow", id: "LanternHollow", author: "Tsubame", done: 0, total: 4, st: "not started", deaths: "-", time: "-", slot: "", rating: 0, tags: ["to play"] },
+  { name: "The Salt Flats", id: "SaltFlats", author: "brine", done: 1, total: 3, st: "in progress", deaths: "1,104", time: "3:30:00", slot: 3, rating: 0 },
+];
+
+const VIEWS = {
+  A: { cols: "16px 320px 170px minmax(120px, 1fr) 64px 72px 84px 44px", extra: false },
+  B: { cols: "16px 260px 120px minmax(120px, 1fr) 64px 72px 84px 96px 140px 44px", extra: true },
+};
+
+const stars = (r) => `<span class="rate${r ? " rated" : ""}">` +
+  [1, 2, 3, 4, 5].map((n) => `<button type="button" data-n="${n}" class="${n <= r ? "on" : ""}" aria-label="${n} of 5">${n <= r ? "★" : "☆"}</button>`).join("") + `</span>`;
+
+function head(v) {
+  const th = (label, right, sorted, first) => `<span class="th${right ? " right" : ""}">${first ? "" : '<span class="grip"></span>'}` +
+    `<button type="button">${label}<span class="icon">${sorted ? "▼" : "↕"}</span></button></span>`;
+  return `<div class="list-head"><span></span>` + th("Mod", 0, 0, 1) + th("Author") + th("Sides") + th("Deaths", 1) + th("Time", 1, 1) +
+    th("Rating") + (v.extra ? th("Difficulty") + th("Tags") : "") + th("Slot", 1) + `</div>`;
+}
+
+function row(m, v, demo) {
+  const cls = m.st === "completed" ? "s-completed" : m.st === "not started" ? "s-not-started" : "s-in-progress";
+  const idLine = [m.id !== m.name ? m.id : "", m.sets ? `${m.sets} level sets` : ""].filter(Boolean).join(" ∙ ");
+  const sub = m.note ? `<span class="sub note">${m.note}</span>`
+    : `<span class="sub add-note">✎ Add a note</span>` + (idLine ? `<span class="sub">${idLine}</span>` : "");
+  const open = m.open && demo === "A";
+  const tags = (m.tags || []).slice(0, 2).map((t) => `<span class="ptag">${t}</span>`).join("") +
+    ((m.tags || []).length > 2 ? `<span class="more">+${m.tags.length - 2}</span>` : "");
+  return `<article class="mod${open ? " open" : ""}">
+    <div class="mod-head${m.hover && demo === "A" ? " demo-hover" : ""}">
+      <span class="caret">▸</span>
+      <span class="name">${m.name}${sub}</span>
+      <span class="author hide-sm">${m.author}</span>
+      <span class="progress"><div class="bar"><i style="width:${(100 * m.done) / m.total}%"></i></div>
+        <small><span class="num">${m.done}/${m.total} sides</span><span class="status ${cls}">${m.st}</span></small></span>
+      <span class="num right hide-sm">${m.deaths}</span>
+      <span class="num right hide-sm">${m.time}</span>
+      ${stars(m.rating)}
+      ${v.extra ? `<span class="diff">${m.diff || ""}</span><span class="tagcell">${tags}</span>` : ""}
+      <span class="num right hide-sm">${m.slot}</span>
+    </div>
+    ${open ? body(m) : ""}
+  </article>`;
+}
+
+function body(m) {
+  return `<div class="mod-body"><span class="guide"></span>
+    <div class="facts"><span>Mod ID <b>${m.id}</b></span><span>Hearts collected <b>3</b></span>
+      <span>Shown: <b>slot 1</b>, your furthest; also played in slot 4 (1/5 sides)</span></div>
+    <div class="yours" style="position:relative">
+      <span class="callout pin" style="left:-28px; top:8px">2</span>
+      <h3>Yours <span>Only you see these. Your save files are never changed.</span></h3>
+      <span class="lab">Rating</span>${stars(m.rating)}
+      <label>Difficulty</label>
+      <select><option>Not set</option><option>Beginner</option><option>Intermediate</option><option selected>Advanced</option>
+        <option>Expert</option><option>Grandmaster</option><option>Your own…</option></select>
+      <span class="lab">Tags</span>
+      <span class="tags">${m.tags.map((t) => `<span class="ptag">${t}<button type="button" aria-label="Remove ${t}">✕</button></span>`).join("")}
+        <button type="button" class="add-tag">+ Add tag</button></span>
+      <label class="note-lab">Note</label>
+      <textarea rows="1" placeholder="Add a note: where you stopped, what to try next">${m.note}</textarea>
+      <span></span><span class="saved">Saved</span>
+    </div>
+  </div>
+  ${["A side", "B side", "C side"].map((s, k) => `<div class="trow"><span class="guide"></span>
+    <span class="tname" style="--lvl:1"><span class="caret"></span><span class="t">${s}</span></span>
+    <span class="progress"><div class="bar"><i style="width:100%"></i></div>
+      <small><span class="num">1/1 sides</span><span class="status s-completed">completed</span></small></span>
+    <span class="num right hide-sm">${[287, 640, 1201][k]}</span><span class="num right hide-sm">${["1:01:07", "1:44:10", "2:30:41"][k]}</span>
+    <span></span><span></span></div>`).join("")}`;
+}
+
+for (const k of ["A", "B"]) {
+  const el = document.getElementById("list" + k), v = VIEWS[k];
+  el.style.setProperty("--mod-cols", v.cols);
+  el.innerHTML = head(v) + MODS.map((m) => row(m, v, k)).join("");
+}
+// Callout 1, next to the hovered row in A.
+const hov = document.querySelector("#listA .demo-hover");
+hov.style.position = "relative";
+hov.insertAdjacentHTML("beforeend", `<span class="callout pin" style="left:118px; top:30px">1</span>`);
+</script>
+</body>
+</html>

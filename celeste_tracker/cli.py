@@ -12,7 +12,7 @@ from .paths import (config_path, find_save, find_saves_dir, list_slots, load_con
                     write_config)
 from .rules import ALL
 from .save import dump
-from .store import Store
+from .store import DIFFICULTIES, Store, clean_tag
 
 TICKS_PER_SECOND = 10_000_000
 NOT_LOADED = " [not loaded]"
@@ -169,6 +169,7 @@ def mine_cell(fields):
     parts = [f"{fields['rating']}/5"] if fields.get("rating") else []
     parts += [fields["difficulty"]] if fields.get("difficulty") else []
     parts += ["dropped"] if fields.get("dropped") else []
+    parts += [", ".join(fields["tags"])] if fields.get("tags") else []
     return " · ".join(parts)
 
 
@@ -358,33 +359,22 @@ def render_mod(mod, key, lib, user, only_set=None):
 
 # ---------------------------------------------------------------- the player's own fields
 
-def resolve_key(key, lib, mods_only=False):
-    """Match KEY to a mod ID, level set or chapter ID (or its name/title): exact, else a unique substring."""
-    titles = {}
-    for m in lib.mods:
-        titles.setdefault(m.id, m.name)
-        if not mods_only:
-            for ls in m.sets:
-                titles.setdefault(ls.name, ls.title)
-            for ch in m.chapters():
-                titles.setdefault(ch.sid, ch.title)
+def resolve_key(key, lib):
+    """Match KEY to a mod ID or name: exact, else a unique substring. The player's fields are per mod."""
+    titles = {m.id: m.name for m in lib.mods}
     if key in titles:
         return key
     low = key.lower()
     exact = [n for n, t in titles.items() if t and t.lower() == low]
-    exact_mods = [n for n in exact if any(n == m.id for m in lib.mods)]
-    if len(exact_mods) == 1 or len(exact) == 1:  # "Sonder" is the mod and its chapter: the mod wins
-        return (exact_mods or exact)[0]
+    if len(exact) == 1:
+        return exact[0]
     hits = [n for n, t in titles.items() if low in n.lower() or (t and low in t.lower())]
     if len(hits) == 1:
         return hits[0]
     if len(hits) > 1:
-        sys.exit(f"'{key}' matches several entries, be more specific:\n  "
+        sys.exit(f"'{key}' matches several mods, be more specific:\n  "
                  + "\n  ".join(f"{titles[n]} ({n})" if titles[n] and titles[n] != n else n for n in hits[:12]))
-    if mods_only:
-        sys.exit(f"No mod matches '{key}'.")
-    print(f"Note: '{key}' wasn't found; storing it under that exact key.")
-    return key
+    sys.exit(f"No mod matches '{key}'.")
 
 
 EDITS = {  # flag -> (store field, how to show it)
@@ -395,15 +385,31 @@ EDITS = {  # flag -> (store field, how to show it)
 
 def edit_field(store, lib, flag, key, value):
     field, show = EDITS[flag]
-    key = resolve_key(key, lib, mods_only=flag == "rename")
+    key = resolve_key(key, lib)
     if field == "rating":
         if not value.isdigit() or not 0 <= int(value) <= 5:
             sys.exit("--rate takes 1 to 5, or 0 to clear.")
         value = int(value)
     else:
         value = value.strip()
-    store.set_field(key, field, value)
+    if field == "difficulty":  # "expert" is fine
+        value = next((d for d in DIFFICULTIES if d.lower() == value.lower()), value)
+    try:
+        store.set_field(key, field, value)
+    except ValueError as e:
+        sys.exit(f"--{flag}: {e}.")
     print(f"Saved {field} for {key}: {show(value)}" if value else f"Cleared {field} for {key}")
+
+
+def edit_tags(store, lib, key, tag, add):
+    key = resolve_key(key, lib)
+    have = store.user_fields().get(key, {}).get("tags", [])
+    tag = clean_tag(tag)
+    try:
+        tags = store.set_tags(key, have + [tag] if add else [t for t in have if t != tag])
+    except ValueError as e:
+        sys.exit(f"--tag: {e}.")
+    print(f"Tags for {key}: {', '.join(tags) or 'none'}")
 
 
 # ---------------------------------------------------------------- main
@@ -423,10 +429,12 @@ def parse_args(argv):
     ap.add_argument("--refresh-moddb", action="store_true", help="download the mod list now, even if the cache is fresh")
     ap.add_argument("--set", metavar="KEY", help="every chapter and side of one mod (name, ID, level set, or part)")
     ap.add_argument("--note", nargs=2, metavar=("KEY", "TEXT"),
-                    help="set a note on a mod, level set or chapter (empty TEXT removes it)")
-    ap.add_argument("--rate", nargs=2, metavar=("KEY", "N"), help="rate a mod (or chapter) 1 to 5; 0 clears")
-    ap.add_argument("--difficulty", nargs=2, metavar=("KEY", "TEXT"),
-                    help="your difficulty label, e.g. Expert or GM+1 (empty clears)")
+                    help="set a note on a mod (empty TEXT removes it)")
+    ap.add_argument("--rate", nargs=2, metavar=("KEY", "N"), help="rate how much you enjoyed a mod, 1 to 5; 0 clears")
+    ap.add_argument("--difficulty", nargs=2, metavar=("KEY", "LEVEL"),
+                    help=f"how hard a mod is for you: {', '.join(DIFFICULTIES)} (empty clears)")
+    ap.add_argument("--tag", nargs=2, metavar=("KEY", "TAG"), help="add a tag of your own to a mod")
+    ap.add_argument("--untag", nargs=2, metavar=("KEY", "TAG"), help="remove a tag from a mod")
     ap.add_argument("--drop", metavar="KEY", help="mark a mod as dropped")
     ap.add_argument("--undrop", metavar="KEY", help="unmark a dropped mod")
     ap.add_argument("--rename", nargs=2, metavar=("KEY", "NAME"),
@@ -508,6 +516,9 @@ def main(argv=None):
         if getattr(args, flag):
             edit_field(store, lib, flag, *getattr(args, flag))
             return
+    if args.tag or args.untag:
+        edit_tags(store, lib, *(args.tag or args.untag), add=bool(args.tag))
+        return
     if args.drop or args.undrop:
         k = resolve_key(args.drop or args.undrop, lib)
         store.set_field(k, "dropped", bool(args.drop))

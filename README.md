@@ -41,7 +41,7 @@ uv run celeste_progress.py                                           # every mod
 uv run celeste_progress.py --slot 1                                  # one slot, with its unfinished chapters
 uv run celeste_progress.py --set "Sentient Forest"                   # one mod: its chapters and sides, and the slots you played it in
 uv run celeste_progress.py --note hikki "stopped at the ice part"
-uv run celeste_progress.py --rate "Sentient Forest" 5             # also: --difficulty KEY TEXT, --drop / --undrop KEY
+uv run celeste_progress.py --rate "Sentient Forest" 5             # also: --difficulty KEY LEVEL, --tag / --untag KEY TAG, --drop / --undrop KEY
 uv run celeste_progress.py --rename mindcrack "MINDCRACK"           # your own name for a mod ("" undoes it)
 uv run celeste_progress.py --markdown progress.md
 uv run celeste_progress.py --json progress.json                      # everything parsed, for other tools ('-' = stdout)
@@ -50,11 +50,11 @@ uv run celeste_progress.py --slot 1 --dump                           # raw XML o
 
 `python -m celeste_tracker` works the same as `celeste_progress.py`.
 
-`--serve [PORT]` starts a local page (only reachable from your own computer) with the same data: one table row per mod with its A/B/C progress, the slot it comes from, search, a slot picker, a Show menu (all mods, playing, complete, not started) and sorting by any column header. Click a mod to open it: a collab opens to its level sets, each level set to its chapters, and a chapter to its A/B/C sides. The page reloads by itself when the game saves, and the URL keeps what you opened, so a view can be bookmarked. Ratings, notes and the other fields of your own are edited with the CLI for now (the page shows them, but its edit fields are hidden). The page's design plan is `doc/UI.md`.
+`--serve [PORT]` starts a local page (only reachable from your own computer) with the same data: one table row per mod with its A/B/C progress, the slot it comes from, search, a slot picker, a Filter panel (status, your rating, difficulty, tags and note), columns you can show, hide and resize, and sorting by any column header. Click a mod to open it: a collab opens to its level sets, each level set to its chapters, and a chapter to its A/B/C sides. Rate a mod with the stars in its row, click its Note cell to write a note, and open it to set how hard it is for you and add tags. The page reloads by itself when the game saves, and the URL keeps what you opened and filtered, so a view can be bookmarked. The ? button explains the page. Its design plan is `doc/UI.md`.
 
 `--save-config` stores `--saves` and `--mods` in a config file (`~/.local/share/celeste-tracker/config.toml` on Linux/WSL, `%APPDATA%\celeste-tracker\config.toml` on Windows). Later runs use it; flags still win, and `--no-mods` skips the Mods folder. The store (`tracker.db`: your notes and ratings, plus a cache of the Mods folder scan) and the mod list cache (`moddb.json`) sit next to it; `--offline` never downloads, `--refresh-moddb` downloads now. Without a config, the tool looks in the default Saves folder for your OS. Under WSL you need `--saves` or the config.
 
-`--set` takes a mod's name or ID, a level set's ID or title, or a unique part of one; a collab's level set shows just that tier. `--note`, `--rate`, `--difficulty`, `--drop` and `--rename` take a mod's name or ID (or for notes and ratings, a level set or chapter), or a unique part of one. They are kept in `tracker.db` next to the config, and show in the Mine column and in `--set`. Notes from an old `celeste_notes.json` are imported on the first run (or with `--import-notes FILE`).
+`--set` takes a mod's name or ID, a level set's ID or title, or a unique part of one; a collab's level set shows just that tier. `--note`, `--rate`, `--difficulty`, `--tag`, `--untag`, `--drop` and `--rename` take a mod's name or ID, or a unique part of one. `--difficulty` is one of Beginner, Intermediate, Advanced, Expert or Grandmaster. They are kept in `tracker.db` next to the config, and show on the page, in the Mine column and in `--set`. Notes from an old `celeste_notes.json` are imported on the first run (or with `--import-notes FILE`).
 
 Statuses: a side is *completed* (cleared), *in progress* or *not opened*; ♥ marks a collected crystal heart. A mod or level set is *complete*, *in progress*, *started*, *not started*, or *all opened done* when the mod isn't in the Mods folder to give the real totals (those totals are marked `?`).
 

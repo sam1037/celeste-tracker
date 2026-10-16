@@ -3,7 +3,7 @@
 GET  /                 the page (static/index.html, app.js, style.css, icon.png, and its font in static/fonts)
 GET  /api/library      the whole model as JSON (schema 2, same as --json); ?refresh=1 rescans the Mods folder
 GET  /api/status       {"version": n}: n goes up when a save file changed, so the page knows to reload
-POST /api/user         {"key", "field", "value"}: set one of the player's fields (store.FIELDS)
+POST /api/user         {"key", "field", "value"}: set one of the player's fields (store.FIELDS, or "tags": a list) on a mod
 GET  /api/prefs        the page's own settings (hidden columns, column widths), {} at first
 POST /api/prefs        a JSON object of at most 4 KB: replaces them
 
@@ -31,6 +31,7 @@ FILES = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascrip
          "/fonts/atkinson-next-latin-ext.woff2": ("fonts/atkinson-next-latin-ext.woff2", "font/woff2")}
 HEADER = "X-Celeste-Tracker"
 MAX_PREFS = 4096
+MAX_TEXT = 2000  # a note, as app.js limits it
 
 
 class App:
@@ -79,14 +80,23 @@ class App:
         self.reload_saves()
 
     def edit(self, key, field, value):
-        if field not in FIELDS or not isinstance(key, str) or not key:
+        if (field not in FIELDS and field != "tags") or not isinstance(key, str) or not key:
             raise ValueError("bad key or field")
+        if not any(m.id == key for m in self.library.mods):  # the player's fields are per mod (doc/UI.md)
+            raise ValueError(f"no mod {key!r}")
+        if field == "tags":
+            if not isinstance(value, list):
+                raise ValueError("tags must be a list")
+            self.store.set_tags(key, value)
+            return self.rebuild()
         if field == "rating":
             value = int(value or 0)
         elif field == "dropped":
             value = bool(value)
         else:
             value = str(value or "").strip()
+            if len(value) > MAX_TEXT:
+                raise ValueError(f"at most {MAX_TEXT} characters")
         self.store.set_field(key, field, value)
         self.rebuild()
 

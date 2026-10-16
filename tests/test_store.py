@@ -35,6 +35,24 @@ def test_bad_values(store):
         store.set_field("Mod", "colour", "red")
 
 
+def test_difficulty_is_one_of_the_tiers(store):
+    store.set_field("Mod", "difficulty", "Expert")
+    with pytest.raises(ValueError, match="Grandmaster"):
+        store.set_field("Mod", "difficulty", "GM+1")
+    assert store.user_fields() == {"Mod": {"difficulty": "Expert"}}
+
+
+def test_tags(store):
+    assert store.set_tags("Mod", ["  For   Golden ", "tech", "TECH", ""]) == ["for golden", "tech"]
+    store.set_field("Mod", "rating", 3)
+    assert store.user_fields() == {"Mod": {"rating": 3, "tags": ["for golden", "tech"]}}
+    assert store.set_tags("Other", ["x" * 50]) == ["x" * 30]
+    with pytest.raises(ValueError, match="at most 20"):
+        store.set_tags("Mod", [f"t{n}" for n in range(21)])
+    store.set_tags("Mod", [])
+    assert store.user_fields() == {"Mod": {"rating": 3}, "Other": {"tags": ["x" * 30]}}
+
+
 def test_import_notes_keeps_existing_ones(store, tmp_path):
     store.set_field("A", "note", "newer")
     old = tmp_path / "old.json"
