@@ -16,6 +16,19 @@ With `--mods` it reads your Mods folder (zip file lists, `everest.yaml` and `Dia
 
 *The author's own saves: 32 slots, about 270 mods.*
 
+## Features
+
+- **No mods loaded:** progress comes from the save files, and chapter lists from the Mods folder's zips, so the game stays fast.
+- **Every mod at a glance:** one row per mod with its Olympus name and GameBanana author; collabs open to their level sets, chapters and A/B/C sides.
+- **Progress in sides:** a bar and "x/y sides" on every row, plus deaths, time, best time, strawberries and crystal hearts.
+- **All your slots together:** each mod shows the slot you got furthest in, and opening it lists the others.
+- **Where you left off:** the slots saved inside a chapter, with their side, checkpoint and room, and a Checkpoint column with the last checkpoint reached in each side you haven't cleared yet.
+- **Your own fields:** rate mods with stars, write notes, set how hard a mod is for you (Beginner to Grandmaster) and add your own tags.
+- **Find things fast:** search by mod or author, filter by status, rating, difficulty, tags or note, sort by any column, and show, hide or resize columns.
+- **Live:** the page reloads when the game saves, and its URL keeps what you opened and filtered, so a view can be bookmarked.
+- **Desktop app or command line:** a window for Windows and macOS, or the CLI with Markdown and JSON export.
+- **Read-only and private:** it never changes your saves or mods, and nothing about your saves is sent anywhere.
+
 > **Made with AI.** Most of this project's code and docs were written with an AI coding assistant ([Claude Code](https://claude.com/claude-code)), directed, reviewed and tested by the author on their own saves and Mods folder. It can still have mistakes, so if a number looks wrong, compare it with the game and [open an issue](https://github.com/sam1037/celeste-tracker/issues). The tool only reads your files, so a bug can show wrong progress but can't change your saves or mods.
 
 ## Download (players)
