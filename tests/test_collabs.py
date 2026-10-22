@@ -1,6 +1,6 @@
 """Collab conventions: titles written on the line under their dialog key, gyms left out of the catalog, lobbies
 marked.
-Everything here is made up; the layout copies what real collabs do (doc/NOTES.md)."""
+Everything here is made up; the layout copies what real collabs do (docs/NOTES.md)."""
 import pytest
 
 from celeste_tracker.cli import main

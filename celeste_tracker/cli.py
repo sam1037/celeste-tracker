@@ -1,4 +1,4 @@
-"""Command line: argument parsing and text / markdown rendering of the model (doc/DESIGN.md, "Showing the tree")."""
+"""Command line: argument parsing and text / markdown rendering of the model (docs/DESIGN.md, "Showing the tree")."""
 import argparse
 import sys
 from pathlib import Path

@@ -1,9 +1,9 @@
-"""Completion rules from doc/PRD.md ("Definition of completed"). The only place statuses are decided.
+"""Completion rules from docs/PRD.md ("Definition of completed"). The only place statuses are decided.
 
 - Side completed: cleared. The crystal heart doesn't count: many sides have none (lobbies, prologues), and for
   mods the save can't tell. Hearts collected are counted separately (View.hearts), as information.
 - Chapter completed: every side it has is completed. Level set / mod completed: every chapter in it is.
-- All slots (doc/DESIGN.md): each mod shows the slot that got furthest in it (furthest_slot). Every node's
+- All slots (docs/DESIGN.md): each mod shows the slot that got furthest in it (furthest_slot). Every node's
   "all" view is a copy of that slot's view, so nothing is added up or mixed across slots.
 """
 from dataclasses import replace

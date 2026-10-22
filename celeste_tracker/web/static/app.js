@@ -100,7 +100,7 @@ function buildIndex(data) {
   }
 }
 
-// The page uses three statuses at every level, mod, level set, chapter and side (doc/UI.md, "Statuses"): the
+// The page uses three statuses at every level, mod, level set, chapter and side (docs/UI.md, "Statuses"): the
 // server's "in progress" and "started" are both in progress; "complete", a side's or chapter's "completed" and
 // "all opened done" (a mod not in the Mods folder, every opened side cleared, its totals marked "?") are all
 // completed; "not opened" is not started. The CLI and the JSON keep the server's words.
@@ -111,7 +111,7 @@ const STATUS_HELP = {
   completed: "Every side cleared",
   "not started": "Never opened",
 };
-// The Filter panel (doc/UI.md, "Filters"): one line per group. Choices in one line widen the list (a mod needs one of
+// The Filter panel (docs/UI.md, "Filters"): one line per group. Choices in one line widen the list (a mod needs one of
 // them), lines narrow it (a mod needs every line). A group that isn't multi takes one choice at a time. The status
 // IDs (playing, complete) are the old Show menu's, so bookmarks still work.
 const FILTER_GROUPS = [
@@ -183,7 +183,7 @@ function visibleMods() {
 // ------------------------------------------------------------------ rendering
 
 function bar(v) {
-  // Sides cleared, in one color (doc/UI.md); hovering shows the count per side letter.
+  // Sides cleared, in one color (docs/UI.md); hovering shows the count per side letter.
   const title = Object.entries(v.by_side || {}).map(([k, [d, t]]) => `${k} sides: ${d} of ${t} cleared`).join("\n");
   return `<div class="bar" title="${esc(title)}"><i style="width:${(100 * v.sides_done) / (v.sides_total || 1)}%"></i></div>`;
 }
@@ -230,7 +230,7 @@ function stars(m, where) {
 
 // ------------------------------------------------------------------ columns
 
-// The columns after the arrow (doc/UI.md, "Columns"). Each has a width in px that the player can drag (the line
+// The columns after the arrow (docs/UI.md, "Columns"). Each has a width in px that the player can drag (the line
 // at its right edge), as in Excel: the columns to its right move along, and the table scrolls sideways when it's
 // wider than the window. The defaults fit the 1200px page with the columns shown at first. Every column but Mod can be
 // hidden from the Columns menu. Best and Berries start hidden (user, 2026-10-07). Slot only shows with "All slots".
@@ -313,7 +313,7 @@ function checkpointCell(v, where = "") {
     `${where === "chapter" && at ? `<span class="sub">${esc(at)}</span>` : where === "side" && side ? `<span class="sub">${esc(side)}</span>` : ""}</span>`;
 }
 
-// The tree table (doc/UI.md, "Layout"): mods, level sets, chapters and sides are all rows of one grid with the
+// The tree table (docs/UI.md, "Layout"): mods, level sets, chapters and sides are all rows of one grid with the
 // same columns, indented by level. Only rows with something under them open.
 const notPlayed = (v) => v.status === "not started" || v.status === "not opened";
 const dash = (v, text) => (notPlayed(v) ? "-" : text);
@@ -348,7 +348,7 @@ function numbers(v, bestTime) {
 
 function modCard({ m, v }) {
   const open = state.open.has(m.id);
-  // The dim second line, as Olympus shows it: ID ∙ details (doc/UI.md, "What players already know").
+  // The dim second line, as Olympus shows it: ID ∙ details (docs/UI.md, "What players already know").
   const sub = esc([m.id !== m.name ? m.id : "", m.sets.length > 1 ? `${m.sets.length} level sets` : ""]
     .filter(Boolean).join(" ∙ ")) + ownTags(m);
   const chs = chapters(m);
@@ -456,7 +456,7 @@ function shownSlot(m, v) {
   return `Shown: <b>slot ${esc(v.slot)}</b>, your furthest; also played in ${list}`;
 }
 
-// The Yours panel, in an opened mod: every field the player sets on it, in one place (doc/UI.md, "Your fields").
+// The Yours panel, in an opened mod: every field the player sets on it, in one place (docs/UI.md, "Your fields").
 // Dropped and the rename are still only set with the CLI.
 function yours(m) {
   const id = `note-${cls(m.id)}`, d = m.user.difficulty || "";
@@ -667,7 +667,7 @@ async function rate(group, n) {
 }
 
 // The first time the player sets a difficulty or adds a tag, that column turns on by itself, once, with a notice
-// that says so (doc/UI.md, "Your fields"); hiding it again from the Columns menu sticks.
+// that says so (docs/UI.md, "Your fields"); hiding it again from the Columns menu sticks.
 function firstUse(col) {
   if (prefs.auto.includes(col)) return;
   prefs.auto = [...prefs.auto, col];

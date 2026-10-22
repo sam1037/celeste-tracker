@@ -1,4 +1,4 @@
-"""The tracker's own data (doc/DESIGN.md, "Store"): one SQLite file next to the config, never in the repo.
+"""The tracker's own data (docs/DESIGN.md, "Store"): one SQLite file next to the config, never in the repo.
 
 - user_fields: what the player adds, per mod ID: note, difficulty, rating, dropped and a rename. Keys made before
   the fields were per mod can be a level set or chapter SID.

@@ -1,4 +1,4 @@
-# PyInstaller spec for the desktop app (doc/DESIGN.md, step 7). Build on the OS you build for:
+# PyInstaller spec for the desktop app (docs/DESIGN.md, step 7). Build on the OS you build for:
 #   uv run --group build --extra desktop pyinstaller packaging/celeste-tracker.spec --noconfirm
 # Windows: dist/CelesteTracker/CelesteTracker.exe (a folder: starts faster and trips antivirus less than one file).
 # macOS:   dist/Celeste Tracker.app (unsigned).

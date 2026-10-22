@@ -1,4 +1,4 @@
-"""GameBanana titles for mod IDs, from Everest's public mod database (doc/DESIGN.md, "Mod database").
+"""GameBanana titles for mod IDs, from Everest's public mod database (docs/DESIGN.md, "Mod database").
 
 Two public files are downloaded (plain GET, nothing about the player is sent):
 - everest_update.yaml: mod ID (everest.yaml Name) -> GameBananaFileId

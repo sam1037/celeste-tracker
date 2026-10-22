@@ -1,4 +1,4 @@
-"""The desktop app (doc/DESIGN.md, step 7): the --serve page in its own window, for players without Python or a
+"""The desktop app (docs/DESIGN.md, step 7): the --serve page in its own window, for players without Python or a
 terminal. This is what the Windows and macOS downloads run.
 
 It starts the same server as --serve, on a free port and on a thread, and shows the page in a pywebview window

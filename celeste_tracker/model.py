@@ -1,4 +1,4 @@
-"""The data model (doc/DESIGN.md, "Data model"): one catalog of what exists, with each slot's progress on it.
+"""The data model (docs/DESIGN.md, "Data model"): one catalog of what exists, with each slot's progress on it.
 
 Catalog: Mod > LevelSet > Chapter > Side, built once from the Mods folder, the vanilla list and the chapters
 the slots mention, leaving out collab gyms (is_gym). Progress: each Side has one View per slot that has a
@@ -116,7 +116,7 @@ class LevelSet:
 @dataclass
 class Mod:
     id: str                      # everest.yaml Name; "Celeste" for vanilla; the level set name if no mod was found
-    name: str                    # what players see (doc/DESIGN.md, "Mod names")
+    name: str                    # what players see (docs/DESIGN.md, "Mod names")
     name_source: str             # renamed | gamebanana | map title | level set title | mod id | vanilla
     gamebanana_title: str
     author: str                  # GameBanana author (a collab's is its team); "" when the mod isn't on GameBanana

@@ -8,11 +8,11 @@ With `--mods` it reads your Mods folder (zip file lists, `everest.yaml` and `Dia
 
 ## Demo
 
-![Opening a collab to its tiers and chapters, then searching for a mod and opening its A, B and C sides](doc/media/demo.gif)
+![Opening a collab to its tiers and chapters, then searching for a mod and opening its A, B and C sides](docs/media/demo.gif)
 
 | Every mod, from the slot you got furthest in | A collab opens to its tiers | One mod opens to its sides |
 |---|---|---|
-| [![Overview: one row per mod with sides done, deaths, time and slot](doc/media/overview.png)](doc/media/overview.png) | [![Spring Collab 2020 opened to its six tiers](doc/media/collab.png)](doc/media/collab.png) | [![Sentient Forest opened to its A, B and C sides](doc/media/sides.png)](doc/media/sides.png) |
+| [![Overview: one row per mod with sides done, deaths, time and slot](docs/media/overview.png)](docs/media/overview.png) | [![Spring Collab 2020 opened to its six tiers](docs/media/collab.png)](docs/media/collab.png) | [![Sentient Forest opened to its A, B and C sides](docs/media/sides.png)](docs/media/sides.png) |
 
 *The author's own saves: 32 slots, about 270 mods.*
 
@@ -63,7 +63,7 @@ uv run celeste_progress.py --slot 1 --dump                           # raw XML o
 
 `python -m celeste_tracker` works the same as `celeste_progress.py`.
 
-`--serve [PORT]` starts a local page (only reachable from your own computer) with the same data: one table row per mod with its A/B/C progress, the slot it comes from, search, a slot picker, a Filter panel (status, your rating, difficulty, tags and note), columns you can show, hide and resize, and sorting by any column header. Click a mod to open it: a collab opens to its level sets, each level set to its chapters, and a chapter to its A/B/C sides. Rate a mod with the stars in its row, click its Note cell to write a note, and open it to set how hard it is for you and add tags. The page reloads by itself when the game saves, and the URL keeps what you opened and filtered, so a view can be bookmarked. The ? button explains the page. Its design plan is `doc/UI.md`.
+`--serve [PORT]` starts a local page (only reachable from your own computer) with the same data: one table row per mod with its A/B/C progress, the slot it comes from, search, a slot picker, a Filter panel (status, your rating, difficulty, tags and note), columns you can show, hide and resize, and sorting by any column header. Click a mod to open it: a collab opens to its level sets, each level set to its chapters, and a chapter to its A/B/C sides. Rate a mod with the stars in its row, click its Note cell to write a note, and open it to set how hard it is for you and add tags. The page reloads by itself when the game saves, and the URL keeps what you opened and filtered, so a view can be bookmarked. The ? button explains the page. Its design plan is `docs/UI.md`.
 
 `--save-config` stores `--saves` and `--mods` in a config file (`~/.local/share/celeste-tracker/config.toml` on Linux/WSL, `%APPDATA%\celeste-tracker\config.toml` on Windows). Later runs use it; flags still win, and `--no-mods` skips the Mods folder. The store (`tracker.db`: your notes and ratings, plus a cache of the Mods folder scan) and the mod list cache (`moddb.json`) sit next to it; `--offline` never downloads, `--refresh-moddb` downloads now. Without a config, the tool looks in the default Saves folder for your OS. Under WSL you need `--saves` or the config.
 
@@ -85,13 +85,14 @@ Releases: push a tag like `v0.2.0`, and `.github/workflows/release.yml` tests, b
 
 ## Files
 
-- `celeste_tracker/`: the code (layout in `doc/DESIGN.md`); `celeste_progress.py` (CLI) and `celeste_desktop.py` (window) are thin entry points
+- `celeste_tracker/`: the code (layout in `docs/DESIGN.md`); `celeste_progress.py` (CLI) and `celeste_desktop.py` (window) are thin entry points
 - `packaging/`: the PyInstaller spec for the downloads
 - `tests/`: pytest tests and made-up fixture saves
-- `doc/PRD.md`: goal, users, requirements and the definition of "completed"
-- `doc/DESIGN.md`: tech stack and architecture
-- `doc/UI.md`: the design plan for the `--serve` page
-- `doc/NOTES.md`: build status, the save format and open questions
+- `docs/PRD.md`: goal, users, requirements and the definition of "completed"
+- `docs/DESIGN.md`: tech stack and architecture
+- `docs/UI.md`: the design plan for the `--serve` page
+- `docs/NOTES.md`: build status, the save format and open questions
+- `docs/TODO.md`: backlog, next steps and what's done
 - `local/`: your own save copies for testing (gitignored)
 
 ## License

@@ -1,4 +1,4 @@
-/* Tokens: doc/UI.md. Status has no color of its own: one progress color for every side, and form says how far. */
+/* Tokens: docs/UI.md. Status has no color of its own: one progress color for every side, and form says how far. */
 @font-face {
   font-family: "Atkinson Hyperlegible Next"; font-style: normal; font-weight: 200 800; font-display: swap;
   src: url("/fonts/atkinson-next-latin.woff2") format("woff2");
@@ -68,7 +68,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .brand { display: flex; align-items: baseline; gap: 4px 14px; flex-wrap: wrap; min-width: 0; }
 h1 { font-size: 20px; margin: 0; color: var(--summit); }
-/* The totals in the top bar: each figure with its own label (doc/UI.md, principle 5). */
+/* The totals in the top bar: each figure with its own label (docs/UI.md, principle 5). */
 .figures { display: flex; gap: 4px 22px; flex-wrap: wrap; color: var(--muted); }
 .figures b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .actions { display: flex; align-items: center; gap: 12px; }
@@ -79,7 +79,7 @@ button {
 }
 button:hover { border-color: var(--summit); }
 
-/* The ? button and the help dialog (doc/UI.md, "Help"). */
+/* The ? button and the help dialog (docs/UI.md, "Help"). */
 .help-btn { width: 32px; padding: 5px 0; font-weight: 700; color: var(--muted); }
 .help-btn:hover { color: var(--summit); }
 .help {
@@ -138,7 +138,7 @@ button:hover { border-color: var(--summit); }
 .cols-menu .menu h4 { margin: 4px 6px 0; font-size: 11px; font-weight: 700; color: var(--muted); }
 .cols-menu .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0 0; }
 
-/* The Filter menu (doc/UI.md, "Filters"): a line per group of choices, each a toggle chip with its count. The
+/* The Filter menu (docs/UI.md, "Filters"): a line per group of choices, each a toggle chip with its count. The
    button says how many lines are on. */
 .filter-menu { position: relative; }
 .filter-menu summary {
@@ -215,9 +215,9 @@ button:hover { border-color: var(--summit); }
 .empty { padding: 30px; text-align: center; color: var(--muted); }
 .error { margin: 20px var(--gutter); color: #c0392b; }
 
-/* One table (doc/UI.md, Layout): a header row, then one row per mod, every second one shaded. */
+/* One table (docs/UI.md, Layout): a header row, then one row per mod, every second one shaded. */
 /* The columns: --mod-cols is set by app.js (applyColumns) from the columns shown and their widths; this is only the
-   default before the page has loaded. The status is under the bar, next to "x/y sides" (doc/UI.md, "Progress bar"). */
+   default before the page has loaded. The status is under the bar, next to "x/y sides" (docs/UI.md, "Progress bar"). */
 .list { --mod-cols: 16px 230px 115px 180px 64px 72px 130px 92px 100px 44px; }
 /* The GameBanana author, after the mod's name. Rows inside an opened mod have none, so their name takes both columns
    (--name-span, 1 when the Author column is hidden). */
@@ -363,7 +363,7 @@ tr:last-child td { border-bottom: 0; }
 }
 .chip.c-in-progress { background: transparent; color: var(--progress); }
 
-/* The player's rating (doc/UI.md, "Your fields"): the stars given in the accent, the rest as faint outlines. A mod not
+/* The player's rating (docs/UI.md, "Your fields"): the stars given in the accent, the rest as faint outlines. A mod not
    rated shows nothing until its row is hovered or focused, then faint stars to click; hovering a star previews up to
    it (app.js). */
 .rate { display: flex; gap: 1px; }

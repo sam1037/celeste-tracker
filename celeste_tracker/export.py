@@ -1,4 +1,4 @@
-"""The model as JSON, for the UI and other tools (PRD #10, doc/DESIGN.md "JSON export")."""
+"""The model as JSON, for the UI and other tools (PRD #10, docs/DESIGN.md "JSON export")."""
 import json
 from dataclasses import asdict
 from datetime import datetime, timezone

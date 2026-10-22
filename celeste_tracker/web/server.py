@@ -1,4 +1,4 @@
-"""The local UI server (doc/DESIGN.md, step 6): one static page plus a small JSON API. Standard library only.
+"""The local UI server (docs/DESIGN.md, step 6): one static page plus a small JSON API. Standard library only.
 
 GET  /                 the page (static/index.html, app.js, style.css, icon.png, and its font in static/fonts)
 GET  /api/library      the whole model as JSON (schema 2, same as --json); ?refresh=1 rescans the Mods folder
@@ -82,7 +82,7 @@ class App:
     def edit(self, key, field, value):
         if (field not in FIELDS and field != "tags") or not isinstance(key, str) or not key:
             raise ValueError("bad key or field")
-        if not any(m.id == key for m in self.library.mods):  # the player's fields are per mod (doc/UI.md)
+        if not any(m.id == key for m in self.library.mods):  # the player's fields are per mod (docs/UI.md)
             raise ValueError(f"no mod {key!r}")
         if field == "tags":
             if not isinstance(value, list):
