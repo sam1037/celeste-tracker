@@ -93,3 +93,7 @@ Releases: push a tag like `v0.2.0`, and `.github/workflows/release.yml` tests, b
 - `doc/UI.md`: the design plan for the `--serve` page
 - `doc/NOTES.md`: build status, the save format and open questions
 - `local/`: your own save copies for testing (gitignored)
+
+## License
+
+MIT, see [LICENSE](LICENSE).
