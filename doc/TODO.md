@@ -1,0 +1,31 @@
+# Celeste mod progress tracker: TODO
+
+What's next, what's waiting and what's done. Status per requirement is in [NOTES.md](NOTES.md#status), what to build and why in [PRD.md](PRD.md).
+
+## Backlog
+
+- See how players track progress manually in Excel sheets, to find which columns matter. First pass (2026-10-04): no public personal sheets found. The community challenge lists (Hardest Maps Clear List, goldberries.net) give each side its own entry and mark the level of clearing (clear, full clear, golden). This is why the side became the unit. Real personal sheets would still help: ask in r/celestegame or the Celeste Discord.
+- Desktop app, later: a single instance (a second start opens a second window today), code signing if players hit SmartScreen or Gatekeeper too often.
+- The page can't set dropped or rename yet; the Dropped filter is gone with Show.
+- Columns, maybe later: when the column next to a dragged line is at its minimum, take the width from Sides instead of stopping; double-click a line to fit the column to its longest value (as in Excel and File Explorer) instead of resetting it; reach the resize lines with the keyboard. (Sorting by rating is back with the Rating column, 2026-10-10.)
+- Author search, maybe later: the per-map `<key>_author` dialog lines of collabs ("by ethanol", 23 zips) as search words, so a mapper finds their map inside a collab. They aren't all authors, so they'd need care.
+- Pin a mod.
+
+## Todo
+
+- Next build step: an update notice in the desktop app (check GitHub's latest release on start; players don't hear about new versions otherwise). Snapshots and `.bin` parsing moved to DESIGN's "Maybe later".
+- Keep the player's data across app updates (user, 2026-10-16): notes, ratings, difficulty, tags, names and column settings must survive installing a new version. They are already outside the app folder (`tracker.db` in `%APPDATA%\celeste-tracker`, `~/Library/Application Support/celeste-tracker` on macOS), so replacing the unzipped folder shouldn't touch them, but nothing has been checked on a real update (v0.1.0 to v0.2.0). Still to do: try that update on Windows and macOS; a migration step in `store.py` for when `SCHEMA` goes past 1 (today a store from a newer version stops an older app, and nothing upgrades an older store); maybe a backup of `tracker.db` before a migration, and an export/import of the player's fields to move them to another PC.
+- Export as CSV or Excel (user, 2026-10-16): the progress table, with the player's fields, in a file to open in Excel or Google Sheets. Today there's `--markdown` and `--json` (`export.py`). CSV needs only the standard library (`csv`): one row per mod, or per side, with the columns the page shows; a `--csv FILE` flag and maybe a download button on the page. A real `.xlsx` needs a library (openpyxl) or writing the zip of XML by hand, so ask before adding it; Excel opens a CSV fine (a UTF-8 BOM so mod names with accents show right).
+- Desktop app checks, left from the `author-column` and `mod-notes-rating` branches (WebView2, and WKWebView on macOS): column widths survive closing and reopening the window (that's why they're in the store, not localStorage); the help dialog opens; edits are kept after closing the window; the note field grows (it's sized in JS, as WKWebView has no `field-sizing`); the tag suggestions (`<datalist>`) work.
+- README: the `--serve` paragraph doesn't mention the Author column, the Columns menu, resizing or the help, and the screenshots and GIF in `doc/media/` still show "Slots and tags" and the old widths, without the new columns or the Filter panel.
+- The narrow-screen layout wasn't rechecked after the column changes (phones aren't a target, UI.md "Brief").
+
+## Done
+
+- Page help (2026-10-08): a ? button and the ? key opening a help panel; see UI.md "Help". The request (user, 2026-10-08): tell players how to use the page: rows open by clicking, columns sort by clicking their header, `/` jumps to the search, what the statuses, "slot 1 (+5)", ⊘ (not loaded) and "?" totals mean, and that the page updates by itself when the game saves. Ideas compared, from mature tools (the first two were built):
+  - An info or "?" button in the top bar that opens a short help panel (Linear and Notion keep a "?" in a corner; GitHub's help menu).
+  - `?` opens a list of keyboard shortcuts (GitHub, Gmail, YouTube), next to `/` for the search.
+  - Hints where they're needed, without a separate page: an empty search says what you can search for, the first opened mod points at the sticky rows, column headers keep their tooltips.
+  - Avoid step-by-step tours that pop up on first open (Intro.js, Shepherd): they get in the way of a page opened every day, and would add a dependency.
+- Branch `author-column` (2026-10-08), PR #2, merged: the Author column and search by author, from the GameBanana list; Slot instead of "Slots and tags" (the player's tags moved to the mod's second line); the Columns menu (show or hide any column but Mod); column resizing by dragging the line between two column names, kept in the store through `/api/prefs`; one height for every mod row; the help panel. See UI.md "Layout". Verified with Playwright on the real saves in Chrome, light and dark, and the line widths at 125% scaling. What's left is under Todo.
+- Branch `mod-notes-rating` (2026-10-10), PRs #3 and #4, merged 2026-10-16: the player's fields on the page, per mod. The Rating column, the Note column (2026-10-11: first the note was on the mod's second line, with a ✎ Edit button on the hovered row; both removed), the Yours panel (stars, difficulty, tags, note), difficulty as a fixed list and tags in the store and CLI, Difficulty and Tags columns that turn on with their first use, the Columns menu in two groups, the Filter panel instead of Show. Plan and three mockups: PLAN-notes-rating.md. Verified with Playwright on the real saves (all slots, scratch config) in Chrome, light and dark: rating by click and arrow keys, sorting, notes saving while typing, tags added, suggested and removed, the columns turning on with their notice, old settings without the new columns, filters and old `show=` bookmarks; the CLI on slots 1 and 31. What's left is under Todo.
