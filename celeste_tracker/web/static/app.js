@@ -512,8 +512,9 @@ function renderSummary(rows) {
   const played = state.data.mods.map((m) => viewOf(m)).filter((v) => v.status !== "not started");
   const done = played.filter((v) => pageStatus(v.status) === "completed").length;
   const sides = played.reduce((a, v) => [a[0] + v.sides_done, a[1] + v.sides_total], [0, 0]);
-  const fig = (label, n, of) => `<span>${label} <b>${fmtNum(n)}</b>${of === undefined ? "" : ` of ${fmtNum(of)}`}</span>`;
-  $("summary").innerHTML = fig("Sides completed", sides[0], sides[1]) + fig("Mods completed", done, played.length) +
+  const fig = (label, n, of, unit = "") => `<span>${label} <b>${fmtNum(n)}</b>${of === undefined ? "" : ` of ${fmtNum(of)}${unit}`}</span>`;
+  // "started": the list also has the installed mods never opened, so its total is bigger.
+  $("summary").innerHTML = fig("Sides completed", sides[0], sides[1]) + fig("Mods completed", done, played.length, " started") +
     (filtersOn().length || state.q.trim() ? fig("Showing", rows.length) : "");
 }
 
