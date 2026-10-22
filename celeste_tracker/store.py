@@ -87,7 +87,12 @@ class Store:
     def migrate(self, old):
         """Bring a store from an older version up to SCHEMA: a full copy first (tracker.db.bak-schema<old>), then
         every step in one transaction, so a failed upgrade leaves the store as it was."""
-        self.backup(self.path.with_name(f"{self.path.name}.bak-schema{old}"))
+        copy = self.path.with_name(f"{self.path.name}.bak-schema{old}")
+        try:
+            self.backup(copy)
+        except (OSError, sqlite3.Error) as e:
+            sys.exit(f"Couldn't keep a copy of {self.path} before upgrading it ({e}), so it wasn't changed. "
+                     f"Close other copies of the tracker and try again.")
         with self.db:
             self.db.execute("BEGIN")  # sqlite3 only opens one by itself before INSERT/UPDATE/DELETE, not ALTER
             for n in range(old, SCHEMA):
@@ -97,19 +102,30 @@ class Store:
 
     def backup(self, dest, cache=True):
         """A consistent copy of the store (with what's still in the -wal file), written to dest. cache=False leaves
-        out the mod-scan cache, which is most of the file and is rebuilt by itself."""
+        out the mod-scan cache, which is most of the file and is rebuilt by itself: only the other tables are read."""
         dest = Path(dest)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        tmp = dest.with_name(dest.name + ".tmp")
+        tmp = dest.with_name(f"{dest.name}.{os.getpid()}.tmp")  # two trackers starting at once don't share it
         tmp.unlink(missing_ok=True)
-        self.db.execute("VACUUM INTO ?", (str(tmp),))
-        if not cache:
-            copy = sqlite3.connect(tmp)
-            with copy:
-                copy.execute("DELETE FROM mod_cache")
-            copy.execute("VACUUM")
-            copy.close()
-        os.replace(tmp, dest)
+        try:
+            if cache:
+                self.db.execute("VACUUM INTO ?", (str(tmp),))
+            else:
+                copy = sqlite3.connect(tmp)
+                try:
+                    copy.executescript(TABLES)
+                    copy.execute("ATTACH ? AS src", (str(self.path),))
+                    with copy:
+                        copy.execute("BEGIN")  # one read of src, so the tables match each other
+                        for table in ("meta", "user_fields", "user_tags"):
+                            cols = ", ".join(r[1] for r in copy.execute(f"PRAGMA src.table_info({table})"))
+                            copy.execute(f"INSERT INTO main.{table} ({cols}) SELECT {cols} FROM src.{table}")
+                    copy.execute("DETACH src")
+                finally:
+                    copy.close()
+            os.replace(tmp, dest)
+        finally:
+            tmp.unlink(missing_ok=True)
 
     def backup_daily(self, today=None):
         """Once a day, a copy of the player's fields in backups/ next to the store; the last BACKUPS days are kept.

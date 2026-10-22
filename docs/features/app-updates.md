@@ -65,7 +65,9 @@ One-click update inside the app (later, if players ask): download the zip into t
 
 ## As built (2026-10-22)
 
-- The endpoint is `GET /api/about` (`?check=1` asks now), and it also gives the data folder, which the help panel shows. `/api/status` stays the save-change counter.
+- The endpoint is `GET /api/about`, and it also gives the data folder, which the help panel shows; `POST /api/about/check` asks now, on a thread, and the page polls while `checking` is true (also at load, so it picks up the start-up check). `/api/status` stays the save-change counter.
+- One `Updates` per process (`Updates.for_config`); a cached time without a UTC offset counts as no cache.
+- The daily backup copies only `meta`, `user_fields` and `user_tags` into a fresh file (ATTACH), not the whole store; the pre-upgrade copy is a full `VACUUM INTO`, and if it fails the upgrade stops with a message.
 - The day's answer goes in `update.json` next to the config, not the store's `meta`: the check runs on its own thread, and the store's connection stays on the server's.
 - The notice is a small link in the top bar, "Version 0.3.0 is out", with a ✕; no "What's new" link (the release page has the notes). Shorter than planned so it fits on a phone next to Refresh and ?.
 - Links: nothing to add in `desktop.py`. pywebview already sends `target="_blank"` links to the browser (`OPEN_EXTERNAL_LINKS_IN_BROWSER`, on by default); still to check in a Windows build.

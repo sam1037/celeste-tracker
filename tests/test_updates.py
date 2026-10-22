@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 import tomllib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -84,6 +86,50 @@ def test_errors_are_quiet(tmp_path):
     assert not (tmp_path / "u.json").exists()
     (tmp_path / "u.json").write_text("not json")
     assert Updates(tmp_path / "u.json", fetch=Fake(release()), current="0.2.0", now=lambda: T0).check()["latest"] == "v0.3.0"
+
+
+def test_a_time_without_a_utc_offset_is_ignored(tmp_path):
+    (tmp_path / "u.json").write_text(json.dumps({"tag": "v0.3.0", "url": RELEASES_PAGE, "checked_at": "2026-10-22T10:00:00"}))
+    fake = Fake(release("v0.4.0"))
+    up = Updates(tmp_path / "u.json", fetch=fake, current="0.2.0", now=lambda: T0)
+    assert up.state()["latest"] is None  # unreadable: as if there were no cache
+    assert up.check()["latest"] == "v0.4.0" and fake.calls == 1
+
+
+def test_an_unwritable_cache_still_asks_once_a_day(tmp_path):
+    (tmp_path / "u.json").mkdir()  # can't be written
+    fake = Fake(release())
+    up = Updates(tmp_path / "u.json", fetch=fake, current="0.2.0", now=lambda: T0)
+    up.check()
+    up.check()
+    assert fake.calls == 1 and up.state()["latest"] == "v0.3.0"
+
+
+def test_check_in_background(tmp_path):
+    started, go = threading.Event(), threading.Event()
+
+    def slow():
+        started.set()
+        go.wait(5)
+        return release()
+    up = Updates(tmp_path / "u.json", fetch=slow, current="0.2.0", now=lambda: T0)
+    assert up.check_in_background()["checking"]
+    started.wait(5)
+    assert up.check_in_background()["checking"]  # already running: not a second one
+    go.set()
+    for _ in range(100):
+        if not up.state()["checking"]:
+            break
+        time.sleep(0.01)
+    assert up.state()["latest"] == "v0.3.0" and not up.state()["checking"]
+
+
+def test_for_config(tmp_path):
+    cfg = tmp_path / "c.toml"
+    assert Updates.for_config(cfg, {}, offline=False).enabled
+    assert not Updates.for_config(cfg, {}, offline=True).enabled
+    assert not Updates.for_config(cfg, {"check_updates": False}, offline=False).enabled
+    assert Updates.for_config(cfg, {}, offline=False).cache_path == tmp_path / "update.json"
 
 
 def test_off_never_asks(tmp_path):

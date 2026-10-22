@@ -82,14 +82,16 @@ def remember(cfg_file, saves_dir):
     write_config(cfg_file, {**load_config(cfg_file), "saves": str(saves_dir)})
 
 
-def start_server(cfg_file, saves_dir, offline=False):
-    """The --serve server for every slot in saves_dir, on a free port, on a daemon thread. Returns (server, URL)."""
+def start_server(cfg_file, saves_dir, offline=False, updates=None):
+    """The --serve server for every slot in saves_dir, on a free port, on a daemon thread. Returns (server, URL).
+    updates: the process's one update check (a picked folder starts a second server); made here if not given."""
     from .web.server import App, make_server
     cfg = load_config(cfg_file)
+    if updates is None:
+        updates = Updates.for_config(cfg_file, cfg, offline)
+        updates.check_in_background()
     mods_dir = find_mods_dir(saves_dir, cfg.get("mods"))
     titles = load_titles(cfg_file.parent / "moddb.json", offline=offline) if mods_dir else {}
-    updates = Updates(cfg_file.parent / "update.json", enabled=not offline and cfg.get("check_updates", True))
-    updates.check_in_background()
     app = App(Store(cfg_file.parent / "tracker.db"), mods_dir, titles, saves_dir=saves_dir, updates=updates)
     server = make_server(app, 0)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -109,10 +111,12 @@ def checked_saves(folder):
 def run_window(webview, cfg_file, saves_dir, offline):
     servers = []
     window = None
+    updates = Updates.for_config(cfg_file, load_config(cfg_file), offline)
+    updates.check_in_background()
 
     def show(saves):
         try:
-            server, url = start_server(cfg_file, saves, offline)
+            server, url = start_server(cfg_file, saves, offline, updates)
         except Exception as e:  # anything at all: show it in the window rather than a blank page
             print(f"Error: {e!r}", file=sys.stderr)
             window.load_html(PAGE % f"<h1>Something went wrong</h1><p>{html.escape(repr(e))}</p>")

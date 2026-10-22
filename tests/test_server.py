@@ -173,5 +173,13 @@ def test_about_shows_the_version_and_the_data_folder(server, tmp_path):
     app.updates = Updates(tmp_path / "u.json", current="0.2.0",
                           fetch=lambda: {"tag_name": "v0.3.0", "html_url": "https://github.com/x/y/releases/tag/v0.3.0"})
     assert about(srv)["latest"] is None  # not asked yet
-    a = about(srv, "?check=1")
+    assert about(srv, "?check=1")["latest"] is None  # a GET never asks GitHub (a link on any website could)
+    assert request(srv, "POST", "/api/about/check")[0] == 403  # no header: not from the page
+    status, _, data = request(srv, "POST", "/api/about/check", headers={"X-Celeste-Tracker": "1"})
+    assert status == 200
+    for _ in range(50):  # the check runs on a thread; the page asks again until it's done
+        a = about(srv)
+        if not a["checking"]:
+            break
+        time.sleep(0.05)
     assert a["latest"] == "v0.3.0" and a["current"] == "0.2.0" and not a["off"]

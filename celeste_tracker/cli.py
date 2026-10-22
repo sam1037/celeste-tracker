@@ -505,7 +505,7 @@ def main(argv=None):
     if args.serve is not None:
         from .updates import Updates
         from .web.server import App, serve
-        updates = Updates(cfg_file.parent / "update.json", enabled=not args.offline and cfg.get("check_updates", True))
+        updates = Updates.for_config(cfg_file, cfg, args.offline)
         updates.check_in_background()
         titles = load_titles(cfg_file.parent / "moddb.json", offline=args.offline, refresh=args.refresh_moddb) \
             if mods_dir else {}

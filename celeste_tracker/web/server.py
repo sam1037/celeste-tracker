@@ -6,8 +6,8 @@ GET  /api/status       {"version": n}: n goes up when a save file changed, so th
 POST /api/user         {"key", "field", "value"}: set one of the player's fields (store.FIELDS, or "tags": a list) on a mod
 GET  /api/prefs        the page's own settings (hidden columns, column widths), {} at first
 POST /api/prefs        a JSON object of at most 4 KB: replaces them
-GET  /api/about        the version, whether a newer one is out (updates.Updates.state) and the data folder;
-                       ?check=1 asks GitHub now
+GET  /api/about        the version, whether a newer one is out (updates.Updates.state) and the data folder
+POST /api/about/check  ask GitHub now, on a thread; the page polls /api/about until "checking" is false
 
 Only 127.0.0.1 is served. Requests must name localhost in the Host header (against DNS rebinding), and POSTs
 need the X-Celeste-Tracker header, which other websites can't send without a CORS preflight we never answer.
@@ -48,6 +48,9 @@ class App:
         self.version = 0
         self.mods = load_mods(mods_dir, store.mod_cache())
         self.reload_saves()
+
+    def about(self, update_state):
+        return {**update_state, "data_dir": str(self.store.path.parent)}
 
     def slot_paths(self):
         return list_slots(self.saves_dir) if self.saves_dir else self.fixed_paths
@@ -149,9 +152,7 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/api/prefs":
             return self.send(200, self.app.store.page_prefs())
         if url.path == "/api/about":
-            force = bool(parse_qs(url.query).get("check"))
-            up = self.app.updates.check(force=True) if force else self.app.updates.state()
-            return self.send(200, {**up, "data_dir": str(self.app.store.path.parent)})
+            return self.send(200, self.app.about(self.app.updates.state()))
         if url.path == "/api/status":
             self.app.check()
             return self.send(200, {"version": self.app.version})
@@ -161,6 +162,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.host_ok() or self.headers.get(HEADER) != "1":
             return self.send(403, {"error": "forbidden"})
         path = urlparse(self.path).path
+        if path == "/api/about/check":  # a POST behind the header: other websites can't make it ask GitHub
+            return self.send(200, self.app.about(self.app.updates.check_in_background(force=True)))
         if path not in ("/api/user", "/api/prefs"):
             return self.send(404, {"error": "not found"})
         try:

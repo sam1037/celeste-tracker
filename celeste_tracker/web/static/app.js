@@ -766,13 +766,21 @@ function renderAbout(a) {
     `title="Hide until the next version" aria-label="Hide until the next version">✕</button>`;
 }
 
+// check: ask the server to ask GitHub now. Either way, while a check is running (the start-up one, or this one),
+// ask again every second, for at most 15 s (the server's own timeout is 5 s).
 async function loadAbout(check = false) {
   try {
-    const r = await fetch("/api/about" + (check ? "?check=1" : ""));
-    if (!r.ok) return null;
-    const a = await r.json();
-    renderAbout(a);
-    return a;
+    let r = await fetch(check ? "/api/about/check" : "/api/about", check ? { method: "POST", headers: { "X-Celeste-Tracker": "1" } } : {});
+    for (let i = 0; r.ok && i < 15; i++) {
+      const a = await r.json();
+      if (!a.checking) {
+        renderAbout(a);
+        return a;
+      }
+      await new Promise((done) => setTimeout(done, 1000));
+      r = await fetch("/api/about");
+    }
+    return null;
   } catch {
     return null;
   }
@@ -782,7 +790,7 @@ async function checkUpdate() {
   const out = $("update-result");
   out.textContent = "Checking…";
   const a = await loadAbout(true);
-  if (!a) out.textContent = "Couldn't reach the tracker. Is it still running?";
+  if (!a) out.textContent = "The check didn't finish. Is the tracker still running? Try again.";
   else if (a.off) out.textContent = "Checking is turned off (--offline, or check_updates = false in the config).";
   else if (a.error) out.textContent = "Couldn't reach GitHub. Check your connection and try again.";
   else if (a.latest) out.innerHTML = `<a href="${esc(a.url)}" target="_blank" rel="noopener">Download ${esc(a.latest)}</a>`;
@@ -1030,7 +1038,6 @@ readHash();
 $("q").value = state.q;
 loadPrefs().then(() => {
   load();
-  // The first check of the day may still be on its way when the page opens: ask again a little later.
-  loadAbout().then((a) => { if (a && !a.off && !a.checked_at) setTimeout(loadAbout, 8000); });
+  loadAbout();  // waits for the start-up check if it's still on its way
 });
 setInterval(poll, 5000);
