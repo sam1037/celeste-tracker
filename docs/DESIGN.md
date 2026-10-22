@@ -7,7 +7,7 @@ How the tracker is built. What it does is in [PRD.md](PRD.md). Status and file-f
 | Topic | Decision | Why |
 |---|---|---|
 | Language | Python, managed with uv | The parser already works. The standard library covers XML, zip, `struct` (map `.bin`), `sqlite3` and `http.server` |
-| Runtime dependencies | Standard library first; a library when it saves real work, after asking ([DECISION.md](DECISION.md) #1). Today `pywebview` for the desktop window (the optional `desktop` extra); planned: `openpyxl` for the xlsx export | Players get a PyInstaller build with everything inside, and `uv` installs dependencies for developers |
+| Runtime dependencies | Standard library first; a library when it saves real work, after asking ([DECISION.md](DECISION.md) #1). Today: `openpyxl` for the xlsx export (imported only when exporting), and `pywebview` for the desktop window (the optional `desktop` extra) | Players get a PyInstaller build with everything inside, and `uv` installs dependencies for developers |
 | Dev dependencies | `pytest`; `pyinstaller` and `pillow` (icon conversion) in the `build` group | |
 | Code layout | A `celeste_tracker/` package, replacing the single script | The script is ~670 lines, and the later items add a store, a server and a `.bin` parser |
 | Storage | SQLite file in the user data folder (never in the repo) | Needed for snapshots (dates), editable fields and caches. `sqlite3` is in the standard library |
@@ -46,7 +46,7 @@ celeste_tracker/
   rules.py      side / map / set / mod status, from the PRD's definition
   core.py       load_slot / load_slots: the one call front ends make (parse -> model -> rules)
   store.py      SQLite: user fields, mod-scan cache, snapshots (later)
-  export.py     model -> JSON
+  export.py     model -> JSON; the table, one row per mod -> CSV or xlsx (the page's Export)
   cli.py        argparse, text and markdown rendering
   web/          server.py + static/index.html, app.js, style.css, fonts/: the --serve page
   desktop.py    the page in a pywebview window, the folder picker, the browser fallback

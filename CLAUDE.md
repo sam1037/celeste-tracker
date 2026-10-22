@@ -79,7 +79,7 @@ The CI workflow (`.github/workflows/release.yml`) is the only place the macOS ap
 - **Read-only:** never write to save files or the Mods folder.
 - **No personal data in git:** `local/`, `*.celeste`, `Saves/`, `celeste_notes.json`, `tracker.db*` and `moddb.json` are gitignored, and must stay out of git.
 - **Commit as you go:** make a commit after each finished change, push when needed.
-- **Dependencies:** standard library first; a library is fine when it saves real work (`docs/DECISION.md` #1). Prefer pure-Python packages PyInstaller bundles on both OSes. Ask before adding one, and list it in DESIGN.md "Decisions". Today: `pywebview` in `desktop.py` (the optional `desktop` extra); planned: `openpyxl` (xlsx export). Dev: `pytest`; build: `pyinstaller`, `pillow`.
+- **Dependencies:** standard library first; a library is fine when it saves real work (`docs/DECISION.md` #1). Prefer pure-Python packages PyInstaller bundles on both OSes. Ask before adding one, and list it in DESIGN.md "Decisions". Today: `openpyxl` (xlsx export, `export.py`) and `pywebview` in `desktop.py` (the optional `desktop` extra). Dev: `pytest`; build: `pyinstaller`, `pillow`.
 - **Follow the layers in `docs/DESIGN.md`:** front ends (CLI, web, desktop) never parse files themselves, and the completion rules live in one module.
 - **Don't assume WSL:** other players will run this on Windows, so no hardcoded `/mnt/c` paths in the code.
 - **Be honest about the data:** the save only stores internal IDs and opened maps, and has no dates. Say what is verified on real saves and what is inferred.
