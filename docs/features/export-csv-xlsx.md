@@ -1,6 +1,6 @@
 # Plan: export the progress table as CSV or Excel
 
-Requested by the user (2026-10-16, TODO.md "Export as CSV or Excel"); plan written 2026-10-22, revised the same day (every mod, page only, no CLI). Not started.
+Requested by the user (2026-10-16, TODO.md "Export as CSV or Excel"); plan written 2026-10-22, revised the same day (every mod, page only, no CLI). Built on branch `feat/export` (2026-10-22); see "Status" at the end.
 
 ## The request
 
@@ -65,7 +65,20 @@ The ticked columns at first are the ones shown in the table right now (Columns m
 4. Desktop save dialog; Windows build.
 5. README (drop "Standard library only"), NOTES.md, TODO.md (move to Done).
 
-## Open questions
+## Decided
 
-- Are collabs one row (the mod) enough, or would players want a row per level set later?
+- Collabs are one row, the mod, like every other mod (user, 2026-10-22: "mod on row is enough").
 - Exporting the player's fields alone (for moving to another PC, TODO.md) is a different feature: it needs an import too.
+
+## Status (2026-10-22)
+
+Built as planned. Differences: the direction is a select (Lowest/Highest first, A to Z/Z to A), not a toggle; Slot sits with the save columns.
+
+Verified:
+- `tests/test_export.py` and the export tests in `tests/test_server.py`.
+- The page on the real saves (all 32 slots, 276 mods), with playwright-cli: the panel opens with the shown columns ticked and the table's sort; the CSV had all 276 mods in the table's order with its numbers; the xlsx sorted by name, with numbers, durations, a frozen header and a filter. Choices are saved in `/api/prefs`. No console errors.
+- A Windows build (PyInstaller) bundles openpyxl, and its server answers an xlsx export.
+
+Not verified yet: the Save dialog in the desktop app (Windows and macOS, needs clicking); opening the files in Excel and Google Sheets; export with a filter on (the code sends every mod, ignoring filters, but no test clicks it).
+
+Known: a CSV cell that starts with `-`, `=`, `+` or `@` gets a leading `'` (the formula guard), and Excel shows that `'` in a CSV. One real mod name starts with `-` ("-Mistscape-"). The xlsx has no such mark: its text cells are never formulas.
