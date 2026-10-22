@@ -6,6 +6,8 @@ GET  /api/status       {"version": n}: n goes up when a save file changed, so th
 POST /api/user         {"key", "field", "value"}: set one of the player's fields (store.FIELDS, or "tags": a list) on a mod
 GET  /api/prefs        the page's own settings (hidden columns, column widths), {} at first
 POST /api/prefs        a JSON object of at most 4 KB: replaces them
+GET  /api/about        the version, whether a newer one is out (updates.Updates.state) and the data folder;
+                       ?check=1 asks GitHub now
 
 Only 127.0.0.1 is served. Requests must name localhost in the Host header (against DNS rebinding), and POSTs
 need the X-Celeste-Tracker header, which other websites can't send without a CORS preflight we never answer.
@@ -23,6 +25,7 @@ from ..export import to_dict
 from ..mods import load_mods
 from ..paths import list_slots
 from ..store import FIELDS
+from ..updates import Updates
 
 STATIC = Path(__file__).parent / "static"
 FILES = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascript"),
@@ -37,8 +40,9 @@ MAX_TEXT = 2000  # a note, as app.js limits it
 class App:
     """What the server keeps in memory: the parsed slots, the mod data and the built library."""
 
-    def __init__(self, store, mods_dir, titles, saves_dir=None, slot_paths=None):
+    def __init__(self, store, mods_dir, titles, saves_dir=None, slot_paths=None, updates=None):
         self.store, self.mods_dir, self.titles = store, mods_dir, titles
+        self.updates = updates or Updates(store.path.parent / "update.json", enabled=False)
         self.saves_dir = saves_dir      # all slots in this folder; None = only slot_paths (--slot / --file)
         self.fixed_paths = slot_paths
         self.version = 0
@@ -144,6 +148,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, self.app.json)
         if url.path == "/api/prefs":
             return self.send(200, self.app.store.page_prefs())
+        if url.path == "/api/about":
+            force = bool(parse_qs(url.query).get("check"))
+            up = self.app.updates.check(force=True) if force else self.app.updates.state()
+            return self.send(200, {**up, "data_dir": str(self.app.store.path.parent)})
         if url.path == "/api/status":
             self.app.check()
             return self.send(200, {"version": self.app.version})

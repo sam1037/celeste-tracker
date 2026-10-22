@@ -14,9 +14,11 @@ import threading
 import webbrowser
 from pathlib import Path
 
+from . import __version__
 from .moddb import load_titles
 from .paths import config_path, find_mods_dir, find_saves_dir, list_slots, load_config, saves_in, write_config
 from .store import Store
+from .updates import Updates
 
 TITLE = "Celeste Tracker"
 PAGE = """<!doctype html><meta charset="utf-8"><title>Celeste Tracker</title>
@@ -86,7 +88,9 @@ def start_server(cfg_file, saves_dir, offline=False):
     cfg = load_config(cfg_file)
     mods_dir = find_mods_dir(saves_dir, cfg.get("mods"))
     titles = load_titles(cfg_file.parent / "moddb.json", offline=offline) if mods_dir else {}
-    app = App(Store(cfg_file.parent / "tracker.db"), mods_dir, titles, saves_dir=saves_dir)
+    updates = Updates(cfg_file.parent / "update.json", enabled=not offline and cfg.get("check_updates", True))
+    updates.check_in_background()
+    app = App(Store(cfg_file.parent / "tracker.db"), mods_dir, titles, saves_dir=saves_dir, updates=updates)
     server = make_server(app, 0)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, f"http://localhost:{server.server_address[1]}/"
@@ -176,7 +180,9 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Celeste tracker in its own window.")
     ap.add_argument("--saves", help="path to the Saves folder (default: the config file, else found by itself)")
     ap.add_argument("--config", help=f"config file (default: {config_path()})")
-    ap.add_argument("--offline", action="store_true", help="don't download the mod list for GameBanana titles")
+    ap.add_argument("--offline", action="store_true",
+                    help="don't download the mod list for GameBanana titles, or check for a newer version")
+    ap.add_argument("--version", action="version", version=f"celeste-tracker {__version__}")
     ap.add_argument("--browser", action="store_true", help="open the page in the browser instead of a window")
     args = ap.parse_args(argv)
     cfg_file = Path(args.config) if args.config else config_path()
