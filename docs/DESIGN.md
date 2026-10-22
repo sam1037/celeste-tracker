@@ -7,7 +7,7 @@ How the tracker is built. What it does is in [PRD.md](PRD.md). Status and file-f
 | Topic | Decision | Why |
 |---|---|---|
 | Language | Python, managed with uv | The parser already works. The standard library covers XML, zip, `struct` (map `.bin`), `sqlite3` and `http.server` |
-| Runtime dependencies | Standard library only, plus `pywebview` for the desktop window, as the optional `desktop` extra | The CLI and `--serve` stay standard library only |
+| Runtime dependencies | Standard library first; a library when it saves real work, after asking ([DECISION.md](DECISION.md) #1). Today `pywebview` for the desktop window (the optional `desktop` extra); planned: `openpyxl` for the xlsx export | Players get a PyInstaller build with everything inside, and `uv` installs dependencies for developers |
 | Dev dependencies | `pytest`; `pyinstaller` and `pillow` (icon conversion) in the `build` group | |
 | Code layout | A `celeste_tracker/` package, replacing the single script | The script is ~670 lines, and the later items add a store, a server and a `.bin` parser |
 | Storage | SQLite file in the user data folder (never in the repo) | Needed for snapshots (dates), editable fields and caches. `sqlite3` is in the standard library |

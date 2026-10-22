@@ -9,6 +9,8 @@ Read the docs in `docs/` first:
 - `docs/UI.md`: how the `--serve` page looks and why: the brief, tokens (colors, font), the A/B/C side strip, layout and build order. Read it before changing the page; UI work also uses the `frontend-design` skill.
 - `docs/NOTES.md`: done/todo status per requirement, the save and mod file format as verified on real saves, the known issues, open technical questions and how to release.
 - `docs/TODO.md`: the backlog, what's next (including the next build step) and what's done.
+- `docs/DECISION.md`: decisions about how the project is run, and why (e.g. libraries are allowed).
+- `docs/feature/`: plans for features not built yet.
 
 ## Run and test
 
@@ -77,7 +79,7 @@ The CI workflow (`.github/workflows/release.yml`) is the only place the macOS ap
 - **Read-only:** never write to save files or the Mods folder.
 - **No personal data in git:** `local/`, `*.celeste`, `Saves/`, `celeste_notes.json`, `tracker.db*` and `moddb.json` are gitignored, and must stay out of git.
 - **Commit as you go:** make a commit after each finished change, push when needed.
-- **Dependencies:** runtime code uses only the standard library, except `pywebview` in `desktop.py` (the optional `desktop` extra). Dev: `pytest`; build: `pyinstaller`, `pillow`. Ask before adding anything else.
+- **Dependencies:** standard library first; a library is fine when it saves real work (`docs/DECISION.md` #1). Prefer pure-Python packages PyInstaller bundles on both OSes. Ask before adding one, and list it in DESIGN.md "Decisions". Today: `pywebview` in `desktop.py` (the optional `desktop` extra); planned: `openpyxl` (xlsx export). Dev: `pytest`; build: `pyinstaller`, `pillow`.
 - **Follow the layers in `docs/DESIGN.md`:** front ends (CLI, web, desktop) never parse files themselves, and the completion rules live in one module.
 - **Don't assume WSL:** other players will run this on Windows, so no hardcoded `/mnt/c` paths in the code.
 - **Be honest about the data:** the save only stores internal IDs and opened maps, and has no dates. Say what is verified on real saves and what is inferred.

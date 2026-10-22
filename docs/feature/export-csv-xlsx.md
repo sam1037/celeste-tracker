@@ -47,13 +47,13 @@ The ticked columns at first are the ones shown in the table right now (Columns m
 ### File details
 
 - **CSV:** standard library `csv`, UTF-8 with a BOM (Excel then shows accented mod names right), `\r\n` line ends. Cells starting with `=`, `+`, `-` or `@` (a note, a tag) get a leading `'`, so Excel doesn't run them as formulas.
-- **xlsx:** see open questions: `openpyxl`, or the zip written by hand. Either way: bold header, frozen first row, an autofilter on the header, column widths from the longest value, numbers as numbers.
+- **xlsx:** `openpyxl` (agreed 2026-10-22, [DECISION.md](../DECISION.md) #1), added to `dependencies` in `pyproject.toml` and checked in the PyInstaller builds. Bold header, frozen first row, an autofilter on the header, column widths from the longest value, numbers as numbers.
 
 ## Tests
 
 - `to_rows` on the fixtures: header, one row per ID in the given order, the default columns, 400 on bad input.
 - CSV: BOM, quoting of commas/quotes/newlines in notes, the formula guard.
-- xlsx: read it back (with openpyxl, or unzip and parse `sheet1.xml`), check cell types and values.
+- xlsx: read it back with openpyxl, check cell types and values.
 - The page: playwright-cli on the fixtures, export with a filter on still gives every mod, in the page's sort.
 - By hand: open both files in Excel and Google Sheets, from slot 1 on the Windows PC; the download in the desktop app on Windows and macOS.
 
@@ -63,10 +63,9 @@ The ticked columns at first are the ones shown in the table right now (Columns m
 2. The Export panel; check with playwright-cli.
 3. xlsx.
 4. Desktop save dialog; Windows build.
-5. README, NOTES.md, TODO.md (move to Done).
+5. README (drop "Standard library only"), NOTES.md, TODO.md (move to Done).
 
 ## Open questions
 
-- **xlsx library.** `openpyxl` (pure Python, plus `et_xmlfile`; a few MB in the build) makes this a few lines and is well tested. Writing the zip by hand with `zipfile` keeps the standard-library-only rule (DESIGN.md "Tech stack", which gives no reason for it) but is ~100 lines of XML to maintain. Recommended: openpyxl, and update DESIGN.md, CLAUDE.md and the README's "Standard library only" line. Needs the user's OK.
 - Are collabs one row (the mod) enough, or would players want a row per level set later?
 - Exporting the player's fields alone (for moving to another PC, TODO.md) is a different feature: it needs an import too.
