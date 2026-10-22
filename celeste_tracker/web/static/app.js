@@ -254,7 +254,7 @@ const DEFAULT_HIDDEN = ["best", "berries", "difficulty", "tags"];
 // even for a player whose saved settings don't mention it.
 const OLD_COLUMNS = ["mod", "author", "sides", "deaths", "time", "best", "berries", "slot"];
 const GAP = 12, ARROW = 16; // .mod-head's gap and arrow column, in style.css
-let prefs = { hidden: DEFAULT_HIDDEN, widths: {}, auto: [] };  // auto: the player's columns that turned on by themselves
+let prefs = { hidden: DEFAULT_HIDDEN, widths: {}, auto: [], updateSeen: "" };  // auto: the player's columns that turned on by themselves
 
 const colWidth = (c) => prefs.widths[c.id] || c.width;
 const canShow = (c) => c.id !== "slot" || state.key === "all";
@@ -280,7 +280,8 @@ async function loadPrefs() {
     const p = r.ok ? await r.json() : {};
     const hidden = Array.isArray(p.hidden) ? p.hidden : DEFAULT_HIDDEN, known = Array.isArray(p.known) ? p.known : OLD_COLUMNS;
     prefs = { hidden: [...hidden, ...DEFAULT_HIDDEN.filter((id) => !known.includes(id) && !hidden.includes(id))],
-              widths: p.widths && typeof p.widths === "object" ? p.widths : {}, auto: Array.isArray(p.auto) ? p.auto : [] };
+              widths: p.widths && typeof p.widths === "object" ? p.widths : {}, auto: Array.isArray(p.auto) ? p.auto : [],
+              updateSeen: typeof p.updateSeen === "string" ? p.updateSeen : "" };
   } catch { /* the defaults */ }
 }
 
@@ -751,7 +752,61 @@ async function poll() {
   }
 }
 
+// ------------------------------------------------------------------ version and updates
+
+// The server asks GitHub once a day, on a thread at start (docs/features/app-updates.md). Links open in the
+// player's browser: target=_blank, which the desktop window also hands to the browser.
+function renderAbout(a) {
+  $("version").textContent = a.current;
+  if (a.data_dir) $("data-dir").textContent = a.data_dir;
+  const show = !!a.latest && prefs.updateSeen !== a.latest;
+  $("update").hidden = !show;
+  if (show) $("update").innerHTML = `<a href="${esc(a.url)}" target="_blank" rel="noopener" title="Opens the download page in your browser">` +
+    `Version ${esc(a.latest.replace(/^v/, ""))} is out</a><button type="button" data-update-hide="${esc(a.latest)}" ` +
+    `title="Hide until the next version" aria-label="Hide until the next version">✕</button>`;
+}
+
+// check: ask the server to ask GitHub now. Either way, while a check is running (the start-up one, or this one),
+// ask again every second, for at most 15 s (the server's own timeout is 5 s).
+async function loadAbout(check = false) {
+  try {
+    let r = await fetch(check ? "/api/about/check" : "/api/about", check ? { method: "POST", headers: { "X-Celeste-Tracker": "1" } } : {});
+    for (let i = 0; r.ok && i < 15; i++) {
+      const a = await r.json();
+      if (!a.checking) {
+        renderAbout(a);
+        return a;
+      }
+      await new Promise((done) => setTimeout(done, 1000));
+      r = await fetch("/api/about");
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function checkUpdate() {
+  const out = $("update-result");
+  out.textContent = "Checking…";
+  const a = await loadAbout(true);
+  if (!a) out.textContent = "The check didn't finish. Is the tracker still running? Try again.";
+  else if (a.off) out.textContent = "Checking is turned off (--offline, or check_updates = false in the config).";
+  else if (a.error) out.textContent = "Couldn't reach GitHub. Check your connection and try again.";
+  else if (a.latest) out.innerHTML = `<a href="${esc(a.url)}" target="_blank" rel="noopener">Download ${esc(a.latest)}</a>`;
+  else out.textContent = "You have the latest version.";
+}
+
 // ------------------------------------------------------------------ events
+
+$("update").addEventListener("click", (e) => {
+  const hide = e.target.closest("[data-update-hide]");
+  if (!hide) return;
+  prefs.updateSeen = hide.dataset.updateHide;
+  savePrefs();
+  $("update").hidden = true;
+});
+$("check-update").addEventListener("click", checkUpdate);
 
 $("list").addEventListener("click", (e) => {
   const star = e.target.closest("[data-rate]");
@@ -907,7 +962,7 @@ $("cols").addEventListener("change", (e) => {
 });
 $("cols").addEventListener("click", (e) => {
   if (!e.target.closest("[data-reset-cols]")) return;
-  prefs = { hidden: DEFAULT_HIDDEN, widths: {}, auto: prefs.auto };
+  prefs = { ...prefs, hidden: DEFAULT_HIDDEN, widths: {} };
   savePrefs();
   render();
 });
@@ -981,5 +1036,8 @@ document.addEventListener("keydown", (e) => {
 
 readHash();
 $("q").value = state.q;
-loadPrefs().then(() => load());
+loadPrefs().then(() => {
+  load();
+  loadAbout();  // waits for the start-up check if it's still on its way
+});
 setInterval(poll, 5000);

@@ -3,6 +3,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from . import __version__
 from .core import load_library
 from .export import to_json
 from .model import View
@@ -425,7 +426,8 @@ def parse_args(argv):
     ap.add_argument("--mods", nargs="?", const="auto", metavar="FOLDER",
                     help="read chapters, sides and titles from the Mods folder (default: next to Saves)")
     ap.add_argument("--no-mods", action="store_true", help="don't read the Mods folder, even if the config says to")
-    ap.add_argument("--offline", action="store_true", help="don't download the mod list for GameBanana titles")
+    ap.add_argument("--offline", action="store_true",
+                    help="don't download the mod list for GameBanana titles, or (--serve) check for a newer version")
     ap.add_argument("--refresh-moddb", action="store_true", help="download the mod list now, even if the cache is fresh")
     ap.add_argument("--set", metavar="KEY", help="every chapter and side of one mod (name, ID, level set, or part)")
     ap.add_argument("--note", nargs=2, metavar=("KEY", "TEXT"),
@@ -447,6 +449,7 @@ def parse_args(argv):
                     help="open the tracker as a page in your browser, at http://localhost:PORT (default 8765)")
     ap.add_argument("--config", help=f"config file (default: {config_path()}); the store (tracker.db) and the mod "
                                      "list cache sit next to it")
+    ap.add_argument("--version", action="version", version=f"celeste-tracker {__version__}")
     ap.add_argument("--save-config", action="store_true",
                     help="store the given --saves and --mods in the config file, so later runs don't need them")
     return ap.parse_args(argv)
@@ -500,11 +503,15 @@ def main(argv=None):
 
     mods_dir = mods_dir_for(slot_paths[0][1], mods_arg) if mods_arg else None
     if args.serve is not None:
+        from .updates import Updates
         from .web.server import App, serve
+        updates = Updates.for_config(cfg_file, cfg, args.offline)
+        updates.check_in_background()
         titles = load_titles(cfg_file.parent / "moddb.json", offline=args.offline, refresh=args.refresh_moddb) \
             if mods_dir else {}
         all_slots = not (args.file or args.slot is not None)
-        serve(App(store, mods_dir, titles, slot_paths[0][1].parent if all_slots else None, slot_paths), args.serve)
+        serve(App(store, mods_dir, titles, slot_paths[0][1].parent if all_slots else None, slot_paths,
+                  updates), args.serve)
         return
     mods = load_mods(mods_dir, store.mod_cache())
     titles = load_titles(cfg_file.parent / "moddb.json", offline=args.offline, refresh=args.refresh_moddb) \

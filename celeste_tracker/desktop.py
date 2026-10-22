@@ -14,9 +14,11 @@ import threading
 import webbrowser
 from pathlib import Path
 
+from . import __version__
 from .moddb import load_titles
 from .paths import config_path, find_mods_dir, find_saves_dir, list_slots, load_config, saves_in, write_config
 from .store import Store
+from .updates import Updates
 
 TITLE = "Celeste Tracker"
 PAGE = """<!doctype html><meta charset="utf-8"><title>Celeste Tracker</title>
@@ -80,13 +82,17 @@ def remember(cfg_file, saves_dir):
     write_config(cfg_file, {**load_config(cfg_file), "saves": str(saves_dir)})
 
 
-def start_server(cfg_file, saves_dir, offline=False):
-    """The --serve server for every slot in saves_dir, on a free port, on a daemon thread. Returns (server, URL)."""
+def start_server(cfg_file, saves_dir, offline=False, updates=None):
+    """The --serve server for every slot in saves_dir, on a free port, on a daemon thread. Returns (server, URL).
+    updates: the process's one update check (a picked folder starts a second server); made here if not given."""
     from .web.server import App, make_server
     cfg = load_config(cfg_file)
+    if updates is None:
+        updates = Updates.for_config(cfg_file, cfg, offline)
+        updates.check_in_background()
     mods_dir = find_mods_dir(saves_dir, cfg.get("mods"))
     titles = load_titles(cfg_file.parent / "moddb.json", offline=offline) if mods_dir else {}
-    app = App(Store(cfg_file.parent / "tracker.db"), mods_dir, titles, saves_dir=saves_dir)
+    app = App(Store(cfg_file.parent / "tracker.db"), mods_dir, titles, saves_dir=saves_dir, updates=updates)
     server = make_server(app, 0)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, f"http://localhost:{server.server_address[1]}/"
@@ -105,10 +111,12 @@ def checked_saves(folder):
 def run_window(webview, cfg_file, saves_dir, offline):
     servers = []
     window = None
+    updates = Updates.for_config(cfg_file, load_config(cfg_file), offline)
+    updates.check_in_background()
 
     def show(saves):
         try:
-            server, url = start_server(cfg_file, saves, offline)
+            server, url = start_server(cfg_file, saves, offline, updates)
         except Exception as e:  # anything at all: show it in the window rather than a blank page
             print(f"Error: {e!r}", file=sys.stderr)
             window.load_html(PAGE % f"<h1>Something went wrong</h1><p>{html.escape(repr(e))}</p>")
@@ -176,7 +184,9 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Celeste tracker in its own window.")
     ap.add_argument("--saves", help="path to the Saves folder (default: the config file, else found by itself)")
     ap.add_argument("--config", help=f"config file (default: {config_path()})")
-    ap.add_argument("--offline", action="store_true", help="don't download the mod list for GameBanana titles")
+    ap.add_argument("--offline", action="store_true",
+                    help="don't download the mod list for GameBanana titles, or check for a newer version")
+    ap.add_argument("--version", action="version", version=f"celeste-tracker {__version__}")
     ap.add_argument("--browser", action="store_true", help="open the page in the browser instead of a window")
     args = ap.parse_args(argv)
     cfg_file = Path(args.config) if args.config else config_path()

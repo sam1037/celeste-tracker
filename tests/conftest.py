@@ -1,3 +1,5 @@
+import urllib.parse
+import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -6,6 +8,19 @@ import pytest
 from celeste_tracker.mods import scan_mods
 
 SLOTS = Path(__file__).parent / "fixtures" / "slots"
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    """Tests never use the network (CLAUDE.md): a test that forgets --offline or a fake fetch fails loudly."""
+    urlopen = urllib.request.urlopen
+
+    def local_only(url, *a, **k):
+        host = urllib.parse.urlparse(getattr(url, "full_url", url)).hostname
+        if host not in ("localhost", "127.0.0.1"):
+            raise AssertionError(f"a test tried to use the network ({host})")
+        return urlopen(url, *a, **k)
+    monkeypatch.setattr("urllib.request.urlopen", local_only)
 
 
 def write_zip(path, files):
