@@ -10,7 +10,7 @@ Read the docs in `docs/` first:
 - `docs/NOTES.md`: done/todo status per requirement, the save and mod file format as verified on real saves, the known issues, open technical questions and how to release.
 - `docs/TODO.md`: the backlog, what's next (including the next build step) and what's done.
 - `docs/DECISION.md`: decisions about how the project is run, and why (e.g. libraries are allowed).
-- `docs/feature/`: plans for features not built yet.
+- `docs/features/`: plans for features not built yet.
 
 ## Run and test
 
