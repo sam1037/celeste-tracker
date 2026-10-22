@@ -63,7 +63,7 @@ The page uses the same three statuses at every level (mod, level set, chapter, s
 
 - **"started" (opened, no side cleared) is shown as in progress.** The bar still shows 0 cleared.
 - **"all opened done" is shown as completed.** It means the mod isn't in the Mods folder, so its real total is unknown and every side that was opened is cleared (2 mods in the author's saves). Its totals already carry a "?", and the status's tooltip says why.
-- The top bar says "Sides completed" and "Mods completed" to match.
+- The top bar says "Sides completed" and "Mods completed" to match. "Mods completed x of y started" counts only mods that were opened, so it says "started": the list's "of N mods" also has the installed mods never opened, and without the word the two totals looked like they disagreed (user, 2026-10-22).
 - Old bookmarks still work: the status IDs stay `playing`, `complete` and `notstarted` (now `st=` in the URL), and an old `show=` becomes that Status filter; `show=played` and `show=dropped` open all mods, `show=unfinished` opens In progress. There's no Dropped filter (the page can't set the flag; the CLI can); dropped mods are still dimmed.
 - The status is shown under the bar, at the right of "x/y sides", not in a column of its own (user, 2026-10-08): a full bar already said completed, so the column repeated it. Sorting by status (in progress first, then completed, then not started; within one status, closest to done first) is left only for old bookmarks (`sort=status`); the Sides header sorts by the share of sides cleared.
 
@@ -84,7 +84,7 @@ The panel above the table lists every slot saved inside a chapter (Save & Quit),
 One table, Journal-style:
 
 ```
-┌ Celeste Tracker   Sides completed 486 of 1318   Mods completed 113 of 253              [Refresh] ┐
+┌ Celeste Tracker   Sides completed 486 of 1318   Mods completed 113 of 253 started      [Refresh] ┐
 │ [search……………………………]  Slot [All ▾]  [Filter ▾]  [Columns ▾]                                     │
 │ ▸ Where you left off   Save & Quit in 15 slots                                                   │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────┤
