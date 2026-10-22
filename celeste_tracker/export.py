@@ -44,18 +44,23 @@ def _view(mod, key):
     return v if v is not None else View(status="not started", sides_total=mod.progress[ALL].sides_total)
 
 
+def _counted_sides(ch, key):
+    """The sides the page counts in this slot (app.js countedSides): the ones that exist, or were opened there."""
+    return [s for s in ch.sides.values() if s.exists or key in s.progress]
+
+
 def _best(mod, key):
     """The best time of the mod's only side, as the page's Best column shows it on a mod row; None otherwise."""
     chapters = mod.chapters()
     if len(chapters) != 1:
         return None
-    sides = [s for s in chapters[0].sides.values() if s.exists or key in s.progress]
+    sides = _counted_sides(chapters[0], key)
     if len(sides) != 1 or key not in sides[0].progress:
         return None
     return _duration(sides[0].progress[key].best_ticks)
 
 
-def _checkpoint(mod, v):
+def _checkpoint(mod, v, key):
     """The checkpoint's name and room; on a mod with several chapters, which chapter and side ("Ridge, B side:
     Start (b-00)"), or with several sides, which side, as the page shows under it."""
     cp = v.latest_checkpoint
@@ -66,7 +71,7 @@ def _checkpoint(mod, v):
     if len(chapters) > 1:
         ch = mod.find_chapter(cp["sid"])
         return f"{(ch.title if ch else '') or cp['sid'].rpartition('/')[2]}, {cp['side']} side: {text}"
-    if chapters and len(chapters[0].sides) > 1:
+    if chapters and len(_counted_sides(chapters[0], key)) > 1:
         return f"{cp['side']} side: {text}"
     return text
 
@@ -88,7 +93,7 @@ COLUMNS = {
     "time": ("Time", lambda m, v, k: _duration(v.ticks) if _played(v) else None),
     "best": ("Best", lambda m, v, k: _best(m, k)),
     "berries": ("Berries", lambda m, v, k: v.berries if _played(v) else None),
-    "checkpoint": ("Checkpoint", lambda m, v, k: _checkpoint(m, v)),
+    "checkpoint": ("Checkpoint", lambda m, v, k: _checkpoint(m, v, k)),
     "rating": ("Rating", lambda m, v, k: m.user.get("rating") or None),
     "difficulty": ("Difficulty", lambda m, v, k: m.user.get("difficulty", "")),
     "tags": ("Tags", lambda m, v, k: "; ".join(m.user.get("tags") or [])),
