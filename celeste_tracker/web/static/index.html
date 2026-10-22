@@ -14,6 +14,7 @@
       <span id="summary" class="figures">Loading your saves…</span>
     </div>
     <div class="actions">
+      <span id="update" class="update" role="status" hidden></span>
       <span id="live" class="muted" title="The page reloads by itself when the game saves">● live</span>
       <button id="refresh" type="button" title="Read the Mods folder and all saves again">Refresh</button>
       <button id="help-open" class="help-btn" type="button" title="How to use this page (?)" aria-label="Help">?</button>
@@ -85,6 +86,15 @@
           <b>Refresh</b> after installing or updating mods, to read the Mods folder again.</p>
         <p class="muted">The tracker only reads your save files and never changes them. Saves don't record
           dates, so it can't tell when you played something.</p>
+      </section>
+      <section>
+        <h3>Version</h3>
+        <p class="version-line">Celeste Tracker <b id="version">…</b>
+          <button id="check-update" type="button">Check for updates</button>
+          <span id="update-result" class="muted" role="status"></span></p>
+        <p>To update, download the new version and put it in place of the old Celeste Tracker folder (on a Mac, the
+          app). Your ratings, notes, tags and column settings stay: they're kept in
+          <code id="data-dir">the tracker's own folder</code>, not in the app.</p>
       </section>
     </div>
   </dialog>
