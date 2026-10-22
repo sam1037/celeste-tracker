@@ -1,6 +1,6 @@
 # Plan: tell players about new versions, and keep their data across updates
 
-Requested by the user (2026-10-22; TODO.md "update notice" and "Keep the player's data across app updates"). Not started.
+Requested by the user (2026-10-22; TODO.md "update notice" and "Keep the player's data across app updates"). Built on branch `app-updates` the same day (steps 2, 3, 5, 6); what changed from the plan is under "As built". Left: step 1 and the desktop check in step 4 (TODO.md).
 
 ## The problem
 
@@ -62,6 +62,16 @@ One-click update inside the app (later, if players ask): download the zip into t
 4. Desktop: open links in the browser; Windows build.
 5. Store migration and backup (when the first schema change comes, or now with a test-only schema).
 6. README ("Updating"), NOTES.md, TODO.md (move to Done).
+
+## As built (2026-10-22)
+
+- The endpoint is `GET /api/about` (`?check=1` asks now), and it also gives the data folder, which the help panel shows. `/api/status` stays the save-change counter.
+- The day's answer goes in `update.json` next to the config, not the store's `meta`: the check runs on its own thread, and the store's connection stays on the server's.
+- The notice is a small link in the top bar, "Version 0.3.0 is out", with a ✕; no "What's new" link (the release page has the notes). Shorter than planned so it fits on a phone next to Refresh and ?.
+- Links: nothing to add in `desktop.py`. pywebview already sends `target="_blank"` links to the browser (`OPEN_EXTERNAL_LINKS_IN_BROWSER`, on by default); still to check in a Windows build.
+- The asset URL per OS isn't read: the link goes to the release page.
+- The pre-upgrade copy is `tracker.db.bak-schema<n>`. Added: a daily backup of the player's fields in `backups/` (last 7 days, without the mod cache), and the README says how to restore one.
+- `--offline` also turns the check off in the desktop app.
 
 ## Open questions
 

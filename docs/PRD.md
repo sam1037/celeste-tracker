@@ -72,7 +72,7 @@ Status for each requirement is tracked in [NOTES.md](NOTES.md#status).
 | 9 | Name each mod the way players know it: its GameBanana title (e.g. "Sonder", not the zip's ID `SonderCrispy`). When that isn't available (offline, or the mod isn't on GameBanana): the map's title for a one-map mod, else the level set's title for a one-set mod, else the mod ID |
 | 10 | Export everything parsed as JSON, so the UI reads data instead of re-parsing saves |
 | 11 | Read-only: never write to save files, safe to run while the game is open |
-| 12 | Works offline. The only network access is downloading Everest's public mod database (for #9), and nothing from the player's files is sent |
+| 12 | Works offline. The only network access is downloading Everest's public mod database (for #9) and, in the page and desktop app, asking GitHub once a day for the latest release (off with `check_updates = false`); nothing from the player's files is sent |
 
 ### Should have
 

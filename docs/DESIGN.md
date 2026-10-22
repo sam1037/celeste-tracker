@@ -47,6 +47,7 @@ celeste_tracker/
   core.py       load_slot / load_slots: the one call front ends make (parse -> model -> rules)
   store.py      SQLite: user fields, mod-scan cache, snapshots (later)
   export.py     model -> JSON
+  updates.py    is a newer release out? GitHub's latest release, asked once a day, kept in update.json
   cli.py        argparse, text and markdown rendering
   web/          server.py + static/index.html, app.js, style.css, fonts/: the --serve page
   desktop.py    the page in a pywebview window, the folder picker, the browser fallback
@@ -152,7 +153,7 @@ The `schema` number goes up on breaking changes, so the UI can tell what it got.
 
 | Table | Holds | Notes |
 |---|---|---|
-| `meta` | schema version, whether the old notes were imported | A store from a newer version is refused |
+| `meta` | schema version, whether the old notes were imported, the page's settings | A store from a newer version is refused, with the download link; an older one is upgraded (below) |
 | `user_fields` | key (mod ID), note, difficulty (Beginner to Grandmaster, `store.DIFFICULTIES`), rating (1-5), dropped, rename | Per mod since 2026-10-10; older keys can be a level set or chapter SID, which the CLI still shows. Difficulty was free text before; old values still show. A rename wins over every other mod name. The first run with the real store imports `celeste_notes.json` once; `--import-notes FILE` does it by hand |
 | `user_tags` | key (mod ID), tag | The player's tags, cleaned by `store.clean_tag` (lowercase, at most 30 characters), at most 20 per mod. Added without a schema bump: older versions ignore the table |
 | `mod_cache` | zip path, size, mtime, what was read from it (JSON) | Unchanged zips aren't reopened. With the stat calls on a thread pool, the scan of ~450 zips on `/mnt/c` takes 0.1 s warm (was 3-7 s) |
@@ -160,11 +161,17 @@ The `schema` number goes up on breaking changes, so the UI can tell what it got.
 
 Snapshots are only taken when the tool runs. Dates are "seen by" dates, as precise as how often it runs. The desktop app can take one on launch.
 
+Keeping the player's data across versions ([features/app-updates.md](features/app-updates.md)):
+
+- **Upgrades:** `store.SCHEMA` is the layout this code expects; `store.MIGRATIONS[n](db)` takes a store from schema n to n + 1. Opening an older store first copies it whole to `tracker.db.bak-schema<n>`, then runs every step in one explicit transaction (sqlite3 doesn't open one by itself before `ALTER`), so a failed upgrade leaves it as it was. Bump `SCHEMA` only for changes an older version can't live with (a new column it would write without, a change of keys); a new table needs no bump.
+- **Daily backups:** the first open of a day with any of the player's fields copies the store to `backups/tracker-YYYY-MM-DD.db` (`VACUUM INTO`, so what's still in the `-wal` file is included), without `mod_cache` (36 KB instead of 3.9 MB on the author's store), keeping the last 7. A failed backup is a note on stderr, never an error.
+
 ## UI (`--serve`)
 
 How the page looks (tokens, the side strip, layout) is in [UI.md](UI.md). This section is how it's built.
 
-- `web/server.py`: `http.server` on 127.0.0.1 only, single-threaded. `GET /` serves `static/index.html`, `app.js` and `style.css` (nothing else); `GET /api/library` is the schema 2 JSON (compact, ~2.3 MB for the author's 32 slots, built once per change in ~0.1 s and kept in memory) plus a `version`; `GET /api/status` returns the version; `POST /api/user {key, field, value}` sets one store field on a mod (`field: "tags"` takes a list and replaces the mod's tags); other keys are refused. `GET/POST /api/prefs` keeps the page's own settings (hidden columns, column widths) as one JSON object of at most 4 KB, in the store's `meta` table.
+- `web/server.py`: `http.server` on 127.0.0.1 only, single-threaded. `GET /` serves `static/index.html`, `app.js` and `style.css` (nothing else); `GET /api/library` is the schema 2 JSON (compact, ~2.3 MB for the author's 32 slots, built once per change in ~0.1 s and kept in memory) plus a `version`; `GET /api/status` returns the version; `POST /api/user {key, field, value}` sets one store field on a mod (`field: "tags"` takes a list and replaces the mod's tags); other keys are refused. `GET/POST /api/prefs` keeps the page's own settings (hidden columns, column widths) as one JSON object of at most 4 KB, in the store's `meta` table. `GET /api/about` gives the version, the newer release if there is one, and the data folder; `?check=1` asks GitHub now.
+- Update check (`updates.py`, `--serve` and the desktop app only): on a daemon thread at start, a GET of `api.github.com/repos/sam1037/celeste-tracker/releases/latest` (5 s timeout, no token), at most once a day; the answer goes in `update.json` next to the config, not the store, so the thread never touches the store's connection. Tags compare as three numbers; pre-releases are ignored. Off with `--offline` or `check_updates = false`. The page shows "Version x.y.z is out" in the top bar until its ✕ (the hidden tag is in `/api/prefs`); the link uses `target="_blank"`, which pywebview sends to the browser (`OPEN_EXTERNAL_LINKS_IN_BROWSER`, on by default). `__version__` (in `celeste_tracker/__init__.py`) must equal `pyproject.toml`'s (a test) and the tag (the release workflow).
 - The server keeps the parsed slots in memory. An edit rebuilds the model from them (no file reads); `/api/status` and `/api/library` stat the slot files (on a thread pool) and reparse when one changed, so the page, which polls `/api/status` every 5 s, follows the game's saves. `?refresh=1` also rescans the Mods folder.
 - Security: requests must name `localhost`/`127.0.0.1` in `Host` (DNS rebinding); POSTs need the `X-Celeste-Tracker: 1` header, which a page on another site can't send without a CORS preflight the server never answers. The page puts every string through `esc()`; verified in Chrome with a mod renamed to an `<img onerror>` payload.
 - `app.js` applies no rules: statuses and totals come from the JSON. It filters, sorts and draws: mod rows → level sets (collabs only) → chapters → sides, skipping a level with one entry. View state (slot, filter, sort, search, open mods / level sets / chapters) is in the URL hash.

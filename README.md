@@ -43,6 +43,8 @@ Get the zip for your system from the [Releases page](https://github.com/sam1037/
 
 It only reads your saves and mods, and never changes them. Its own files (notes, ratings, caches, `desktop.log`) are in `%APPDATA%\celeste-tracker` on Windows and `~/Library/Application Support/celeste-tracker` on macOS.
 
+**Updating:** the app checks GitHub once a day for a newer release and says so in its top bar ("Version 0.3.0 is out"); the help panel (?) shows your version and has *Check for updates*. To update, download the new zip and put the new `CelesteTracker` folder (or the app, on macOS) in place of the old one. Your notes, ratings, tags and column settings stay, since they're in the folder above, not in the app. That folder also keeps a backup of them for each of the last 7 days in `backups/`: to go back to one, close the tracker, delete `tracker.db`, `tracker.db-wal` and `tracker.db-shm`, and copy the backup in as `tracker.db`. The check sends nothing about you; turn it off with `check_updates = false` in `config.toml` (or `--offline`).
+
 ## Run from source
 
 ```bash
