@@ -9,6 +9,7 @@ import time
 import pytest
 
 from celeste_tracker.store import Store
+from celeste_tracker.web import server as server_module
 from celeste_tracker.web.server import App, make_server
 
 from conftest import SLOTS
@@ -160,6 +161,15 @@ def test_export_refuses_bad_requests(server):
     assert export(srv, {**good, "ids": "Collab"})[0] == 400
     assert export(srv, {**good, "slot": "7"})[0] == 400
     assert export(srv, good, headers={"Host": f"localhost:{srv.server_address[1]}"})[0] == 403  # no header
+
+
+def test_export_without_openpyxl_says_so(server, monkeypatch):
+    srv, _, _ = server
+    def missing(rows):
+        raise ModuleNotFoundError("No module named 'openpyxl'", name="openpyxl")
+    monkeypatch.setitem(server_module.EXPORT, "xlsx", (server_module.EXPORT["xlsx"][0], missing))
+    status, _, _, data = export(srv, {"fmt": "xlsx", "slot": "all", "cols": ["mod"], "ids": ["Collab"]})
+    assert status == 500 and "openpyxl" in json.loads(data)["error"]
 
 
 def test_a_changed_save_is_picked_up(server):

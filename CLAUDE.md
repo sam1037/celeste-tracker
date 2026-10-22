@@ -59,7 +59,7 @@ Desktop app (`celeste_tracker/desktop.py`, docs/DESIGN.md "Desktop app"): pywebv
 ```bash
 B=/mnt/c/Users/manyi/AppData/Local/Temp/celeste-tracker-build; PY=/mnt/c/Users/manyi/AppData/Local/Programs/Python/Python312/python.exe
 mkdir -p $B/src && git ls-files | tar -cf - -T - | tar -xf - -C $B/src
-$PY -m venv $B/venv && $B/venv/Scripts/python.exe -m pip install pywebview pyinstaller pillow
+$PY -m venv $B/venv && $B/venv/Scripts/python.exe -m pip install pywebview pyinstaller pillow openpyxl
 (cd $B/src && ../venv/Scripts/python.exe -m PyInstaller packaging/celeste-tracker.spec --noconfirm)
 $B/src/dist/CelesteTracker/CelesteTracker.exe --config 'C:\Users\manyi\AppData\Local\Temp\celeste-tracker-build\cfg\c.toml' --offline   # in the background
 ```

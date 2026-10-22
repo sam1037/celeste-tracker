@@ -55,11 +55,20 @@ def _best(mod, key):
     return _duration(sides[0].progress[key].best_ticks)
 
 
-def _checkpoint(v):
+def _checkpoint(mod, v):
+    """The checkpoint's name and room; on a mod with several chapters, which chapter and side ("Ridge, B side:
+    Start (b-00)"), or with several sides, which side, as the page shows under it."""
     cp = v.latest_checkpoint
     if not cp:
         return ""
-    return f"{cp['title']} ({cp['room']})" if cp["title"] else cp["room"]
+    text = f"{cp['title']} ({cp['room']})" if cp["title"] else cp["room"]
+    chapters = mod.chapters()
+    if len(chapters) > 1:
+        ch = mod.find_chapter(cp["sid"])
+        return f"{(ch.title if ch else '') or cp['sid'].rpartition('/')[2]}, {cp['side']} side: {text}"
+    if chapters and len(chapters[0].sides) > 1:
+        return f"{cp['side']} side: {text}"
+    return text
 
 
 def _played(v):
@@ -79,7 +88,7 @@ COLUMNS = {
     "time": ("Time", lambda m, v, k: _duration(v.ticks) if _played(v) else None),
     "best": ("Best", lambda m, v, k: _best(m, k)),
     "berries": ("Berries", lambda m, v, k: v.berries if _played(v) else None),
-    "checkpoint": ("Checkpoint", lambda m, v, k: _checkpoint(v)),
+    "checkpoint": ("Checkpoint", lambda m, v, k: _checkpoint(m, v)),
     "rating": ("Rating", lambda m, v, k: m.user.get("rating") or None),
     "difficulty": ("Difficulty", lambda m, v, k: m.user.get("difficulty", "")),
     "tags": ("Tags", lambda m, v, k: "; ".join(m.user.get("tags") or [])),

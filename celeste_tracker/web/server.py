@@ -196,6 +196,8 @@ class Handler(BaseHTTPRequestHandler):
             self.app.edit(body.get("key"), body.get("field"), body.get("value"))
         except (ValueError, TypeError, json.JSONDecodeError) as e:
             return self.send(400, {"error": str(e)})
+        except ImportError as e:  # an Excel export from a build without openpyxl: say so, don't drop the connection
+            return self.send(500, {"error": f"Excel export isn't available in this build ({e.name or e})"})
         self.send(200, {"ok": True, "version": self.app.version})
 
 

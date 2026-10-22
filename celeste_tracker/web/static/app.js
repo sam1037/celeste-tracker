@@ -332,9 +332,12 @@ function openExport() {
   // Each time the panel opens: the table's sort, and the columns last exported (at first, the ones shown).
   const shown = shownCols().map((c) => c.id), saved = prefs.export || {};
   exp.fmt = saved.fmt === "xlsx" ? "xlsx" : "csv";
-  exp.cols = Array.isArray(saved.cols) ? saved.cols : EXPORT_COLUMNS.filter((c) => shown.includes(c.page)).map((c) => c.id);
-  exp.sort = state.sort;
-  exp.dir = sortDir();
+  exp.cols = Array.isArray(saved.cols) ? saved.cols.filter((id) => EXPORT_COLUMNS.some((c) => c.id === id))  // none from an older page
+    : EXPORT_COLUMNS.filter((c) => shown.includes(c.page)).map((c) => c.id);
+  // The table can still be sorted by Slot after picking one slot, where the panel doesn't offer it.
+  const offered = state.sort !== "slot" || state.key === "all";
+  exp.sort = offered ? state.sort : "time";
+  exp.dir = offered ? sortDir() : FIRST_DIR.time;
   renderExport();
 }
 
@@ -346,7 +349,8 @@ function renderExport() {
       `${on ? " checked" : ""}${c.id === "mod" || off ? " disabled" : ""}> ${c.label}</label>`;
   };
   const fmt = (id, label) => `<button type="button" class="opt" data-xfmt="${id}" aria-pressed="${exp.fmt === id}">${label}</button>`;
-  const words = exp.sort === "name" || exp.sort === "author" ? ["A to Z", "Z to A"] : ["Lowest first", "Highest first"];
+  const words = exp.sort === "name" || exp.sort === "author" ? ["A to Z", "Z to A"]
+    : exp.sort === "status" ? ["In progress first", "Not started first"] : ["Lowest first", "Highest first"];
   $("export").innerHTML = `
     <span class="lab">Format</span><div class="opts">${fmt("csv", "CSV")}${fmt("xlsx", "Excel")}</div>
     <span class="lab">Columns</span>
@@ -386,7 +390,12 @@ async function download() {
     const api = window.pywebview?.api;
     if (api?.save_file) {
       const where = await api.save_file(name, await base64(blob));
-      if (where) showNotice(`Saved <b>${esc(where)}</b>`);
+      if (!where) {  // the player cancelled the Save dialog: nothing was written, so the panel stays
+        msg.textContent = "Not saved.";
+        btn.disabled = false;
+        return;
+      }
+      showNotice(`Saved <b>${esc(where)}</b>`);
     } else {
       const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: name });
       a.click();

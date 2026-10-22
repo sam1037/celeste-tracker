@@ -43,7 +43,7 @@ def test_values(lib):
     assert (row["Sides cleared"], row["Sides total"]) == (2, 3)
     assert isinstance(row["Time"], timedelta) and row["Deaths"] > 0
     assert row["Rating"] == 4 and row["Tags"] == "golden; fun" and row["Difficulty"] == ""
-    assert row["Checkpoint"].endswith("(c-01)") or row["Checkpoint"] == "c-01"
+    assert row["Checkpoint"].startswith("C side: ") and "c-01" in row["Checkpoint"]  # one chapter, three sides
     assert isinstance(row["Slot"], int)
     assert dict(zip(head, vanilla))["Rating"] is None
 
