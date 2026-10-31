@@ -1,6 +1,6 @@
 [project]
 name = "celeste-tracker"
-version = "0.2.0"
+version = "0.3.0"
 description = "Track Celeste (Everest) mod progress from save files, without loading the mods"
 readme = "README.md"
 license = "MIT"
