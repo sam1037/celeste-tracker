@@ -73,7 +73,7 @@ Technical notes on the "Later" items:
 
 ## Releasing
 
-Bump `version` in `pyproject.toml`, commit, `git tag -a vX.Y.Z -m "..."`, `git push origin vX.Y.Z`; the workflow tests, builds and publishes. Never move a tag that was pushed: release the next patch instead.
+Bump `version` in `pyproject.toml` and `__version__` in `celeste_tracker/__init__.py` (a test checks they match, and the workflow stops if the tag doesn't), commit, `git tag -a vX.Y.Z -m "..."`, `git push origin vX.Y.Z`; the workflow tests, builds and publishes. Never move a tag that was pushed: release the next patch instead.
 
 ## TODO
 

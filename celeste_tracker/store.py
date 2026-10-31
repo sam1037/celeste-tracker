@@ -5,15 +5,25 @@
 - user_tags: the player's tags, per mod ID.
 - mod_cache: what was read from each mod zip, keyed by path, size and mtime, so unchanged zips aren't reopened.
 - meta: the schema version, and the page's own settings (which columns are shown, their widths).
-The save files and the Mods folder are never written (PRD #11); only this file is.
+The save files and the Mods folder are never written (PRD #11); only this file is, plus its backups: one a day in
+backups/ next to it, and a full copy before an upgrade from an older version (docs/features/app-updates.md).
 """
 import json
+import os
 import sqlite3
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
+from .updates import RELEASES_PAGE
+
 SCHEMA = 1
+# Upgrade steps for stores from older versions: MIGRATIONS[n](db) takes a store at schema n to n + 1. When a change
+# needs one (a new column, a key that changes), bump SCHEMA and add its step; use db.execute, not executescript
+# (which commits), so all steps run in one transaction. A new table doesn't need one: TABLES creates it, and older
+# versions ignore it, so they can still open the store.
+MIGRATIONS = {}
+BACKUPS = 7  # days of backups/ kept
 FIELDS = ("note", "difficulty", "rating", "dropped", "rename")
 DIFFICULTIES = ("Beginner", "Intermediate", "Advanced", "Expert", "Grandmaster")  # the collab tiers; as in app.js
 MAX_TAG, MAX_TAGS = 30, 20  # characters in a tag, tags on a mod
@@ -58,14 +68,80 @@ class Store:
         self.db.execute("PRAGMA synchronous = NORMAL")
         with self.db:
             self.db.executescript(TABLES)
-            version = self.meta("schema")
-            if version is None:
+        version = self.meta("schema")
+        if version is None:
+            with self.db:
                 self.set_meta("schema", str(SCHEMA))
-            elif int(version) > SCHEMA:
-                sys.exit(f"{self.path} was written by a newer version of celeste-tracker.")
+        elif int(version) > SCHEMA:
+            sys.exit(f"{self.path} was written by a newer version of celeste-tracker. "
+                     f"Download the latest version: {RELEASES_PAGE}")
+        elif int(version) < SCHEMA:
+            self.migrate(int(version))
+        self.backup_daily()
 
     def close(self):
         self.db.close()
+
+    # ------------------------------------------------------------ upgrades and backups
+
+    def migrate(self, old):
+        """Bring a store from an older version up to SCHEMA: a full copy first (tracker.db.bak-schema<old>), then
+        every step in one transaction, so a failed upgrade leaves the store as it was."""
+        copy = self.path.with_name(f"{self.path.name}.bak-schema{old}")
+        try:
+            self.backup(copy)
+        except (OSError, sqlite3.Error) as e:
+            sys.exit(f"Couldn't keep a copy of {self.path} before upgrading it ({e}), so it wasn't changed. "
+                     f"Close other copies of the tracker and try again.")
+        with self.db:
+            self.db.execute("BEGIN")  # sqlite3 only opens one by itself before INSERT/UPDATE/DELETE, not ALTER
+            for n in range(old, SCHEMA):
+                MIGRATIONS[n](self.db)
+            self.set_meta("schema", str(SCHEMA))
+        print(f"Upgraded {self.path} for this version (a copy of the old one is kept next to it).", file=sys.stderr)
+
+    def backup(self, dest, cache=True):
+        """A consistent copy of the store (with what's still in the -wal file), written to dest. cache=False leaves
+        out the mod-scan cache, which is most of the file and is rebuilt by itself: only the other tables are read."""
+        dest = Path(dest)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dest.with_name(f"{dest.name}.{os.getpid()}.tmp")  # two trackers starting at once don't share it
+        tmp.unlink(missing_ok=True)
+        try:
+            if cache:
+                self.db.execute("VACUUM INTO ?", (str(tmp),))
+            else:
+                copy = sqlite3.connect(tmp)
+                try:
+                    copy.executescript(TABLES)
+                    copy.execute("ATTACH ? AS src", (str(self.path),))
+                    with copy:
+                        copy.execute("BEGIN")  # one read of src, so the tables match each other
+                        for table in ("meta", "user_fields", "user_tags"):
+                            cols = ", ".join(r[1] for r in copy.execute(f"PRAGMA src.table_info({table})"))
+                            copy.execute(f"INSERT INTO main.{table} ({cols}) SELECT {cols} FROM src.{table}")
+                    copy.execute("DETACH src")
+                finally:
+                    copy.close()
+            os.replace(tmp, dest)
+        finally:
+            tmp.unlink(missing_ok=True)
+
+    def backup_daily(self, today=None):
+        """Once a day, a copy of the player's fields in backups/ next to the store; the last BACKUPS days are kept.
+        Nothing to copy (no notes, ratings or tags yet): no backup. Never stops the tracker."""
+        if not self.db.execute("SELECT 1 FROM user_fields UNION ALL SELECT 1 FROM user_tags LIMIT 1").fetchone():
+            return
+        folder = self.path.parent / "backups"
+        dest = folder / f"{self.path.stem}-{today or date.today().isoformat()}.db"
+        if dest.exists():
+            return
+        try:
+            self.backup(dest, cache=False)
+            for old in sorted(folder.glob(f"{self.path.stem}-????-??-??.db"))[:-BACKUPS]:
+                old.unlink()
+        except (OSError, sqlite3.Error) as e:
+            print(f"Note: couldn't back up {self.path} ({e}).", file=sys.stderr)
 
     def meta(self, key):
         row = self.db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()

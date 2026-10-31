@@ -9,6 +9,7 @@ import time
 import pytest
 
 from celeste_tracker.store import Store
+from celeste_tracker.updates import Updates
 from celeste_tracker.web import server as server_module
 from celeste_tracker.web.server import App, make_server
 
@@ -202,3 +203,28 @@ def test_a_page_that_hangs_up_mid_answer_is_not_an_error(server, capfd):
     assert request(srv, "GET", "/api/status")[0] == 200
     err = capfd.readouterr().err
     assert "Traceback" not in err and "Broken pipe" not in err
+
+
+def about(srv, query=""):
+    status, _, data = request(srv, "GET", "/api/about" + query)
+    assert status == 200
+    return json.loads(data)
+
+
+def test_about_shows_the_version_and_the_data_folder(server, tmp_path):
+    srv, app, _ = server
+    a = about(srv)
+    assert a["off"] and a["latest"] is None and a["current"] and a["data_dir"] == str(tmp_path)
+    app.updates = Updates(tmp_path / "u.json", current="0.2.0",
+                          fetch=lambda: {"tag_name": "v0.3.0", "html_url": "https://github.com/x/y/releases/tag/v0.3.0"})
+    assert about(srv)["latest"] is None  # not asked yet
+    assert about(srv, "?check=1")["latest"] is None  # a GET never asks GitHub (a link on any website could)
+    assert request(srv, "POST", "/api/about/check")[0] == 403  # no header: not from the page
+    status, _, data = request(srv, "POST", "/api/about/check", headers={"X-Celeste-Tracker": "1"})
+    assert status == 200
+    for _ in range(50):  # the check runs on a thread; the page asks again until it's done
+        a = about(srv)
+        if not a["checking"]:
+            break
+        time.sleep(0.05)
+    assert a["latest"] == "v0.3.0" and a["current"] == "0.2.0" and not a["off"]
