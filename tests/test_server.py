@@ -10,6 +10,7 @@ import pytest
 
 from celeste_tracker.store import Store
 from celeste_tracker.updates import Updates
+from celeste_tracker.web import server as server_module
 from celeste_tracker.web.server import App, make_server
 
 from conftest import SLOTS
@@ -126,6 +127,50 @@ def test_page_settings_are_kept_in_the_store(server):
     assert request(srv, "POST", "/api/prefs", prefs, headers={"Content-Type": "text/plain"})[0] == 403
     assert request(srv, "POST", "/api/prefs", ["author"], headers=headers)[0] == 400
     assert request(srv, "POST", "/api/prefs", {"x": "y" * 5000}, headers=headers)[0] == 400
+
+
+def export(srv, body, headers=None):
+    port = srv.server_address[1]
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    conn.request("POST", "/api/export", json.dumps(body), headers=headers or {
+        "Host": f"localhost:{port}", "Content-Type": "application/json", "X-Celeste-Tracker": "1"})
+    r = conn.getresponse()
+    data = r.read()
+    conn.close()
+    return r.status, r.getheader("Content-Type", ""), r.getheader("Content-Disposition", ""), data
+
+
+def test_export(server):
+    srv, _, _ = server
+    ids = [m["id"] for m in library(srv)["mods"]][::-1]
+    status, ctype, disp, data = export(srv, {"fmt": "csv", "slot": "all", "cols": ["mod", "id"], "ids": ids})
+    assert status == 200 and ctype == "text/csv; charset=utf-8"
+    assert disp.startswith('attachment; filename="celeste-progress-') and disp.endswith('.csv"')
+    lines = data.decode("utf-8-sig").splitlines()
+    assert lines[0] == "Mod,Mod ID" and len(lines) == len(ids) + 1  # every mod sent, in the page's order
+    assert lines[1].endswith("," + ids[0])
+    status, ctype, disp, data = export(srv, {"fmt": "xlsx", "slot": "2", "cols": ["mod"], "ids": ids})
+    assert status == 200 and ctype.endswith(".sheet") and disp.endswith('-slot-2.xlsx"') and data.startswith(b"PK")
+
+
+def test_export_refuses_bad_requests(server):
+    srv, _, _ = server
+    good = {"fmt": "csv", "slot": "all", "cols": ["mod"], "ids": ["Collab"]}
+    assert export(srv, {**good, "fmt": "pdf"})[0] == 400
+    assert export(srv, {**good, "cols": ["nope"]})[0] == 400
+    assert export(srv, {**good, "ids": ["No/Such/Mod"]})[0] == 400
+    assert export(srv, {**good, "ids": "Collab"})[0] == 400
+    assert export(srv, {**good, "slot": "7"})[0] == 400
+    assert export(srv, good, headers={"Host": f"localhost:{srv.server_address[1]}"})[0] == 403  # no header
+
+
+def test_export_without_openpyxl_says_so(server, monkeypatch):
+    srv, _, _ = server
+    def missing(rows):
+        raise ModuleNotFoundError("No module named 'openpyxl'", name="openpyxl")
+    monkeypatch.setitem(server_module.EXPORT, "xlsx", (server_module.EXPORT["xlsx"][0], missing))
+    status, _, _, data = export(srv, {"fmt": "xlsx", "slot": "all", "cols": ["mod"], "ids": ["Collab"]})
+    assert status == 500 and "openpyxl" in json.loads(data)["error"]
 
 
 def test_a_changed_save_is_picked_up(server):

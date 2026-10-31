@@ -1,4 +1,5 @@
-"""The local UI server (docs/DESIGN.md, step 6): one static page plus a small JSON API. Standard library only.
+"""The local UI server (docs/DESIGN.md, step 6): one static page plus a small JSON API, on the standard library's
+http.server.
 
 GET  /                 the page (static/index.html, app.js, style.css, icon.png, and its font in static/fonts)
 GET  /api/library      the whole model as JSON (schema 2, same as --json); ?refresh=1 rescans the Mods folder
@@ -8,6 +9,8 @@ GET  /api/prefs        the page's own settings (hidden columns, column widths), 
 POST /api/prefs        a JSON object of at most 4 KB: replaces them
 GET  /api/about        the version, whether a newer one is out (updates.Updates.state) and the data folder
 POST /api/about/check  ask GitHub now, on a thread; the page polls /api/about until "checking" is false
+POST /api/export       {"fmt": "csv" or "xlsx", "slot", "cols": [...], "ids": [mod IDs, in order]}: the table as a
+                       file (export.to_rows). The page sorts, so the file's order is the page's
 
 Only 127.0.0.1 is served. Requests must name localhost in the Host header (against DNS rebinding), and POSTs
 need the X-Celeste-Tracker header, which other websites can't send without a CORS preflight we never answer.
@@ -16,12 +19,13 @@ import json
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from ..core import build, read_slots
-from ..export import to_dict
+from ..export import to_csv, to_dict, to_rows, to_xlsx
 from ..mods import load_mods
 from ..paths import list_slots
 from ..store import FIELDS
@@ -35,6 +39,9 @@ FILES = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascrip
 HEADER = "X-Celeste-Tracker"
 MAX_PREFS = 4096
 MAX_TEXT = 2000  # a note, as app.js limits it
+MAX_EXPORT = 1 << 20  # an export's list of mod IDs: ~10 KB for 300 mods
+EXPORT = {"csv": ("text/csv", to_csv),
+          "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", to_xlsx)}
 
 
 class App:
@@ -107,6 +114,18 @@ class App:
         self.store.set_field(key, field, value)
         self.rebuild()
 
+    def export(self, body):
+        """(file name, content type, bytes) for a POST /api/export body. Raises ValueError on a bad one."""
+        fmt, slot, cols, ids = (body.get(k) for k in ("fmt", "slot", "cols", "ids"))
+        if fmt not in EXPORT:
+            raise ValueError("fmt must be csv or xlsx")
+        if not isinstance(slot, str) or not isinstance(cols, list) or not isinstance(ids, list):
+            raise ValueError("expected slot, cols and ids")
+        ctype, write = EXPORT[fmt]
+        data = write(to_rows(self.library, slot, cols, ids))
+        name = f"celeste-progress-{date.today().isoformat()}{'' if slot == 'all' else f'-slot-{slot}'}.{fmt}"
+        return name, ctype, data
+
 
 class Handler(BaseHTTPRequestHandler):
     app: App = None
@@ -118,14 +137,18 @@ class Handler(BaseHTTPRequestHandler):
     def host_ok(self):
         return self.headers.get("Host", "") in (f"127.0.0.1:{self.port}", f"localhost:{self.port}")
 
-    def send(self, code, body, ctype="application/json"):
+    def send(self, code, body, ctype="application/json", filename=None):
         if isinstance(body, (dict, list)):
             body = json.dumps(body).encode()
         elif isinstance(body, str):
             body = body.encode()
         try:
             self.send_response(code)
-            self.send_header("Content-Type", ctype if ctype.startswith(("font/", "image/")) else f"{ctype}; charset=utf-8")
+            text = ctype.startswith("text/") or ctype.endswith("/json")
+            self.send_header("Content-Type", f"{ctype}; charset=utf-8" if text else ctype)
+            if filename:  # a slot key can be any file stem, so only safe characters
+                safe = "".join(ch if ch.isascii() and (ch.isalnum() or ch in "-_.") else "_" for ch in filename)
+                self.send_header("Content-Disposition", f'attachment; filename="{safe}"')
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
@@ -164,21 +187,28 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/about/check":  # a POST behind the header: other websites can't make it ask GitHub
             return self.send(200, self.app.about(self.app.updates.check_in_background(force=True)))
-        if path not in ("/api/user", "/api/prefs"):
+        if path not in ("/api/user", "/api/prefs", "/api/export"):
             return self.send(404, {"error": "not found"})
         try:
             size = int(self.headers.get("Content-Length", 0))
             if path == "/api/prefs" and size > MAX_PREFS:
                 raise ValueError("settings too large")
+            if size > MAX_EXPORT:
+                raise ValueError("request too large")
             body = json.loads(self.rfile.read(size) or b"{}")
             if not isinstance(body, dict):
                 raise ValueError("expected a JSON object")
             if path == "/api/prefs":
                 self.app.store.set_page_prefs(body)
                 return self.send(200, {"ok": True})
+            if path == "/api/export":
+                name, ctype, data = self.app.export(body)
+                return self.send(200, data, ctype, filename=name)
             self.app.edit(body.get("key"), body.get("field"), body.get("value"))
         except (ValueError, TypeError, json.JSONDecodeError) as e:
             return self.send(400, {"error": str(e)})
+        except ImportError as e:  # an Excel export from a build without openpyxl: say so, don't drop the connection
+            return self.send(500, {"error": f"Excel export isn't available in this build ({e.name or e})"})
         self.send(200, {"ok": True, "version": self.app.version})
 
 

@@ -7,6 +7,7 @@ Qt on Linux), the page opens in the default browser instead. If the Celeste fold
 for it first, and remembers the answer in the config file.
 """
 import argparse
+import base64
 import html
 import os
 import sys
@@ -139,6 +140,18 @@ def run_window(webview, cfg_file, saves_dir, offline):
             # which fails (an error in the log) if the page is already gone.
             threading.Timer(0.5, lambda: (window.load_html(LOADING), show(saves))).start()
             return ""
+
+        def save_file(self, name, data):
+            """The page's Export: WebView2 and WKWebView don't reliably save a download, so ask where and write the
+            file (base64 data) here. Returns the path, or "" when the player cancels."""
+            ext = Path(name).suffix.lstrip(".")
+            picked = window.create_file_dialog(webview.FileDialog.SAVE, save_filename=Path(name).name,
+                                               file_types=(f"{ext.upper()} file (*.{ext})",))
+            if not picked:
+                return ""
+            path = Path(picked[0] if isinstance(picked, (list, tuple)) else picked)
+            path.write_bytes(base64.b64decode(data))
+            return str(path)
 
     def started():
         # Replacing the first page before it has loaded doesn't stick (WebView2 kept showing it), so wait for it.
