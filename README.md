@@ -1,6 +1,6 @@
 # Celeste-tracker
 
-See your Celeste mod progress straight from the save files, without enabling the mods (loading many mods slows the game down). Standard library only.
+See your Celeste mod progress straight from the save files, without enabling the mods (loading many mods slows the game down).
 
 One row per **mod**, named the way you know it from Olympus (its GameBanana title), with collabs split into their level sets underneath. Progress is counted in **sides**: a chapter's A, B and C sides each count once, and a side is done when it's cleared (crystal hearts are shown, but don't count). By default all your save slots are shown together: each mod shows the slot where you got furthest in it (the row says which), and opening it lists the other slots you played it in.
 
@@ -25,6 +25,7 @@ With `--mods` it reads your Mods folder (zip file lists, `everest.yaml` and `Dia
 - **Where you left off:** the slots saved inside a chapter, with their side, checkpoint and room, and a Checkpoint column with the last checkpoint reached in each side you haven't cleared yet.
 - **Your own fields:** rate mods with stars, write notes, set how hard a mod is for you (Beginner to Grandmaster) and add your own tags.
 - **Find things fast:** search by mod or author, filter by status, rating, difficulty, tags or note, sort by any column, and show, hide or resize columns.
+- **Export to a spreadsheet:** save every mod as a CSV or Excel file, one row per mod, with the columns and order you pick.
 - **Live:** the page reloads when the game saves, and its URL keeps what you opened and filtered, so a view can be bookmarked.
 - **Desktop app or command line:** a window for Windows and macOS, or the CLI with Markdown and JSON export.
 - **Read-only and private:** it never changes your saves or mods, and nothing about your saves is sent anywhere.
@@ -63,7 +64,7 @@ uv run celeste_progress.py --slot 1 --dump                           # raw XML o
 
 `python -m celeste_tracker` works the same as `celeste_progress.py`.
 
-`--serve [PORT]` starts a local page (only reachable from your own computer) with the same data: one table row per mod with its A/B/C progress, the slot it comes from, search, a slot picker, a Filter panel (status, your rating, difficulty, tags and note), columns you can show, hide and resize, and sorting by any column header. Click a mod to open it: a collab opens to its level sets, each level set to its chapters, and a chapter to its A/B/C sides. Rate a mod with the stars in its row, click its Note cell to write a note, and open it to set how hard it is for you and add tags. The page reloads by itself when the game saves, and the URL keeps what you opened and filtered, so a view can be bookmarked. The ? button explains the page. Its design plan is `docs/UI.md`.
+`--serve [PORT]` starts a local page (only reachable from your own computer) with the same data: one table row per mod with its A/B/C progress, the slot it comes from, search, a slot picker, a Filter panel (status, your rating, difficulty, tags and note), columns you can show, hide and resize, and sorting by any column header. Click a mod to open it: a collab opens to its level sets, each level set to its chapters, and a chapter to its A/B/C sides. Rate a mod with the stars in its row, click its Note cell to write a note, and open it to set how hard it is for you and add tags. The page reloads by itself when the game saves, and the URL keeps what you opened and filtered, so a view can be bookmarked. **Export** saves every mod as a CSV or Excel file, with the columns and sort order you pick. The ? button explains the page. Its design plan is `docs/UI.md`.
 
 `--save-config` stores `--saves` and `--mods` in a config file (`~/.local/share/celeste-tracker/config.toml` on Linux/WSL, `%APPDATA%\celeste-tracker\config.toml` on Windows). Later runs use it; flags still win, and `--no-mods` skips the Mods folder. The store (`tracker.db`: your notes and ratings, plus a cache of the Mods folder scan) and the mod list cache (`moddb.json`) sit next to it; `--offline` never downloads, `--refresh-moddb` downloads now. Without a config, the tool looks in the default Saves folder for your OS. Under WSL you need `--saves` or the config.
 

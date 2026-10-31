@@ -148,36 +148,38 @@ const passes = (m, v) => filtersOn().every((g) => {
 });
 const STATUS_RANK = { "in progress": 0, completed: 1, "not started": 2 };
 // Sort keys, each comparing in ascending order; FIRST_DIR is the direction a column starts in when clicked
-// (names A to Z, numbers high to low). Clicking the sorted column again flips it.
+// (names A to Z, numbers high to low). Clicking the sorted column again flips it. dir is the direction sorted in.
 const SORTS = {
   time: (a, b) => a.v.ticks - b.v.ticks,
   progress: (a, b) => a.v.sides_done / (a.v.sides_total || 1) - b.v.sides_done / (b.v.sides_total || 1),
   name: (a, b) => a.m.name.localeCompare(b.m.name),
   // A to Z; mods without an author (not on GameBanana) last, whichever way the column is sorted
-  author: (a, b) => (!a.m.author - !b.m.author) * (sortDir() === "asc" ? 1 : -1) || a.m.author.localeCompare(b.m.author),
+  author: (a, b, dir) => (!a.m.author - !b.m.author) * (dir === "asc" ? 1 : -1) || a.m.author.localeCompare(b.m.author),
   deaths: (a, b) => a.v.deaths - b.v.deaths,
   // the player's rating; mods not rated last, whichever way the column is sorted
-  rating: (a, b) => (!a.m.user.rating - !b.m.user.rating) * (sortDir() === "asc" ? 1 : -1) ||
+  rating: (a, b, dir) => (!a.m.user.rating - !b.m.user.rating) * (dir === "asc" ? 1 : -1) ||
     (a.m.user.rating || 0) - (b.m.user.rating || 0),
   // Beginner to Grandmaster; mods without one last, whichever way the column is sorted
-  difficulty: (a, b) => (!diffRank(a.m) - !diffRank(b.m)) * (sortDir() === "asc" ? 1 : -1) || diffRank(a.m) - diffRank(b.m),
+  difficulty: (a, b, dir) => (!diffRank(a.m) - !diffRank(b.m)) * (dir === "asc" ? 1 : -1) || diffRank(a.m) - diffRank(b.m),
   // the slot shown (All slots); mods not played in any slot last, whichever way the column is sorted
-  slot: (a, b) => (!a.v.slot - !b.v.slot) * (sortDir() === "asc" ? 1 : -1) || Number(a.v.slot) - Number(b.v.slot),
+  slot: (a, b, dir) => (!a.v.slot - !b.v.slot) * (dir === "asc" ? 1 : -1) || Number(a.v.slot) - Number(b.v.slot),
   // in progress, then completed, then not started; within one status, the most sides cleared first
-  status: (a, b) => STATUS_RANK[pageStatus(a.v.status)] - STATUS_RANK[pageStatus(b.v.status)] ||
-    (sortDir() === "asc" ? -1 : 1) * SORTS.progress(a, b),
+  status: (a, b, dir) => STATUS_RANK[pageStatus(a.v.status)] - STATUS_RANK[pageStatus(b.v.status)] ||
+    (dir === "asc" ? -1 : 1) * SORTS.progress(a, b),
 };
 const diffRank = (m) => DIFFICULTIES.indexOf(m.user.difficulty) + 1;  // 0: not set (or an old free-text value)
 const FIRST_DIR = { time: "desc", progress: "desc", name: "asc", author: "asc", deaths: "desc", rating: "desc", status: "asc", difficulty: "asc",
                     slot: "asc" };
 const sortDir = () => state.dir || FIRST_DIR[state.sort];
 
+const sorter = (key, dir) => (a, b) => (dir === "asc" ? 1 : -1) * SORTS[key](a, b, dir) || a.m.name.localeCompare(b.m.name);
+
 function visibleMods() {
   const needle = state.q.trim().toLowerCase();
   return state.data.mods
     .map((m) => ({ m, v: viewOf(m) }))
     .filter(({ m, v }) => passes(m, v) && (!needle || index.search[m.id].includes(needle)))
-    .sort((a, b) => (sortDir() === "asc" ? 1 : -1) * SORTS[state.sort](a, b) || a.m.name.localeCompare(b.m.name));
+    .sort(sorter(state.sort, sortDir()));
 }
 
 // ------------------------------------------------------------------ rendering
@@ -280,7 +282,8 @@ async function loadPrefs() {
     const p = r.ok ? await r.json() : {};
     const hidden = Array.isArray(p.hidden) ? p.hidden : DEFAULT_HIDDEN, known = Array.isArray(p.known) ? p.known : OLD_COLUMNS;
     prefs = { hidden: [...hidden, ...DEFAULT_HIDDEN.filter((id) => !known.includes(id) && !hidden.includes(id))],
-              widths: p.widths && typeof p.widths === "object" ? p.widths : {}, auto: Array.isArray(p.auto) ? p.auto : [] };
+              widths: p.widths && typeof p.widths === "object" ? p.widths : {}, auto: Array.isArray(p.auto) ? p.auto : [],
+              export: p.export && typeof p.export === "object" ? p.export : undefined };
   } catch { /* the defaults */ }
 }
 
@@ -296,6 +299,126 @@ function renderColumnsMenu() {
   $("cols").innerHTML = `<h4>From your saves</h4>` + COLUMNS.filter((c) => c.id !== "mod" && !c.mine).map(box).join("") +
     `<hr><h4>Yours</h4>` + COLUMNS.filter((c) => c.mine).map(box).join("") +
     `<button type="button" data-reset-cols>Reset columns</button>`;
+}
+
+// ------------------------------------------------------------------ export (docs/features/export-csv-xlsx.md)
+
+// The file's columns, as in export.py COLUMNS; page: the table column that ticks it at first. The server builds the
+// file; the page sends every mod (search and filters don't apply), in the order picked here.
+const EXPORT_COLUMNS = [
+  { id: "mod", label: "Mod", page: "mod" },
+  { id: "id", label: "Mod ID" },
+  { id: "author", label: "Author", page: "author" },
+  { id: "status", label: "Status", page: "sides" },
+  { id: "sides_done", label: "Sides cleared", page: "sides" },
+  { id: "sides_total", label: "Sides total", page: "sides" },
+  { id: "deaths", label: "Deaths", page: "deaths" },
+  { id: "time", label: "Time", page: "time" },
+  { id: "best", label: "Best", page: "best" },
+  { id: "berries", label: "Berries", page: "berries" },
+  { id: "checkpoint", label: "Checkpoint", page: "checkpoint" },
+  { id: "slot", label: "Slot", page: "slot" },
+  { id: "rating", label: "Rating", page: "rating", mine: true },
+  { id: "difficulty", label: "Difficulty", page: "difficulty", mine: true },
+  { id: "tags", label: "Tags", page: "tags", mine: true },
+  { id: "note", label: "Note", page: "note", mine: true },
+];
+const SORT_NAMES = { time: "Time played", progress: "Sides cleared", status: "Status", name: "Name", author: "Author",
+                     deaths: "Deaths", rating: "Your rating", difficulty: "Your difficulty", slot: "Slot" };
+// fmt and cols are kept with the page's settings once the player downloads; the sort starts as the table's.
+const exp = { fmt: "csv", cols: [], sort: "time", dir: "desc" };
+
+function openExport() {
+  // Each time the panel opens: the table's sort, and the columns last exported (at first, the ones shown).
+  const shown = shownCols().map((c) => c.id), saved = prefs.export || {};
+  exp.fmt = saved.fmt === "xlsx" ? "xlsx" : "csv";
+  exp.cols = Array.isArray(saved.cols) ? saved.cols.filter((id) => EXPORT_COLUMNS.some((c) => c.id === id))  // none from an older page
+    : EXPORT_COLUMNS.filter((c) => shown.includes(c.page)).map((c) => c.id);
+  // The table can still be sorted by Slot after picking one slot, where the panel doesn't offer it.
+  const offered = state.sort !== "slot" || state.key === "all";
+  exp.sort = offered ? state.sort : "time";
+  exp.dir = offered ? sortDir() : FIRST_DIR.time;
+  renderExport();
+}
+
+function renderExport() {
+  const all = state.key === "all", n = state.data?.mods.length || 0;
+  const box = (c) => {
+    const off = c.id === "slot" && !all, on = c.id === "mod" || (exp.cols.includes(c.id) && !off);
+    return `<label${off ? ' class="muted" title="Only with All slots"' : ""}><input type="checkbox" data-xcol="${c.id}"` +
+      `${on ? " checked" : ""}${c.id === "mod" || off ? " disabled" : ""}> ${c.label}</label>`;
+  };
+  const fmt = (id, label) => `<button type="button" class="opt" data-xfmt="${id}" aria-pressed="${exp.fmt === id}">${label}</button>`;
+  const words = exp.sort === "name" || exp.sort === "author" ? ["A to Z", "Z to A"]
+    : exp.sort === "status" ? ["In progress first", "Not started first"] : ["Lowest first", "Highest first"];
+  $("export").innerHTML = `
+    <span class="lab">Format</span><div class="opts">${fmt("csv", "CSV")}${fmt("xlsx", "Excel")}</div>
+    <span class="lab">Columns</span>
+    <div class="xcols">
+      <div>${EXPORT_COLUMNS.filter((c) => !c.mine).map(box).join("")}</div>
+      <div><h4>Yours</h4>${EXPORT_COLUMNS.filter((c) => c.mine).map(box).join("")}</div>
+    </div>
+    <span class="lab">Sort by</span>
+    <div class="opts">
+      <select data-xsort aria-label="Sort by">${Object.entries(SORT_NAMES).filter(([k]) => k !== "slot" || all)
+        .map(([k, label]) => `<option value="${k}"${k === exp.sort ? " selected" : ""}>${label}</option>`).join("")}</select>
+      <select data-xdir aria-label="Order">${["asc", "desc"].map((d, i) =>
+        `<option value="${d}"${d === exp.dir ? " selected" : ""}>${words[i]}</option>`).join("")}</select>
+    </div>
+    <hr>
+    <div class="foot"><span id="export-msg">All ${fmtNum(n)} mods${all ? ", each from its furthest slot" : ` in slot ${esc(state.key)}`}.
+      Search and filters don't apply.</span>
+      <button type="button" class="primary" data-download>Download</button></div>`;
+}
+
+async function download() {
+  const btn = document.querySelector("[data-download]"), msg = $("export-msg");
+  const cols = ["mod", ...exp.cols.filter((c) => c !== "mod" && (c !== "slot" || state.key === "all"))];
+  const ids = state.data.mods.map((m) => ({ m, v: viewOf(m) })).sort(sorter(exp.sort, exp.dir)).map(({ m }) => m.id);
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/export", {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Celeste-Tracker": "1" },
+      body: JSON.stringify({ fmt: exp.fmt, slot: state.key, cols, ids }),
+    });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `the server answered ${r.status}`);
+    const blob = await r.blob();
+    const name = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "")?.[1] || `celeste-progress.${exp.fmt}`;
+    prefs.export = { fmt: exp.fmt, cols: exp.cols };
+    savePrefs();
+    // The desktop window can't save a download itself: it asks where, and writes the file (desktop.py).
+    const api = window.pywebview?.api;
+    if (api?.save_file) {
+      const where = await api.save_file(name, await base64(blob));
+      if (!where) {  // the player cancelled the Save dialog: nothing was written, so the panel stays
+        msg.textContent = "Not saved.";
+        btn.disabled = false;
+        return;
+      }
+      showNotice(`Saved <b>${esc(where)}</b>`);
+    } else {
+      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: name });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+    }
+    $("export-menu").open = false;
+  } catch (e) {
+    msg.textContent = `Couldn't export: ${e.message}`;
+    msg.classList.add("error-text");
+    btn.disabled = false;
+  }
+}
+
+const base64 = (blob) => new Promise((ok, fail) => {
+  const r = new FileReader();
+  r.onload = () => ok(String(r.result).split(",", 2)[1]);
+  r.onerror = () => fail(r.error);
+  r.readAsDataURL(blob);
+});
+
+function showNotice(html) {
+  $("notice").innerHTML = `<span>${html}</span><button type="button" data-notice-ok>OK</button>`;
+  $("notice").hidden = false;
 }
 
 function checkpointCell(v, where = "") {
@@ -908,12 +1031,25 @@ $("cols").addEventListener("change", (e) => {
 });
 $("cols").addEventListener("click", (e) => {
   if (!e.target.closest("[data-reset-cols]")) return;
-  prefs = { hidden: DEFAULT_HIDDEN, widths: {}, auto: prefs.auto };
+  prefs = { hidden: DEFAULT_HIDDEN, widths: {}, auto: prefs.auto, export: prefs.export };
   savePrefs();
   render();
 });
-// The Columns and Filter menus close on a click anywhere else, or Escape.
-const MENUS = ["cols-menu", "filter-menu"];
+// The Export panel: drawn when it opens, and again when a choice changes what it offers.
+$("export-menu").addEventListener("toggle", (e) => { if (e.target.open && state.data) openExport(); });
+$("export").addEventListener("change", (e) => {
+  const col = e.target.dataset.xcol;
+  if (col) exp.cols = e.target.checked ? [...exp.cols, col] : exp.cols.filter((c) => c !== col);
+  else if (e.target.matches("[data-xsort]")) { exp.sort = e.target.value; exp.dir = FIRST_DIR[exp.sort]; renderExport(); }
+  else if (e.target.matches("[data-xdir]")) exp.dir = e.target.value;
+});
+$("export").addEventListener("click", (e) => {
+  const fmt = e.target.closest("[data-xfmt]");
+  if (fmt) { exp.fmt = fmt.dataset.xfmt; renderExport(); }
+  if (e.target.closest("[data-download]")) download();
+});
+// The Columns, Filter and Export menus close on a click anywhere else, or Escape.
+const MENUS = ["cols-menu", "filter-menu", "export-menu"];
 document.addEventListener("click", (e) => {
   // composedPath, not contains: a click in the Filter panel redraws it, so the clicked button is gone by now
   for (const id of MENUS) if ($(id).open && !e.composedPath().includes($(id))) $(id).open = false;

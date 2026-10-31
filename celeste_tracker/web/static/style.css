@@ -168,6 +168,27 @@ button:hover { border-color: var(--summit); }
 .opt small { color: var(--muted); margin-left: 4px; font-size: 11px; }
 .opt[aria-pressed=true] { border-color: var(--summit); background: var(--hover); color: var(--summit); font-weight: 600; }
 .opt[aria-pressed=true] small { color: var(--summit); }
+/* The Export menu (docs/features/export-csv-xlsx.md): the Filter panel's layout, with the Columns menu's checkboxes
+   in two columns, saves and yours. */
+.export-menu { position: relative; }
+.export-menu summary {
+  list-style: none; cursor: pointer; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); color: var(--muted);
+}
+.export-menu summary::-webkit-details-marker { display: none; }
+.export-menu summary::after { content: " ▾"; font-size: 11px; }
+.export-menu summary:hover, .export-menu[open] summary { border-color: var(--summit); color: var(--ink); }
+.xpanel { width: min(420px, calc(100vw - 32px)); }
+.xpanel .lab { padding-top: 4px; }
+.xcols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.xcols > div { display: grid; align-content: start; }
+.xcols label { padding: 2px 6px; border-radius: 4px; cursor: pointer; }
+.xcols label:hover { background: var(--hover); }
+.xcols label.muted { color: var(--faint); cursor: default; }
+.xcols label.muted:hover { background: none; }
+.xcols h4 { margin: 3px 6px 2px; font-size: 11px; font-weight: 700; color: var(--muted); }
+.xpanel .foot button.primary { background: var(--summit); border-color: var(--summit); color: var(--chip-ink); font-weight: 600; padding: 4px 14px; }
+.xpanel .foot .error-text { color: #c0392b; }
 /* The filters on, as chips under the toolbar. */
 .chips { margin: -2px var(--gutter) 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
 .chips[hidden] { display: none; }
